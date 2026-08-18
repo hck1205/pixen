@@ -8,6 +8,7 @@ import {
   createScene,
   createTextLayer,
   CROP_HANDLES,
+  REDACTION_COLOUR,
   Editor,
   invert,
   layerBounds,
@@ -476,7 +477,7 @@ export class Viewport {
         break;
       }
       case "redact": {
-        const layer = createRectLayer(frame, { stroke: null, fill: "#101114" });
+        const layer = createRectLayer(frame, { stroke: null, fill: REDACTION_COLOUR });
         this.#editor.addLayer(layer);
         this.#gesture = { kind: "draw-shape", id: layer.id, origin, tool: "redact" };
         break;

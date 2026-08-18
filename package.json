@@ -15,7 +15,8 @@
     "test:browser": "playwright test",
     "playground": "pnpm --filter @pixen/playground dev",
     "playground:build": "pnpm --filter @pixen/playground build",
-    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo apps/*/dist test-results playwright-report"
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo apps/*/dist test-results playwright-report",
+    "check:independence": "node scripts/independence-scan.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

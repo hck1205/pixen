@@ -137,11 +137,21 @@ pnpm install
 pnpm build          # build all three packages
 pnpm test           # unit tests (vitest, node)
 pnpm test:browser   # Playwright tests against the built playground
+pnpm check:independence  # third-party name / dependency / vendored-code scan
 pnpm playground     # http://localhost:5173
 ```
 
 `PIXEN_CHROMIUM_PATH` points the browser suite at an existing Chromium if the
 environment already ships one.
+
+## Independence
+
+Pixen is written from web platform specifications, the Exif/TIFF format
+specification and first principles — no other image editor or editing library
+was used as a reference, and the published packages carry **zero third-party
+runtime dependencies**. Per-module sources are recorded in
+[docs/PROVENANCE.md](docs/PROVENANCE.md), and `scripts/independence-scan.mjs`
+enforces it on every test run and in CI.
 
 ## Documentation
 
@@ -151,7 +161,10 @@ environment already ships one.
   migration policy
 - [Roadmap](docs/ROADMAP.md) — what ships when, and what is deliberately out
 - [Security](docs/SECURITY.md) — input handling, redaction, privacy
-- [Legal checklist](docs/LEGAL-CHECKLIST.md) — pre-release review list
+- [Provenance](docs/PROVENANCE.md) — where every non-obvious algorithm comes from
+- [Contributing](CONTRIBUTING.md) — the clean-room and dependency rules
+- [Legal checklist](docs/LEGAL-CHECKLIST.md) — pre-release review list, with the
+  latest independence audit
 
 ## Privacy
 

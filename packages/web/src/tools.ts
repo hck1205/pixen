@@ -1,4 +1,9 @@
-import type { Stroke } from "@pixen/core";
+import {
+  DEFAULT_ANNOTATION_COLOUR,
+  DEFAULT_FONT_RATIO,
+  DEFAULT_STROKE_RATIO,
+  type Stroke,
+} from "@pixen/core";
 
 export type ToolId = "crop" | "select" | "rect" | "ellipse" | "arrow" | "draw" | "text" | "redact";
 
@@ -25,9 +30,9 @@ export interface AnnotationStyle {
 }
 
 export const DEFAULT_STYLE: AnnotationStyle = {
-  colour: "#ff4d4f",
-  widthRatio: 0.005,
-  fontRatio: 0.045,
+  colour: DEFAULT_ANNOTATION_COLOUR,
+  widthRatio: DEFAULT_STROKE_RATIO,
+  fontRatio: DEFAULT_FONT_RATIO,
 };
 
 export function strokeFor(style: AnnotationStyle, imageLongestEdge: number): Stroke {

@@ -45,7 +45,9 @@ export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments
     g = g * contrast + contrastOffset;
     b = b * contrast + contrastOffset;
 
-    // Rec. 601 luma, the same weighting the CSS saturate() matrix uses.
+    // Luminance coefficients from the saturate() colour matrix in the W3C
+    // Filter Effects specification, so the fallback matches what the browser's
+    // own filter would have produced.
     const luma = 0.213 * r + 0.715 * g + 0.072 * b;
     r = luma + (r - luma) * saturation;
     g = luma + (g - luma) * saturation;

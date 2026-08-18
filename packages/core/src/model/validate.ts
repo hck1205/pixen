@@ -1,5 +1,6 @@
 import { PixenError } from "../errors/index.js";
 import type { Point, Rect } from "../geometry/types.js";
+import { DEFAULT_STROKE } from "./layers.js";
 import type { EditorDocument, EditorLayer } from "./types.js";
 
 function fail(path: string, expected: string): never {
@@ -75,7 +76,7 @@ function layer(value: unknown, path: string): EditorLayer {
         type: "line",
         from: point(value.from, `${path}.from`),
         to: point(value.to, `${path}.to`),
-        stroke: (value.stroke ?? { color: "#ff3b30", width: 8 }) as never,
+        stroke: (value.stroke ?? { ...DEFAULT_STROKE }) as never,
         arrowStart: bool(value.arrowStart ?? false, `${path}.arrowStart`),
         arrowEnd: bool(value.arrowEnd ?? false, `${path}.arrowEnd`),
       } as EditorLayer;
@@ -85,7 +86,7 @@ function layer(value: unknown, path: string): EditorLayer {
         ...base,
         type: "path",
         points: value.points.map((p, i) => point(p, `${path}.points[${i}]`)),
-        stroke: (value.stroke ?? { color: "#ff3b30", width: 8 }) as never,
+        stroke: (value.stroke ?? { ...DEFAULT_STROKE }) as never,
         closed: bool(value.closed ?? false, `${path}.closed`),
       } as EditorLayer;
     }

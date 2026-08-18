@@ -23,6 +23,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Independence scan
+        run: pnpm check:independence
+
       - name: Build packages
         run: pnpm build
 

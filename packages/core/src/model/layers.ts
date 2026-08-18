@@ -1,5 +1,6 @@
 import type { Point, Rect } from "../geometry/types.js";
 import { createId } from "../util/id.js";
+import { DEFAULT_ANNOTATION_COLOUR } from "./palette.js";
 import type {
   EditorLayer,
   EllipseLayer,
@@ -17,7 +18,10 @@ const layerDefaults = {
   rotation: 0,
 } as const;
 
-export const DEFAULT_STROKE: Readonly<Stroke> = Object.freeze({ color: "#ff3b30", width: 8 });
+export const DEFAULT_STROKE: Readonly<Stroke> = Object.freeze({
+  color: DEFAULT_ANNOTATION_COLOUR,
+  width: 8,
+});
 
 export function createRectLayer(frame: Rect, options: Partial<RectLayer> = {}): RectLayer {
   return {

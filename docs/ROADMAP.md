@@ -52,7 +52,7 @@ unit tests and a browser suite driving the real bundle.
 
 ## Deliberately out of scope for now
 
-Video editing, generative fill, a Photoshop-grade layer system, RAW and PSD
-input, advanced typography, real-time collaboration, WebGPU, and native mobile
-SDKs. Each is a product of its own, and none of them is what makes the first
-release useful.
+Video editing, generative fill, a full multi-layer compositing system, camera
+raw and layered-source formats, advanced typography, real-time collaboration,
+WebGPU, and native mobile SDKs. Each is a product of its own, and none of them
+is what makes the first release useful.
