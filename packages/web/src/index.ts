@@ -25,6 +25,8 @@ export {
 export { Viewport, type ViewportCallbacks } from "./viewport.js";
 export * from "./gestures.js";
 export * from "./overlay.js";
+export * from "./labels.js";
+export * from "./view.js";
 
 declare global {
   interface HTMLElementTagNameMap {

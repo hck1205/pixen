@@ -17,6 +17,7 @@ adapters over that element. You can use any layer on its own.
 | `@pixen/core` | The engine: document model, geometry, history, renderer, export pipeline, headless processing |
 | `@pixen/web` | `<pixen-image-editor>`, the framework-agnostic UI |
 | `@pixen/react` | React bindings for the element |
+| `@pixen/vue` | Vue 3 bindings for the element |
 
 ## Quick start — the element
 
@@ -67,6 +68,21 @@ export function AvatarEditor({ file, onSave }) {
   );
 }
 ```
+
+## Quick start — Vue
+
+```vue
+<script setup>
+import { PixenImageEditor } from "@pixen/vue";
+</script>
+
+<template>
+  <PixenImageEditor src="/photo.jpg" policy="profile" @export="upload($event.blob)" />
+</template>
+```
+
+Svelte, Angular, Solid, Lit, Astro and plain HTML need no wrapper at all — see
+[FRAMEWORKS.md](docs/FRAMEWORKS.md).
 
 ## Quick start — headless
 
@@ -155,6 +171,7 @@ pnpm test           # unit tests (vitest, node)
 pnpm test:browser   # Playwright tests against the built playground
 pnpm check:independence  # third-party name / dependency / vendored-code scan
 pnpm playground     # http://localhost:5173
+pnpm stories        # Ladle story browser, http://localhost:61000
 ```
 
 `PIXEN_CHROMIUM_PATH` points the browser suite at an existing Chromium if the
@@ -176,9 +193,15 @@ enforces it on every test run and in CI.
 - [Document schema](docs/DOCUMENT-SCHEMA.md) — the serialised contract and its
   migration policy
 - [Roadmap](docs/ROADMAP.md) — what ships when, and what is deliberately out
+- [Frameworks](docs/FRAMEWORKS.md) — React, Vue, Svelte, Angular, Solid, Lit,
+  Astro, plain HTML, and server rendering
+- [Browser support](docs/BROWSER-SUPPORT.md) — supported versions, what degrades
+  where, and how to check at runtime
 - [Security](docs/SECURITY.md) — input handling, redaction, privacy
 - [Provenance](docs/PROVENANCE.md) — where every non-obvious algorithm comes from
 - [Contributing](CONTRIBUTING.md) — the clean-room and dependency rules
+- **Stories** (`pnpm stories`) — every UI state on one page: themes, tools,
+  policies, locales, slots, tokens, and the compact layouts
 - [Legal checklist](docs/LEGAL-CHECKLIST.md) — pre-release review list, with the
   latest independence audit
 

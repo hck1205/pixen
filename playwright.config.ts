@@ -14,6 +14,26 @@ const executablePath = existsSync(chromiumPath) ? chromiumPath : undefined;
  * customer integrates. Unit tests cover the maths; these cover the parts only a
  * real engine can answer — canvas rendering, pointer gestures, encoding.
  */
+const BROWSER_PROJECTS = {
+  chromium: { name: "chromium", use: { ...devices["Desktop Chrome"], channel: undefined } },
+  firefox: { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+  webkit: { name: "webkit", use: { ...devices["Desktop Safari"] } },
+  "mobile-chrome": { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
+  "mobile-safari": { name: "mobile-safari", use: { ...devices["iPhone 14"] } },
+} as const;
+
+function selectedProjects() {
+  const requested = (process.env.PIXEN_BROWSERS ?? "chromium").split(",").map((name) => name.trim());
+  const names =
+    requested.includes("all") ? (Object.keys(BROWSER_PROJECTS) as Array<keyof typeof BROWSER_PROJECTS>) : requested;
+
+  const projects = names
+    .map((name) => BROWSER_PROJECTS[name as keyof typeof BROWSER_PROJECTS])
+    .filter((project): project is (typeof BROWSER_PROJECTS)[keyof typeof BROWSER_PROJECTS] => Boolean(project));
+
+  return projects.length > 0 ? projects : [BROWSER_PROJECTS.chromium];
+}
+
 export default defineConfig({
   testDir: "tests/browser",
   fullyParallel: true,
@@ -21,9 +41,17 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     trace: "retain-on-failure",
-    ...(executablePath ? { launchOptions: { executablePath } } : {}),
+    ...(executablePath && (process.env.PIXEN_BROWSERS ?? "chromium") === "chromium"
+      ? { launchOptions: { executablePath } }
+      : {}),
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: undefined } }],
+  /**
+   * Chromium runs everywhere by default. `PIXEN_BROWSERS=all` (or a comma
+   * separated list) adds WebKit and Firefox, which is how the support matrix in
+   * docs/BROWSER-SUPPORT.md is checked before a release. WebKit stands in for
+   * Safari; it is not Safari, so device testing still matters.
+   */
+  projects: selectedProjects(),
   webServer: {
     command: "pnpm --filter @pixen/playground preview -- --port 4173 --strictPort",
     url: "http://127.0.0.1:4173",

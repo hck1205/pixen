@@ -33,6 +33,11 @@ export interface PixenStrings {
   emptyBody: string;
   choose: string;
   textPlaceholder: string;
+  toolbarTools: string;
+  toolbarActions: string;
+  toolbarOptions: string;
+  zoomLevel: string;
+  adjustments: string;
 }
 
 export const en: PixenStrings = {
@@ -70,6 +75,11 @@ export const en: PixenStrings = {
   emptyBody: "Drop a file here, paste from the clipboard, or choose one.",
   choose: "Choose image",
   textPlaceholder: "Type here",
+  toolbarTools: "Tools",
+  toolbarActions: "Actions",
+  toolbarOptions: "Options",
+  zoomLevel: "Zoom",
+  adjustments: "Adjustments",
 };
 
 export const ko: PixenStrings = {
@@ -107,6 +117,11 @@ export const ko: PixenStrings = {
   emptyBody: "파일을 끌어다 놓거나 붙여넣거나 선택하세요.",
   choose: "이미지 선택",
   textPlaceholder: "내용 입력",
+  toolbarTools: "도구",
+  toolbarActions: "작업",
+  toolbarOptions: "옵션",
+  zoomLevel: "확대",
+  adjustments: "색 보정",
 };
 
 const locales = new Map<string, PixenStrings>([

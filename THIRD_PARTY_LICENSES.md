@@ -18,9 +18,12 @@ Not distributed with the packages; listed for completeness.
 | typescript | Apache-2.0 | compiler |
 | vitest | MIT | unit tests |
 | @playwright/test | Apache-2.0 | browser tests |
-| vite | MIT | playground dev server and build |
+| vite | MIT | playground and stories dev server and build |
+| @ladle/react | MIT | story browser for visual UI review |
+| react-dom | MIT | rendering the stories |
 | @types/node, @types/react | MIT | type definitions |
 | react | MIT | React wrapper development and typing |
+| vue | MIT | Vue wrapper development and typing |
 
 Regenerate this table when dependencies change; automating it (licence scan plus
 SBOM in CI) is on the pre-release checklist.

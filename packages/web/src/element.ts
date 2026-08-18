@@ -2,6 +2,7 @@ import {
   applyPolicy,
   Editor,
   isPixenError,
+  isPristine,
   PixenError,
   type EditorDocument,
   type EditorLayer,
@@ -12,6 +13,7 @@ import {
   type PresetName,
 } from "@pixen/core";
 import { icons, type IconName } from "./icons.js";
+import { isAppleShortcutPlatform, redoLabel, sizeLabel, undoLabel, zoomLabel } from "./labels.js";
 import { resolveStrings, type PixenStrings } from "./i18n.js";
 import { styles } from "./styles.js";
 import { DEFAULT_STYLE, normaliseTools, type AnnotationStyle, type ToolDefinition, type ToolId } from "./tools.js";
@@ -49,7 +51,17 @@ const TOOL_META: Record<ToolId, { icon: IconName; key: keyof PixenStrings; short
  * settings are attributes; anything structured (tools, policies, documents) is a
  * property, because serialising objects through HTML attributes is a trap.
  */
-export class PixenImageEditorElement extends HTMLElement {
+/**
+ * `HTMLElement` does not exist while a page is being rendered on a server, and
+ * `class X extends undefined` throws at module evaluation — which would break
+ * every framework with server rendering the moment someone imported this package
+ * from a shared module. Extending a stand-in keeps the import safe; the class is
+ * only ever instantiated by the browser, which has the real one.
+ */
+const ElementBase: typeof HTMLElement =
+  typeof HTMLElement === "undefined" ? (class {} as unknown as typeof HTMLElement) : HTMLElement;
+
+export class PixenImageEditorElement extends ElementBase {
   static get observedAttributes(): string[] {
     return ["src", "theme", "locale", "format", "quality", "preset"];
   }
@@ -76,6 +88,10 @@ export class PixenImageEditorElement extends HTMLElement {
   #busy = false;
   #pendingSrc: string | null = null;
   #loadToken = 0;
+  #statusHost!: HTMLElement;
+  /** Readout nodes are updated in place so a drag does not rebuild the chrome. */
+  #readouts: { zoom?: HTMLElement; size?: HTMLElement } = {};
+  #apple = isAppleShortcutPlatform(typeof navigator === "undefined" ? "" : navigator.platform);
   #unsubscribe: Array<() => void> = [];
 
   constructor() {
@@ -95,12 +111,14 @@ export class PixenImageEditorElement extends HTMLElement {
     this.#dropHost = this.#root.querySelector(".dropzone")!;
     this.#busyHost = this.#root.querySelector(".busy")!;
     this.#fileInput = this.#root.querySelector("input[type=file]")!;
+    this.#statusHost = this.#root.querySelector(".status")!;
 
     if (!this.hasAttribute("tabindex")) this.setAttribute("tabindex", "0");
     if (!this.hasAttribute("theme")) this.setAttribute("theme", "dark");
 
     this.#viewport = new Viewport(this.#canvas, this.editor, {
       onChange: () => this.#syncUI(),
+      onViewChange: () => this.#updateReadouts(),
       onTextCreated: (id) => this.#focusTextField(id),
     });
     this.#viewport.style = this.#annotationStyle;
@@ -108,7 +126,12 @@ export class PixenImageEditorElement extends HTMLElement {
     this.#unsubscribe.push(
       this.editor.on("change", (event) => {
         this.#emit("pixen-change", { document: event.document, reason: event.reason, transient: event.transient });
-        if (!event.transient) this.#syncUI();
+        // A drag emits transient changes at pointer speed. Rebuilding the
+        // inspector for each one would be wasteful and would steal focus, but
+        // the readouts have to keep up — a crop with a stale size is worse than
+        // no size at all.
+        if (event.transient) this.#updateReadouts();
+        else this.#syncUI();
       }),
       this.editor.on("history", (state) => this.#emit("pixen-history", state)),
       this.editor.on("selection", () => this.#syncUI()),
@@ -356,9 +379,11 @@ export class PixenImageEditorElement extends HTMLElement {
         return button({
           icon: meta.icon,
           label: `${s[meta.key]} (${meta.shortcut.toUpperCase()})`,
+          keyShortcuts: meta.shortcut,
           onClick: () => {
             this.#panel = "tool";
             this.tool = tool.id;
+            this.#announce(s[meta.key]);
           },
           dataset: { tool: tool.id },
         });
@@ -366,18 +391,35 @@ export class PixenImageEditorElement extends HTMLElement {
       divider(),
       button({
         icon: "tune",
-        label: s.brightness,
+        label: s.adjustments,
         onClick: () => {
           this.#panel = this.#panel === "adjust" ? "tool" : "adjust";
+          this.#announce(this.#panel === "adjust" ? s.adjustments : s[TOOL_META[this.tool]?.key ?? "crop"]);
           this.#syncUI();
         },
         dataset: { panel: "adjust" },
       }),
     );
 
+    this.#actionsHost.setAttribute("aria-label", s.toolbarActions);
+    this.#railHost.setAttribute("aria-label", s.toolbarTools);
+    this.#inspectorHost.setAttribute("aria-label", s.toolbarOptions);
+
     this.#actionsHost.replaceChildren(
-      button({ icon: "undo", label: s.undo, onClick: () => this.undo(), dataset: { action: "undo" } }),
-      button({ icon: "redo", label: s.redo, onClick: () => this.redo(), dataset: { action: "redo" } }),
+      button({
+        icon: "undo",
+        label: undoLabel(s, null, this.#apple),
+        onClick: () => this.undo(),
+        dataset: { action: "undo" },
+        keyShortcuts: "Control+Z Meta+Z",
+      }),
+      button({
+        icon: "redo",
+        label: redoLabel(s, null, this.#apple),
+        onClick: () => this.redo(),
+        dataset: { action: "redo" },
+        keyShortcuts: "Control+Shift+Z Meta+Shift+Z",
+      }),
       button({ icon: "reset", label: s.reset, onClick: () => this.reset(), dataset: { action: "reset" } }),
       divider(),
       button({
@@ -424,13 +466,41 @@ export class PixenImageEditorElement extends HTMLElement {
 
     setDisabled(this.#actionsHost, "undo", !history?.canUndo);
     setDisabled(this.#actionsHost, "redo", !history?.canRedo);
-    setDisabled(this.#actionsHost, "reset", !ready);
+    // Reset is meaningless on an untouched document, and a live disabled state
+    // is a cheaper answer than letting someone press it and see nothing happen.
+    setDisabled(this.#actionsHost, "reset", !ready || (ready && isPristine(this.editor.document)));
     setDisabled(this.#actionsHost, "export", !ready || this.#busy);
 
+    relabel(this.#actionsHost, "undo", undoLabel(this.#strings, history, this.#apple));
+    relabel(this.#actionsHost, "redo", redoLabel(this.#strings, history, this.#apple));
+
+    this.#readouts = {};
     this.#inspectorHost.replaceChildren(...(ready ? this.#buildInspector() : []));
+    this.#updateReadouts();
+  }
+
+  /** Cheap text-only refresh, safe to run at pointer speed. */
+  #updateReadouts(): void {
+    if (!this.editor.ready) return;
+    if (this.#readouts.size) this.#readouts.size.textContent = sizeLabel(this.editor.outputSize);
+    if (this.#readouts.zoom) this.#readouts.zoom.textContent = zoomLabel(this.#viewport?.zoom ?? 1);
+  }
+
+  /** Announces tool changes to assistive technology without moving focus. */
+  #announce(message: string): void {
+    if (!this.#statusHost) return;
+    this.#statusHost.textContent = message;
   }
 
   #buildInspector(): Node[] {
+    const s = this.#strings;
+    const contextual = this.#contextualControls();
+    // Zoom belongs to the viewport, not to any one tool, so it stays put while
+    // the rest of the inspector changes under it.
+    return [...contextual, divider(), ...this.#viewControls()];
+  }
+
+  #contextualControls(): Node[] {
     const s = this.#strings;
     if (this.#panel === "adjust") return this.#adjustmentControls();
 
@@ -445,10 +515,26 @@ export class PixenImageEditorElement extends HTMLElement {
       case "text":
         return [hint(s.textPlaceholder), ...this.#styleControls(false)];
       case "redact":
-        return [hint(s.redact)];
+        return [hint(s.redact), ...this.#styleControls(false)];
       default:
         return this.#styleControls(true);
     }
+  }
+
+  #viewControls(): Node[] {
+    const s = this.#strings;
+    const zoom = readout(zoomLabel(this.#viewport?.zoom ?? 1));
+    const size = readout(sizeLabel(this.editor.outputSize));
+    this.#readouts = { zoom, size };
+
+    return [
+      button({ icon: "zoomOut", label: s.zoomOut, onClick: () => this.#viewport?.zoomBy(1 / 1.25) }),
+      zoom,
+      button({ icon: "zoomIn", label: s.zoomIn, onClick: () => this.#viewport?.zoomBy(1.25) }),
+      button({ icon: "fit", label: `${s.zoomFit} (${this.#apple ? "⌘0" : "Ctrl+0"})`, onClick: () => this.zoomToFit() }),
+      divider(),
+      size,
+    ];
   }
 
   #cropControls(): Node[] {
@@ -465,17 +551,12 @@ export class PixenImageEditorElement extends HTMLElement {
     );
 
     return [
-      field(s.aspectRatio, ...ratioButtons),
+      ...ratioButtons,
       divider(),
       button({ icon: "rotateLeft", label: s.rotateLeft, onClick: () => this.rotateLeft() }),
       button({ icon: "rotateRight", label: s.rotateRight, onClick: () => this.rotateRight() }),
       button({ icon: "flipHorizontal", label: s.flipHorizontal, onClick: () => this.flipHorizontal() }),
       button({ icon: "flipVertical", label: s.flipVertical, onClick: () => this.flipVertical() }),
-      divider(),
-      button({ icon: "zoomOut", label: s.zoomOut, onClick: () => this.#viewport?.zoomBy(1 / 1.25) }),
-      button({ icon: "fit", label: s.zoomFit, onClick: () => this.zoomToFit() }),
-      button({ icon: "zoomIn", label: s.zoomIn, onClick: () => this.#viewport?.zoomBy(1.25) }),
-      readout(`${this.editor.outputSize.width} × ${this.editor.outputSize.height}`),
     ];
   }
 
@@ -590,6 +671,8 @@ export class PixenImageEditorElement extends HTMLElement {
     this.#busy = busy;
     this.#busyHost.hidden = !busy;
     this.#busyHost.textContent = this.#strings.exporting;
+    this.toggleAttribute("busy", busy);
+    this.setAttribute("aria-busy", String(busy));
     setDisabled(this.#actionsHost, "export", busy || !this.editor.ready);
   }
 
@@ -713,6 +796,7 @@ function template(): string {
   <div class="empty" part="empty"></div>
   <div class="dropzone" part="dropzone" hidden></div>
   <div class="busy" part="busy" role="status" hidden></div>
+  <div class="status sr-only" role="status" aria-live="polite"></div>
   <input type="file" accept="image/*" class="sr-only" tabindex="-1" aria-hidden="true">
 </div>`;
 }
@@ -725,6 +809,8 @@ interface ButtonSpec {
   active?: boolean;
   onClick: () => void;
   dataset?: Record<string, string>;
+  /** Announced by screen readers as the control's keyboard shortcut. */
+  keyShortcuts?: string;
 }
 
 function button(spec: ButtonSpec): HTMLButtonElement {
@@ -732,6 +818,7 @@ function button(spec: ButtonSpec): HTMLButtonElement {
   element.type = "button";
   element.title = spec.label;
   element.setAttribute("aria-label", spec.label);
+  if (spec.keyShortcuts) element.setAttribute("aria-keyshortcuts", spec.keyShortcuts);
   if (spec.className) element.className = spec.className;
   if (spec.active) element.classList.add("active");
   if (spec.icon) element.appendChild(fragmentFromHTML(icons[spec.icon]));
@@ -805,6 +892,14 @@ function fragmentFromHTML(markup: string): Node {
   host.style.display = "contents";
   host.innerHTML = markup;
   return host;
+}
+
+/** Keeps a button's tooltip and accessible name in step with the state. */
+function relabel(host: HTMLElement, action: string, label: string): void {
+  const control = host.querySelector<HTMLButtonElement>(`button[data-action=${action}]`);
+  if (!control) return;
+  control.title = label;
+  control.setAttribute("aria-label", label);
 }
 
 function setDisabled(host: HTMLElement, action: string, disabled: boolean): void {

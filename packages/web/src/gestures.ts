@@ -7,6 +7,7 @@ import {
   createTextLayer,
   CROP_HANDLES,
   invert,
+  last,
   layerBounds,
   REDACTION_COLOUR,
   type CropHandle,
@@ -398,7 +399,7 @@ export function moveGesture(
 
     case "draw-path": {
       const point = screenToImage(context, sample.point);
-      const previous = state.points.at(-1)!;
+      const previous = last(state.points)!;
       // Samples the smoothing would not notice are dropped, so a long stroke
       // stays a small document.
       if (Math.hypot(point.x - previous.x, point.y - previous.y) < context.imageLongestEdge * PATH_SAMPLE_RATIO) {

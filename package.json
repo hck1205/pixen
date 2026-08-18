@@ -8,20 +8,30 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -b packages/core packages/web packages/react",
-    "typecheck": "tsc -b packages/core packages/web packages/react",
+    "build": "tsc -b packages/core packages/web packages/react packages/vue",
+    "typecheck": "tsc -b packages/core packages/web packages/react packages/vue",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "playwright test",
     "playground": "pnpm --filter @pixen/playground dev",
     "playground:build": "pnpm --filter @pixen/playground build",
-    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo apps/*/dist test-results playwright-report",
-    "check:independence": "node scripts/independence-scan.mjs"
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo apps/*/dist apps/stories/build test-results playwright-report",
+    "check:independence": "node scripts/independence-scan.mjs",
+    "stories": "pnpm --filter @pixen/stories dev",
+    "stories:build": "pnpm --filter @pixen/stories build"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
-  }
+  },
+  "browserslist": [
+    "chrome >= 84",
+    "edge >= 84",
+    "firefox >= 90",
+    "safari >= 15",
+    "ios_saf >= 15",
+    "not dead"
+  ]
 }
