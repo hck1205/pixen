@@ -1,0 +1,88 @@
+import { describe, expect, it } from "vitest";
+import { en, ko } from "../src/i18n.js";
+import {
+  isAppleShortcutPlatform,
+  modifierLabel,
+  redoLabel,
+  sizeLabel,
+  undoLabel,
+  zoomLabel,
+} from "../src/labels.js";
+import type { HistorySummary } from "@pixen/core";
+
+const history = (overrides: Partial<HistorySummary> = {}): HistorySummary => ({
+  canUndo: false,
+  canRedo: false,
+  undoLabel: null,
+  redoLabel: null,
+  depth: 0,
+  inTransaction: false,
+  ...overrides,
+});
+
+describe("platform modifier", () => {
+  it("recognises Apple platforms", () => {
+    expect(isAppleShortcutPlatform("MacIntel")).toBe(true);
+    expect(isAppleShortcutPlatform("iPhone")).toBe(true);
+    expect(isAppleShortcutPlatform("Win32")).toBe(false);
+    expect(isAppleShortcutPlatform(undefined)).toBe(false);
+    expect(isAppleShortcutPlatform("")).toBe(false);
+  });
+
+  it("renders the right modifier symbol", () => {
+    expect(modifierLabel(true)).toBe("⌘");
+    expect(modifierLabel(false)).toBe("Ctrl");
+  });
+});
+
+describe("undo and redo labels", () => {
+  it("shows the shortcut when there is nothing to undo", () => {
+    expect(undoLabel(en, history(), false)).toBe("Undo (CtrlZ)");
+    expect(undoLabel(en, null, true)).toBe("Undo (⌘Z)");
+  });
+
+  it("names the action once there is one", () => {
+    expect(undoLabel(en, history({ canUndo: true, undoLabel: "Crop" }), true)).toBe("Undo: Crop (⌘Z)");
+  });
+
+  it("ignores a stale label when the stack is empty", () => {
+    expect(undoLabel(en, history({ canUndo: false, undoLabel: "Crop" }), false)).toBe("Undo (CtrlZ)");
+  });
+
+  it("does the same for redo, with the shift modifier", () => {
+    expect(redoLabel(en, history({ canRedo: true, redoLabel: "Rotate" }), true)).toBe("Redo: Rotate (⌘⇧Z)");
+    expect(redoLabel(en, history(), false)).toBe("Redo (Ctrl⇧Z)");
+  });
+
+  it("follows the active locale", () => {
+    expect(undoLabel(ko, history({ canUndo: true, undoLabel: "자르기" }), true)).toBe("실행 취소: 자르기 (⌘Z)");
+  });
+});
+
+describe("zoomLabel", () => {
+  it("rounds to whole percents at normal zoom", () => {
+    expect(zoomLabel(1)).toBe("100%");
+    expect(zoomLabel(0.4444)).toBe("44%");
+    expect(zoomLabel(2.5)).toBe("250%");
+  });
+
+  it("keeps a decimal when zoomed far out, where whole percents collapse", () => {
+    expect(zoomLabel(0.043)).toBe("4.3%");
+  });
+
+  it("refuses to render a nonsense zoom", () => {
+    expect(zoomLabel(0)).toBe("—");
+    expect(zoomLabel(Number.NaN)).toBe("—");
+    expect(zoomLabel(-1)).toBe("—");
+  });
+});
+
+describe("sizeLabel", () => {
+  it("reads as a pixel size", () => {
+    expect(sizeLabel({ width: 1600, height: 1067 })).toBe("1600 × 1067");
+  });
+
+  it("rounds sub-pixel sizes", () => {
+    expect(sizeLabel({ width: 799.6, height: 450.2 })).toBe("800 × 450");
+  });
+});

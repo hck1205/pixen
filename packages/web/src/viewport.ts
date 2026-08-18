@@ -9,7 +9,6 @@ import {
   scaling,
   stageToView,
   toArray,
-  zoomToFit,
   type Matrix,
   type Point,
   type Rect,
@@ -35,14 +34,13 @@ import {
 } from "./gestures.js";
 import { cornerSegments, gridSegments, inflate, projectRect, type Segment } from "./overlay.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "./tools.js";
-
-const MIN_ZOOM = 0.02;
-const MAX_ZOOM = 12;
-const VIEW_PADDING = 28;
+import { clampZoom, fitView, MAX_ZOOM, MIN_ZOOM } from "./view.js";
 
 export interface ViewportCallbacks {
-  /** Fired whenever the UI should refresh (zoom, tool, selection, document). */
+  /** Fired when the chrome has to be rebuilt: tool, selection, gesture end. */
   onChange?: () => void;
+  /** Fired for zoom and pan, which only move a readout — no rebuild needed. */
+  onViewChange?: () => void;
   /** Fired after a text layer is created, so the host can focus its editor. */
   onTextCreated?: (layerId: string) => void;
 }
@@ -133,18 +131,19 @@ export class Viewport {
     this.#minCropSize = Math.max(4, value);
   }
 
-  /** Frames the whole stage in the viewport. */
+  /** Frames the whole stage inside the area the floating chrome leaves free. */
   fit(): void {
     if (!this.#editor.ready) return;
-    this.#zoom = clamp(zoomToFit(this.#editor.stageSize, this.#cssSize(), VIEW_PADDING), MIN_ZOOM, MAX_ZOOM);
-    this.#pan = { x: 0, y: 0 };
+    const fitted = fitView(this.#editor.stageSize, this.#cssSize());
+    this.#zoom = fitted.zoom;
+    this.#pan = fitted.pan;
     this.#autoFit = true;
     this.invalidate();
-    this.#callbacks.onChange?.();
+    this.#callbacks.onViewChange?.();
   }
 
   zoomBy(factor: number, anchor?: Point): void {
-    const next = clamp(this.#zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    const next = clampZoom(this.#zoom * factor);
     if (next === this.#zoom) return;
 
     if (anchor) {
@@ -159,7 +158,7 @@ export class Viewport {
       this.#autoFit = false;
     }
     this.invalidate();
-    this.#callbacks.onChange?.();
+    this.#callbacks.onViewChange?.();
   }
 
   panBy(delta: Point): void {
@@ -440,10 +439,6 @@ export class Viewport {
     for (const off of this.#unsubscribe) off();
     this.#unsubscribe = [];
   }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 function applyView(matrix: Matrix, point: Point): Point {

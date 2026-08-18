@@ -39,6 +39,10 @@ export const styles = `
   border-radius: var(--pixen-radius);
   overflow: hidden;
   contain: layout paint;
+  /* A size container, so the chrome responds to the editor's own box rather
+     than the viewport's: an editor can be 360px wide inside a 1400px page, and
+     a viewport media query would dress it as a desktop. */
+  container-type: size;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -66,23 +70,32 @@ export const styles = `
   position: relative;
   inline-size: 100%;
   block-size: 100%;
-  display: grid;
   background: var(--pixen-surface-sunken);
 }
 
+/* Absolutely positioned on purpose: a canvas carries an intrinsic size from its
+   width/height attributes, and those track the device pixel ratio. In a grid or
+   flow layout that intrinsic size feeds back into the row height, so the canvas
+   grows past its container, the fit zoom is computed against the wrong height,
+   and the bottom of the chrome is clipped away. Taking it out of flow makes the
+   host's box the only thing that decides the size. */
 canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   inline-size: 100%;
   block-size: 100%;
-  grid-area: 1 / 1;
   touch-action: none;
 }
 
 .layer {
-  grid-area: 1 / 1;
-  position: relative;
+  position: absolute;
+  inset: 0;
   pointer-events: none;
   display: grid;
+  /* minmax(0, 1fr): an auto grid track sizes to max-content, so a rail wider
+     than the host would widen the track instead of scrolling inside it. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
   padding: 12px;
   gap: 12px;
@@ -125,7 +138,15 @@ canvas {
   backdrop-filter: blur(14px);
 }
 
-.rail { flex-direction: column; }
+.rail {
+  flex-direction: column;
+  /* Never spill out of a short host; scroll the tools instead. */
+  max-block-size: 100%;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar { display: none; }
 
 button {
   appearance: none;
@@ -211,6 +232,7 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
 }
 
 .readout {
+  white-space: nowrap;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--pixen-text-muted);
@@ -218,7 +240,8 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
 }
 
 .empty {
-  grid-area: 1 / 1;
+  position: absolute;
+  inset: 0;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -269,10 +292,31 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
   white-space: nowrap;
 }
 
+/* Fallback for engines without container queries: the viewport is a rough
+   stand-in for the editor's own box. Placed first so the container rule below
+   wins wherever both apply. */
 @media (max-width: 640px) {
-  .layer { padding: 8px; grid-template-rows: auto 1fr auto; }
-  .middle { align-items: flex-end; }
-  .rail { flex-direction: row; }
+  .layer { padding: 8px; gap: 8px; }
+  .middle { align-items: flex-end; justify-content: center; }
+  .middle { min-inline-size: 0; }
+  .rail { flex-direction: row; max-inline-size: 100%; min-inline-size: 0; }
+  .rail .divider { inline-size: 1px; block-size: 22px; margin: 0 2px; }
+  .inspector { max-inline-size: 100%; inline-size: 100%; }
+  .bottom { align-items: stretch; }
+  .bottom .cluster { inline-size: 100%; border-radius: var(--pixen-radius); }
+}
+
+/* Narrow or short: the rail lies down under the image and the inspector spans
+   the width. Kept in sync with insetsFor() in view.ts, which fits the image
+   into whatever space this leaves.
+
+   Note the "or": a container condition is a single query, not the comma-
+   separated list @media accepts, and a comma here silently drops the block. */
+@container (max-width: 560px) or (max-height: 420px) {
+  .layer { padding: 8px; gap: 8px; }
+  .middle { align-items: flex-end; justify-content: center; min-inline-size: 0; }
+  .rail { flex-direction: row; max-inline-size: 100%; min-inline-size: 0; }
+  .rail .divider { inline-size: 1px; block-size: 22px; margin: 0 2px; }
   .inspector { max-inline-size: 100%; inline-size: 100%; }
   .bottom { align-items: stretch; }
   .bottom .cluster { inline-size: 100%; border-radius: var(--pixen-radius); }

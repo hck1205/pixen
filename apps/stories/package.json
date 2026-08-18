@@ -1,0 +1,25 @@
+{
+  "name": "@pixen/stories",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Ladle stories: the visual reference for Pixen's UI.",
+  "scripts": {
+    "dev": "ladle serve",
+    "build": "ladle build",
+    "preview": "ladle preview"
+  },
+  "dependencies": {
+    "@pixen/core": "workspace:*",
+    "@pixen/react": "workspace:*",
+    "@pixen/web": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@ladle/react": "^5.1.1",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "vite": "^6.0.5"
+  }
+}

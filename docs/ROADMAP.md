@@ -28,7 +28,8 @@ unit tests and a browser suite driving the real bundle.
 - [ ] Device QA: iOS Safari, Android Chrome, Safari desktop
 - [ ] Memory ceilings and preview downscale tuning on real large images
 - [ ] Worker-based decode and encode behind the existing API
-- [ ] Visual regression suite with golden images over fixture files
+- [x] Story browser covering every UI state, for visual review
+- [ ] Visual regression suite with golden images over the stories
 - [ ] Localisation beyond `en` / `ko`, RTL layout check
 - [ ] Accessibility pass: focus order, roles, announcements, reduced motion
 - [ ] Documentation site and hosted playground

@@ -155,6 +155,7 @@ pnpm test           # unit tests (vitest, node)
 pnpm test:browser   # Playwright tests against the built playground
 pnpm check:independence  # third-party name / dependency / vendored-code scan
 pnpm playground     # http://localhost:5173
+pnpm stories        # Ladle story browser, http://localhost:61000
 ```
 
 `PIXEN_CHROMIUM_PATH` points the browser suite at an existing Chromium if the
@@ -179,6 +180,8 @@ enforces it on every test run and in CI.
 - [Security](docs/SECURITY.md) — input handling, redaction, privacy
 - [Provenance](docs/PROVENANCE.md) — where every non-obvious algorithm comes from
 - [Contributing](CONTRIBUTING.md) — the clean-room and dependency rules
+- **Stories** (`pnpm stories`) — every UI state on one page: themes, tools,
+  policies, locales, slots, tokens, and the compact layouts
 - [Legal checklist](docs/LEGAL-CHECKLIST.md) — pre-release review list, with the
   latest independence audit
 

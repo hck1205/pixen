@@ -196,6 +196,88 @@ test("a redaction covers the pixels it was drawn over in the exported file", asy
   expect(Math.max(...pixel.corner)).toBeGreaterThan(40);
 });
 
+test("the chrome stays inside the host at any size", async ({ page }) => {
+  const measure = async (width: number, height: number) =>
+    page.evaluate(
+      async ([w, h]) => {
+        const element = document.querySelector("pixen-image-editor") as HTMLElement;
+        const frame = element.parentElement as HTMLElement;
+        frame.style.width = `${w}px`;
+        frame.style.height = `${h}px`;
+        // Two frames: one for layout, one for the editor's resize handling.
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const host = element.getBoundingClientRect();
+        const shadow = element.shadowRoot!;
+        const inside = (node: Element) => {
+          const box = node.getBoundingClientRect();
+          return (
+            box.left >= host.left - 1 &&
+            box.right <= host.right + 1 &&
+            box.top >= host.top - 1 &&
+            box.bottom <= host.bottom + 1
+          );
+        };
+        const canvas = shadow.querySelector("canvas") as HTMLCanvasElement;
+        return {
+          host: { width: Math.round(host.width), height: Math.round(host.height) },
+          canvas: {
+            width: Math.round(canvas.getBoundingClientRect().width),
+            height: Math.round(canvas.getBoundingClientRect().height),
+          },
+          railInside: inside(shadow.querySelector(".rail")!),
+          inspectorInside: inside(shadow.querySelector(".inspector")!),
+          actionsInside: inside(shadow.querySelector(".actions")!),
+        };
+      },
+      [width, height],
+    );
+
+  // A canvas carries an intrinsic size from its width/height attributes. If it
+  // is left in flow it grows its own container, the fit zoom is computed
+  // against the wrong height, and the bottom of the chrome is clipped away.
+  for (const [width, height] of [
+    [1200, 700],
+    [1400, 380],
+    [360, 320],
+  ] as const) {
+    const layout = await measure(width, height);
+    expect(layout.canvas, `${width}x${height} canvas matches the host`).toEqual(layout.host);
+    expect(layout.railInside, `${width}x${height} rail inside`).toBe(true);
+    expect(layout.inspectorInside, `${width}x${height} inspector inside`).toBe(true);
+    expect(layout.actionsInside, `${width}x${height} actions inside`).toBe(true);
+  }
+});
+
+test("fitting keeps the whole image clear of the floating chrome", async ({ page }) => {
+  const clear = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { stageSize: { width: number; height: number } };
+      viewport: { stageToScreen(p: { x: number; y: number }): { x: number; y: number } } | null;
+      zoomToFit(): void;
+    };
+    element.zoomToFit();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const stage = element.editor.stageSize;
+    const topLeft = element.viewport!.stageToScreen({ x: 0, y: 0 });
+    const bottomRight = element.viewport!.stageToScreen({ x: stage.width, y: stage.height });
+    const shadow = element.shadowRoot!;
+    const canvas = shadow.querySelector("canvas")!.getBoundingClientRect();
+    const inspector = shadow.querySelector(".inspector")!.getBoundingClientRect();
+
+    return {
+      // stageToScreen is relative to the canvas, so compare in the same space.
+      imageBottom: bottomRight.y,
+      inspectorTop: inspector.top - canvas.top,
+      imageTop: topLeft.y,
+    };
+  });
+
+  expect(clear.imageTop).toBeGreaterThan(0);
+  expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

@@ -48,11 +48,17 @@ review before commit.
 
 ## Before you open a pull request
 
+UI changes need a story. If a state cannot be reached in `pnpm stories`, it
+cannot be reviewed — and the layout bugs the stories caught on their first run
+(a canvas growing its own container, chrome clipped out of a short host) are
+exactly the kind that no unit test sees.
+
 ```bash
 pnpm build              # typecheck and build all packages
 pnpm test               # unit tests, including the independence scan
 pnpm test:browser       # Playwright against the built playground
 pnpm check:independence # the scan on its own, with readable output
+pnpm stories            # visual review of every UI state
 ```
 
 ## Coding notes
