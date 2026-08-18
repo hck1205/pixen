@@ -16,6 +16,7 @@ export * from "./image/index.js";
 export * from "./render/index.js";
 export * from "./engine/index.js";
 export * from "./export/index.js";
+export * from "./platform/support.js";
 export { Emitter, type Unsubscribe } from "./util/emitter.js";
 export { deepClone } from "./util/clone.js";
 export { createId } from "./util/id.js";

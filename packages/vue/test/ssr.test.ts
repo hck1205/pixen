@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+
+/**
+ * The Vue wrapper is imported from shared modules in Nuxt and any other Vue
+ * setup with server rendering, so importing it in node must not touch the DOM.
+ */
+describe("Vue wrapper on a server", () => {
+  it("imports without a DOM", async () => {
+    expect(typeof HTMLElement).toBe("undefined");
+    const module = await import("../src/index.js");
+    expect(module.PixenImageEditor.name).toBe("PixenImageEditor");
+  });
+
+  it("declares the props a host configures it with", async () => {
+    const { PixenImageEditor } = await import("../src/index.js");
+    const props = Object.keys((PixenImageEditor as { props: Record<string, unknown> }).props);
+    expect(props).toEqual(
+      expect.arrayContaining(["src", "document", "tools", "aspectRatios", "policy", "theme", "locale", "format", "quality"]),
+    );
+  });
+
+  it("declares the events it forwards", async () => {
+    const { PixenImageEditor } = await import("../src/index.js");
+    const emits = Object.keys((PixenImageEditor as { emits: Record<string, unknown> }).emits);
+    expect(emits).toEqual(["ready", "load", "change", "history", "export", "error"]);
+  });
+});

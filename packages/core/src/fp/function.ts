@@ -23,6 +23,15 @@ export function identity<T>(value: T): T {
   return value;
 }
 
+/**
+ * Last element, or undefined. Deliberately not `Array.prototype.at`: this is
+ * called from the engine's hot paths and from the published packages, and the
+ * helper costs a line while `at()` costs two years of browser support.
+ */
+export function last<T>(items: readonly T[]): T | undefined {
+  return items.length === 0 ? undefined : items[items.length - 1];
+}
+
 /** Applies `transform` to the element at `index`, returning a new array. */
 export function updateAt<T>(items: readonly T[], index: number, transform: (item: T) => T): T[] {
   if (index < 0 || index >= items.length) return [...items];

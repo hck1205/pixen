@@ -1,3 +1,4 @@
+import { last } from "../fp/function.js";
 import { compose, rotation, translation } from "../geometry/matrix.js";
 import type { Matrix, Point, Rect } from "../geometry/types.js";
 import type {
@@ -222,7 +223,7 @@ export function pathLayerOps(layer: PathLayer): DrawOp[] {
       to: { x: (current.x + next.x) / 2, y: (current.y + next.y) / 2 },
     });
   }
-  commands.push({ op: "line", to: points.at(-1)! });
+  commands.push({ op: "line", to: last(points)! });
   if (layer.closed) commands.push({ op: "close" });
 
   return [{ op: "path", commands, stroke: toStrokeStyle(layer.stroke) }];

@@ -8,8 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -b packages/core packages/web packages/react",
-    "typecheck": "tsc -b packages/core packages/web packages/react",
+    "build": "tsc -b packages/core packages/web packages/react packages/vue",
+    "typecheck": "tsc -b packages/core packages/web packages/react packages/vue",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "playwright test",
@@ -25,5 +25,13 @@
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
-  }
+  },
+  "browserslist": [
+    "chrome >= 84",
+    "edge >= 84",
+    "firefox >= 90",
+    "safari >= 15",
+    "ios_saf >= 15",
+    "not dead"
+  ]
 }

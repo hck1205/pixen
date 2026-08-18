@@ -135,6 +135,9 @@ canvas {
   border: 1px solid var(--pixen-border);
   border-radius: var(--pixen-radius);
   box-shadow: var(--pixen-shadow);
+  /* Prefixed first: Safari carried -webkit-backdrop-filter for years before the
+     unprefixed property, and the chrome is legible either way. */
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
 
@@ -170,6 +173,11 @@ button {
 button svg { inline-size: 20px; block-size: 20px; }
 
 button:hover:not(:disabled) { background: rgba(127, 140, 170, 0.18); }
+
+/* :focus first so engines without :focus-visible still show a ring, then the
+   modern rule takes the ring away for pointer focus. */
+button:focus { outline: 2px solid var(--pixen-accent); outline-offset: 2px; }
+button:focus:not(:focus-visible) { outline: none; }
 button:focus-visible { outline: 2px solid var(--pixen-accent); outline-offset: 2px; }
 button:disabled { opacity: 0.35; cursor: default; }
 button[aria-pressed="true"], button.active {
@@ -259,6 +267,8 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
   inset: 8px;
   border: 2px dashed var(--pixen-accent);
   border-radius: var(--pixen-radius);
+  /* Flat fallback first for engines without color-mix(). */
+  background: rgba(79, 140, 255, 0.12);
   background: color-mix(in srgb, var(--pixen-accent) 12%, transparent);
   display: grid;
   place-content: center;

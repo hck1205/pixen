@@ -23,6 +23,7 @@ Not distributed with the packages; listed for completeness.
 | react-dom | MIT | rendering the stories |
 | @types/node, @types/react | MIT | type definitions |
 | react | MIT | React wrapper development and typing |
+| vue | MIT | Vue wrapper development and typing |
 
 Regenerate this table when dependencies change; automating it (licence scan plus
 SBOM in CI) is on the pre-release checklist.

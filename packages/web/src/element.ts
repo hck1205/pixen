@@ -51,7 +51,17 @@ const TOOL_META: Record<ToolId, { icon: IconName; key: keyof PixenStrings; short
  * settings are attributes; anything structured (tools, policies, documents) is a
  * property, because serialising objects through HTML attributes is a trap.
  */
-export class PixenImageEditorElement extends HTMLElement {
+/**
+ * `HTMLElement` does not exist while a page is being rendered on a server, and
+ * `class X extends undefined` throws at module evaluation — which would break
+ * every framework with server rendering the moment someone imported this package
+ * from a shared module. Extending a stand-in keeps the import safe; the class is
+ * only ever instantiated by the browser, which has the real one.
+ */
+const ElementBase: typeof HTMLElement =
+  typeof HTMLElement === "undefined" ? (class {} as unknown as typeof HTMLElement) : HTMLElement;
+
+export class PixenImageEditorElement extends ElementBase {
   static get observedAttributes(): string[] {
     return ["src", "theme", "locale", "format", "quality", "preset"];
   }

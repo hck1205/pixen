@@ -40,7 +40,9 @@ unit tests and a browser suite driving the real bundle.
 - [ ] Filters and presets beyond brightness / contrast / saturation
 - [ ] Blur and pixelate redaction modes (solid mask ships today)
 - [ ] Watermarks: text, image, tiling, opacity
-- [ ] Vue and Svelte wrappers
+- [x] Vue wrapper (`@pixen/vue`)
+- [ ] Svelte and Angular wrappers (both usable today through the element; see
+      [FRAMEWORKS.md](FRAMEWORKS.md))
 - [ ] Public plugin API with a documented extension surface
 
 ## Phase 4 — differentiation

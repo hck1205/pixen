@@ -1,3 +1,4 @@
+import { last } from "../fp/function.js";
 import { err, ok, type Result } from "../fp/result.js";
 
 /**
@@ -56,8 +57,8 @@ export function summarise<T>(state: HistoryState<T>): HistorySummary {
   return {
     canUndo: state.past.length > 0,
     canRedo: state.future.length > 0,
-    undoLabel: state.past.at(-1)?.label ?? null,
-    redoLabel: state.future.at(-1)?.label ?? null,
+    undoLabel: last(state.past)?.label ?? null,
+    redoLabel: last(state.future)?.label ?? null,
     depth: state.past.length,
     inTransaction: state.pending !== null,
   };
@@ -139,7 +140,7 @@ export function undo<T>(
   if (state.pending) {
     return err({ kind: "transaction-open", operation: "undo", openLabel: state.pending.label });
   }
-  const entry = state.past.at(-1);
+  const entry = last(state.past);
   if (!entry) return ok({ state, snapshot: null });
 
   return ok({
@@ -154,7 +155,7 @@ export function redo<T>(
   if (state.pending) {
     return err({ kind: "transaction-open", operation: "redo", openLabel: state.pending.label });
   }
-  const entry = state.future.at(-1);
+  const entry = last(state.future);
   if (!entry) return ok({ state, snapshot: null });
 
   return ok({
