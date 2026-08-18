@@ -172,6 +172,16 @@ export class Editor {
    */
   async restore(input: unknown, image?: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     this.#assertAlive();
+    try {
+      return await this.#restore(input, image, options);
+    } catch (cause) {
+      const error = toPixenError(cause, "INVALID_DOCUMENT", "The document could not be restored");
+      this.#emitter.emit("error", error);
+      throw error;
+    }
+  }
+
+  async #restore(input: unknown, image?: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     const document = deserializeDocument(input);
 
     if (!this.resources.has(document.source.resourceId)) {

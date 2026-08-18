@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pixen playground</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Pixen<span>playground</span></h1>
+      <p>Edit an image, then copy the configuration that produces what you set up.</p>
+    </header>
+
+    <main>
+      <section class="stage">
+        <pixen-image-editor id="editor" theme="dark"></pixen-image-editor>
+      </section>
+
+      <aside class="panel">
+        <label class="row">
+          <span>Preset</span>
+          <select id="preset">
+            <option value="">None</option>
+            <option value="profile">Profile photo</option>
+            <option value="marketplace">Marketplace listing</option>
+            <option value="banner">Banner</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>Format</span>
+          <select id="format">
+            <option value="">Match source</option>
+            <option value="image/webp">WebP</option>
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>Quality</span>
+          <input id="quality" type="range" min="0.3" max="1" step="0.01" value="0.82" />
+          <output id="quality-value">0.82</output>
+        </label>
+
+        <label class="row">
+          <span>Locale</span>
+          <select id="locale">
+            <option value="en">English</option>
+            <option value="ko">한국어</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>Theme</span>
+          <select id="theme">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+
+        <div class="actions">
+          <button id="open">Open image…</button>
+          <button id="export" class="primary">Export</button>
+        </div>
+        <input id="file" type="file" accept="image/*" hidden />
+
+        <h2>Result</h2>
+        <dl id="stats" class="stats">
+          <div><dt>Output</dt><dd id="stat-size">—</dd></div>
+          <div><dt>Bytes</dt><dd id="stat-bytes">—</dd></div>
+          <div><dt>Saved</dt><dd id="stat-saved">—</dd></div>
+        </dl>
+        <a id="download" class="download" hidden>Download result</a>
+
+        <h2>Configuration</h2>
+        <pre id="config"><code></code></pre>
+      </aside>
+    </main>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

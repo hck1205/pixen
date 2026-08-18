@@ -1,4 +1,4 @@
-import { compose, scaling } from "../geometry/matrix.js";
+import { compose, IDENTITY, meanScale, scaling, translation } from "../geometry/matrix.js";
 import { imageToStage, stageToOutput } from "../geometry/spaces.js";
 import type { Matrix, Rect, Size } from "../geometry/types.js";
 import { effectiveCrop, outputSize, stageRect } from "../model/document.js";
@@ -45,8 +45,16 @@ export interface SceneInput {
 
 export interface SceneOptions {
   region?: SceneRegion;
-  /** Overrides the natural target size — the viewport uses this for zoom. */
+  /** Pixel size of the render target. Defaults to the region's own size. */
   target?: Size;
+  /**
+   * `stretch` (the default) maps the region onto the whole target, which is what
+   * an export wants. `none` keeps the region at 1:1 and leaves placement to
+   * `transform`, which is what a pannable, zoomable viewport wants.
+   */
+  fit?: "stretch" | "none";
+  /** Applied after the region mapping — the viewport passes its view matrix here. */
+  transform?: Matrix;
 }
 
 /**
@@ -61,12 +69,16 @@ export function createScene(document: EditorDocument, input: SceneInput, options
   const sourceRect = region === "crop" ? effectiveCrop(document) : stageRect(document);
   const target = options.target ?? (region === "crop" ? outputSize(document) : sizeOf(sourceRect));
 
+  const fit = options.fit ?? "stretch";
+  const view = options.transform ?? IDENTITY;
+
   const stageMatrix = imageToStage(document.source, document.transform);
-  const outputMatrix = stageToOutput(sourceRect, target);
-  const imageToTarget = compose(outputMatrix, stageMatrix);
+  const regionMatrix =
+    fit === "stretch" ? stageToOutput(sourceRect, target) : translation(-sourceRect.x, -sourceRect.y);
+  const imageToTarget = compose(view, regionMatrix, stageMatrix);
 
   const sourceScale = input.sourceScale ?? 1;
-  const scale = target.width / sourceRect.width;
+  const scale = fit === "stretch" ? (target.width / sourceRect.width) * meanScale(view) : meanScale(view);
   const layerScale = Math.abs(scale);
 
   return {

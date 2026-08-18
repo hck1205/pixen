@@ -84,7 +84,7 @@ async function readOrientation(blob: Blob): Promise<ExifOrientation> {
   }
 }
 
-async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<CanvasImageSource & Size> {
+async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<CanvasImageSource> {
   throwIfAborted(signal);
   if (typeof createImageBitmap === "function") {
     try {
@@ -99,7 +99,7 @@ async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<
   return decodeWithImageElement(blob, signal);
 }
 
-function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Promise<HTMLImageElement & Size> {
+function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const image = new Image();
@@ -110,7 +110,7 @@ function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Pr
         reject(new PixenError("ABORTED", "Image decoding was aborted"));
         return;
       }
-      resolve(Object.assign(image, { width: image.naturalWidth, height: image.naturalHeight }));
+      resolve(image);
     };
     image.onerror = () => {
       cleanup();
@@ -120,7 +120,8 @@ function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Pr
   });
 }
 
-function sourceSize(source: CanvasImageSource): Size {
+/** Intrinsic pixel size of any drawable source. */
+export function sourceSize(source: CanvasImageSource): Size {
   if (typeof HTMLImageElement !== "undefined" && source instanceof HTMLImageElement) {
     return { width: source.naturalWidth, height: source.naturalHeight };
   }
@@ -128,10 +129,18 @@ function sourceSize(source: CanvasImageSource): Size {
   return { width: Number(candidate.width), height: Number(candidate.height) };
 }
 
-/** Bakes an EXIF orientation into pixels so nothing downstream has to know about it. */
-export function normaliseOrientation(source: CanvasImageSource, orientation: ExifOrientation): CanvasImageSource & Size {
+export interface UprightImage extends Size {
+  source: CanvasImageSource;
+}
+
+/**
+ * Bakes an EXIF orientation into pixels so nothing downstream has to know about
+ * it. The size travels beside the source rather than being written onto it:
+ * `ImageBitmap.width` is a read-only accessor, and assigning to it throws.
+ */
+export function normaliseOrientation(source: CanvasImageSource, orientation: ExifOrientation): UprightImage {
   const size = sourceSize(source);
-  if (orientation === 1) return Object.assign(source as object, size) as CanvasImageSource & Size;
+  if (orientation === 1) return { source, ...size };
 
   const upright = applyOrientationToSize(size, orientation);
   assertDrawableSize(upright, "image");
@@ -146,7 +155,7 @@ export function normaliseOrientation(source: CanvasImageSource, orientation: Exi
   context.setTransform(1, 0, 0, 1, 0, 0);
 
   if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) source.close();
-  return Object.assign(surface.canvas as object, upright) as CanvasImageSource & Size;
+  return { source: surface.canvas, ...upright };
 }
 
 /**
@@ -190,11 +199,11 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
 
   const orientation = options.respectExifOrientation === false ? 1 : await readOrientation(blob);
   const decoded = await decodeBlob(blob, options.signal);
-  assertDrawableSize(decoded, "image");
+  assertDrawableSize(sourceSize(decoded), "image");
   const upright = normaliseOrientation(decoded, orientation);
 
   return {
-    source: upright,
+    source: upright.source,
     width: upright.width,
     height: upright.height,
     blob,
