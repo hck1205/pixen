@@ -1,157 +1,275 @@
 import { PixenError } from "../errors/index.js";
+import { collectAll, err, isErr, ok, type Result } from "../fp/result.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { DEFAULT_STROKE } from "./layers.js";
-import type { EditorDocument, EditorLayer } from "./types.js";
+import type { EditorDocument, EditorLayer, ImageFormat, Stroke } from "./types.js";
 
-function fail(path: string, expected: string): never {
-  throw new PixenError("INVALID_DOCUMENT", `Invalid document at "${path}": expected ${expected}`, {
-    details: { path, expected },
-  });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function num(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) fail(path, "a finite number");
-  return value;
-}
-
-function bool(value: unknown, path: string): boolean {
-  if (typeof value !== "boolean") fail(path, "a boolean");
-  return value;
-}
-
-function str(value: unknown, path: string): string {
-  if (typeof value !== "string") fail(path, "a string");
-  return value;
-}
-
-function point(value: unknown, path: string): Point {
-  if (!isRecord(value)) fail(path, "a point");
-  return { x: num(value.x, `${path}.x`), y: num(value.y, `${path}.y`) };
-}
-
-function rect(value: unknown, path: string): Rect {
-  if (!isRecord(value)) fail(path, "a rect");
-  const width = num(value.width, `${path}.width`);
-  const height = num(value.height, `${path}.height`);
-  if (width < 0 || height < 0) fail(path, "a rect with non-negative size");
-  return { x: num(value.x, `${path}.x`), y: num(value.y, `${path}.y`), width, height };
-}
-
-function layer(value: unknown, path: string): EditorLayer {
-  if (!isRecord(value)) fail(path, "a layer object");
-  const base = {
-    id: str(value.id, `${path}.id`),
-    visible: bool(value.visible ?? true, `${path}.visible`),
-    locked: bool(value.locked ?? false, `${path}.locked`),
-    opacity: num(value.opacity ?? 1, `${path}.opacity`),
-    rotation: num(value.rotation ?? 0, `${path}.rotation`),
-    ...(typeof value.name === "string" ? { name: value.name } : {}),
-  };
-
-  switch (value.type) {
-    case "rect":
-      return {
-        ...base,
-        type: "rect",
-        frame: rect(value.frame, `${path}.frame`),
-        stroke: (value.stroke ?? null) as EditorLayer extends { stroke: infer S } ? S : never,
-        fill: (value.fill ?? null) as string | null,
-        cornerRadius: num(value.cornerRadius ?? 0, `${path}.cornerRadius`),
-      } as EditorLayer;
-    case "ellipse":
-      return {
-        ...base,
-        type: "ellipse",
-        frame: rect(value.frame, `${path}.frame`),
-        stroke: (value.stroke ?? null) as never,
-        fill: (value.fill ?? null) as string | null,
-      } as EditorLayer;
-    case "line":
-      return {
-        ...base,
-        type: "line",
-        from: point(value.from, `${path}.from`),
-        to: point(value.to, `${path}.to`),
-        stroke: (value.stroke ?? { ...DEFAULT_STROKE }) as never,
-        arrowStart: bool(value.arrowStart ?? false, `${path}.arrowStart`),
-        arrowEnd: bool(value.arrowEnd ?? false, `${path}.arrowEnd`),
-      } as EditorLayer;
-    case "path": {
-      if (!Array.isArray(value.points)) fail(`${path}.points`, "an array of points");
-      return {
-        ...base,
-        type: "path",
-        points: value.points.map((p, i) => point(p, `${path}.points[${i}]`)),
-        stroke: (value.stroke ?? { ...DEFAULT_STROKE }) as never,
-        closed: bool(value.closed ?? false, `${path}.closed`),
-      } as EditorLayer;
-    }
-    case "text":
-      return {
-        ...base,
-        type: "text",
-        position: point(value.position, `${path}.position`),
-        text: str(value.text, `${path}.text`),
-        fontSize: num(value.fontSize ?? 48, `${path}.fontSize`),
-        fontFamily: str(value.fontFamily ?? "system-ui, sans-serif", `${path}.fontFamily`),
-        color: str(value.color ?? "#ffffff", `${path}.color`),
-        align: (value.align ?? "left") as "left" | "center" | "right",
-        backgroundColor: (value.backgroundColor ?? null) as string | null,
-        maxWidth: value.maxWidth == null ? null : num(value.maxWidth, `${path}.maxWidth`),
-      } as EditorLayer;
-    default:
-      fail(`${path}.type`, "a known layer type");
-  }
+export interface ValidationIssue {
+  /** JSON path into the document, e.g. `$.layers[2].frame.width`. */
+  path: string;
+  expected: string;
+  received: unknown;
 }
 
 /**
- * Structural validation for documents crossing a trust boundary (host storage,
- * a server, a pasted string). It normalises optional fields rather than
- * rejecting documents that merely omit them.
+ * A validator is a pure function from unknown data to a result carrying **every**
+ * problem it found, not just the first. Composing them this way means a host
+ * with three broken fields learns about three broken fields.
  */
-export function parseDocument(value: unknown): EditorDocument {
-  if (!isRecord(value)) fail("$", "an object");
-  const source = value.source;
-  if (!isRecord(source)) fail("$.source", "a source descriptor");
+export type Validator<T> = (value: unknown, path: string) => Result<T, ValidationIssue[]>;
 
-  const transform = isRecord(value.transform) ? value.transform : {};
-  const adjustments = isRecord(value.adjustments) ? value.adjustments : {};
-  const output = isRecord(value.output) ? value.output : {};
-  const layers = Array.isArray(value.layers) ? value.layers : [];
+function issue(path: string, expected: string, received: unknown): ValidationIssue[] {
+  return [{ path, expected, received }];
+}
 
-  return {
-    schemaVersion: num(value.schemaVersion, "$.schemaVersion"),
-    source: {
-      resourceId: str(source.resourceId, "$.source.resourceId"),
-      width: num(source.width, "$.source.width"),
-      height: num(source.height, "$.source.height"),
-      ...(typeof source.name === "string" ? { name: source.name } : {}),
-      ...(typeof source.mimeType === "string" ? { mimeType: source.mimeType } : {}),
-    },
-    transform: {
-      rotation: num(transform.rotation ?? 0, "$.transform.rotation"),
-      flipX: bool(transform.flipX ?? false, "$.transform.flipX"),
-      flipY: bool(transform.flipY ?? false, "$.transform.flipY"),
-    },
-    crop: value.crop == null ? null : rect(value.crop, "$.crop"),
-    aspectRatio: value.aspectRatio == null ? null : num(value.aspectRatio, "$.aspectRatio"),
-    adjustments: {
-      brightness: num(adjustments.brightness ?? 0, "$.adjustments.brightness"),
-      contrast: num(adjustments.contrast ?? 0, "$.adjustments.contrast"),
-      saturation: num(adjustments.saturation ?? 0, "$.adjustments.saturation"),
-    },
-    layers: layers.map((l, i) => layer(l, `$.layers[${i}]`)),
-    output: {
-      width: output.width == null ? null : num(output.width, "$.output.width"),
-      height: output.height == null ? null : num(output.height, "$.output.height"),
-      format: (output.format ?? null) as EditorDocument["output"]["format"],
-      quality: num(output.quality ?? 0.85, "$.output.quality"),
-      background: (output.background ?? null) as string | null,
-    },
-    meta: isRecord(value.meta) ? (value.meta as Record<string, unknown>) : {},
+// --- primitives ------------------------------------------------------------
+
+export const finiteNumber: Validator<number> = (value, path) =>
+  typeof value === "number" && Number.isFinite(value)
+    ? ok(value)
+    : err(issue(path, "a finite number", value));
+
+export const boolean: Validator<boolean> = (value, path) =>
+  typeof value === "boolean" ? ok(value) : err(issue(path, "a boolean", value));
+
+export const text: Validator<string> = (value, path) =>
+  typeof value === "string" ? ok(value) : err(issue(path, "a string", value));
+
+export function literalUnion<T extends string>(...allowed: T[]): Validator<T> {
+  return (value, path) =>
+    typeof value === "string" && (allowed as string[]).includes(value)
+      ? ok(value as T)
+      : err(issue(path, `one of ${allowed.join(", ")}`, value));
+}
+
+/** Applies `validator` unless the value is absent, in which case `fallback` is used. */
+export function withDefault<T>(validator: Validator<T>, fallback: T): Validator<T> {
+  return (value, path) => (value === undefined || value === null ? ok(fallback) : validator(value, path));
+}
+
+/** Applies `validator` unless the value is absent, in which case the result is null. */
+export function nullable<T>(validator: Validator<T>): Validator<T | null> {
+  return (value, path) => (value === undefined || value === null ? ok(null) : validator(value, path));
+}
+
+export function optional<T>(validator: Validator<T>): Validator<T | undefined> {
+  return (value, path) => (value === undefined || value === null ? ok(undefined) : validator(value, path));
+}
+
+export function arrayOf<T>(validator: Validator<T>): Validator<T[]> {
+  return (value, path) => {
+    if (!Array.isArray(value)) return err(issue(path, "an array", value));
+    return collectAll(value.map((entry, index) => validator(entry, `${path}[${index}]`)));
   };
+}
+
+export function record(value: unknown, path: string): Result<Record<string, unknown>, ValidationIssue[]> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? ok(value as Record<string, unknown>)
+    : err(issue(path, "an object", value));
+}
+
+/**
+ * Validates several fields of one object, gathering the issues from all of them.
+ * `fields` maps each output key to the reader that produces it.
+ */
+function shape<T extends object>(
+  source: Record<string, unknown>,
+  path: string,
+  fields: { [K in keyof T]: (source: Record<string, unknown>, path: string) => Result<T[K], ValidationIssue[]> },
+): Result<T, ValidationIssue[]> {
+  const output = {} as T;
+  const issues: ValidationIssue[] = [];
+
+  for (const key of Object.keys(fields) as Array<keyof T>) {
+    const result = fields[key](source, path);
+    if (result.ok) output[key] = result.value;
+    else issues.push(...result.error);
+  }
+
+  return issues.length > 0 ? err(issues) : ok(output);
+}
+
+/** Reads one property with `validator`, extending the path for error reporting. */
+function field<T>(key: string, validator: Validator<T>) {
+  return (source: Record<string, unknown>, path: string): Result<T, ValidationIssue[]> =>
+    validator(source[key], `${path}.${key}`);
+}
+
+// --- geometry --------------------------------------------------------------
+
+export const point: Validator<Point> = (value, path) => {
+  const asRecord = record(value, path);
+  if (isErr(asRecord)) return asRecord;
+  return shape<Point>(asRecord.value, path, { x: field("x", finiteNumber), y: field("y", finiteNumber) });
+};
+
+export const rect: Validator<Rect> = (value, path) => {
+  const asRecord = record(value, path);
+  if (isErr(asRecord)) return asRecord;
+  const parsed = shape<Rect>(asRecord.value, path, {
+    x: field("x", finiteNumber),
+    y: field("y", finiteNumber),
+    width: field("width", finiteNumber),
+    height: field("height", finiteNumber),
+  });
+  if (isErr(parsed)) return parsed;
+  if (parsed.value.width < 0 || parsed.value.height < 0) {
+    return err(issue(path, "a rect with non-negative size", value));
+  }
+  return parsed;
+};
+
+export const stroke: Validator<Stroke> = (value, path) => {
+  const asRecord = record(value, path);
+  if (isErr(asRecord)) return asRecord;
+  return shape<Stroke>(asRecord.value, path, {
+    color: field("color", text),
+    width: field("width", finiteNumber),
+    dash: field("dash", optional(arrayOf(finiteNumber))) as never,
+  });
+};
+
+// --- layers ----------------------------------------------------------------
+
+const layerBase = {
+  id: field("id", text),
+  name: field("name", optional(text)),
+  visible: field("visible", withDefault(boolean, true)),
+  locked: field("locked", withDefault(boolean, false)),
+  opacity: field("opacity", withDefault(finiteNumber, 1)),
+  rotation: field("rotation", withDefault(finiteNumber, 0)),
+};
+
+export const layer: Validator<EditorLayer> = (value, path) => {
+  const asRecord = record(value, path);
+  if (isErr(asRecord)) return asRecord;
+  const source = asRecord.value;
+
+  switch (source.type) {
+    case "rect":
+      return shape<EditorLayer & { type: "rect" }>(source, path, {
+        ...layerBase,
+        type: () => ok("rect" as const),
+        frame: field("frame", rect),
+        stroke: field("stroke", nullable(stroke)),
+        fill: field("fill", nullable(text)),
+        cornerRadius: field("cornerRadius", withDefault(finiteNumber, 0)),
+      });
+    case "ellipse":
+      return shape<EditorLayer & { type: "ellipse" }>(source, path, {
+        ...layerBase,
+        type: () => ok("ellipse" as const),
+        frame: field("frame", rect),
+        stroke: field("stroke", nullable(stroke)),
+        fill: field("fill", nullable(text)),
+      });
+    case "line":
+      return shape<EditorLayer & { type: "line" }>(source, path, {
+        ...layerBase,
+        type: () => ok("line" as const),
+        from: field("from", point),
+        to: field("to", point),
+        stroke: field("stroke", withDefault(stroke, { ...DEFAULT_STROKE })),
+        arrowStart: field("arrowStart", withDefault(boolean, false)),
+        arrowEnd: field("arrowEnd", withDefault(boolean, false)),
+      });
+    case "path":
+      return shape<EditorLayer & { type: "path" }>(source, path, {
+        ...layerBase,
+        type: () => ok("path" as const),
+        points: field("points", arrayOf(point)),
+        stroke: field("stroke", withDefault(stroke, { ...DEFAULT_STROKE })),
+        closed: field("closed", withDefault(boolean, false)),
+      });
+    case "text":
+      return shape<EditorLayer & { type: "text" }>(source, path, {
+        ...layerBase,
+        type: () => ok("text" as const),
+        position: field("position", point),
+        text: field("text", text),
+        fontSize: field("fontSize", withDefault(finiteNumber, 48)),
+        fontFamily: field("fontFamily", withDefault(text, "system-ui, sans-serif")),
+        color: field("color", withDefault(text, "#ffffff")),
+        align: field("align", withDefault(literalUnion("left", "center", "right"), "left")),
+        backgroundColor: field("backgroundColor", nullable(text)),
+        maxWidth: field("maxWidth", nullable(finiteNumber)),
+      });
+    default:
+      return err(issue(`${path}.type`, "one of rect, ellipse, line, path, text", source.type));
+  }
+};
+
+// --- document --------------------------------------------------------------
+
+const imageFormat = literalUnion<ImageFormat>("image/jpeg", "image/png", "image/webp");
+
+/**
+ * Structural validation for documents crossing a trust boundary — host storage,
+ * a server, a pasted string. Optional fields are normalised rather than
+ * rejected, so a document written by an older build still loads.
+ */
+export function validateDocument(value: unknown): Result<EditorDocument, ValidationIssue[]> {
+  const asRecord = record(value, "$");
+  if (isErr(asRecord)) return asRecord;
+  const source = asRecord.value;
+
+  const nested = (key: string): Record<string, unknown> => {
+    const child = source[key];
+    return typeof child === "object" && child !== null && !Array.isArray(child)
+      ? (child as Record<string, unknown>)
+      : {};
+  };
+
+  return shape<EditorDocument>(source, "$", {
+    schemaVersion: field("schemaVersion", finiteNumber),
+    source: () => {
+      const asSource = record(source.source, "$.source");
+      if (isErr(asSource)) return asSource;
+      return shape<EditorDocument["source"]>(asSource.value, "$.source", {
+        resourceId: field("resourceId", text),
+        width: field("width", finiteNumber),
+        height: field("height", finiteNumber),
+        name: field("name", optional(text)),
+        mimeType: field("mimeType", optional(text)),
+      });
+    },
+    transform: () =>
+      shape<EditorDocument["transform"]>(nested("transform"), "$.transform", {
+        rotation: field("rotation", withDefault(finiteNumber, 0)),
+        flipX: field("flipX", withDefault(boolean, false)),
+        flipY: field("flipY", withDefault(boolean, false)),
+      }),
+    crop: field("crop", nullable(rect)),
+    aspectRatio: field("aspectRatio", nullable(finiteNumber)),
+    adjustments: () =>
+      shape<EditorDocument["adjustments"]>(nested("adjustments"), "$.adjustments", {
+        brightness: field("brightness", withDefault(finiteNumber, 0)),
+        contrast: field("contrast", withDefault(finiteNumber, 0)),
+        saturation: field("saturation", withDefault(finiteNumber, 0)),
+      }),
+    layers: field("layers", withDefault(arrayOf(layer), [])),
+    output: () =>
+      shape<EditorDocument["output"]>(nested("output"), "$.output", {
+        width: field("width", nullable(finiteNumber)),
+        height: field("height", nullable(finiteNumber)),
+        format: field("format", nullable(imageFormat)),
+        quality: field("quality", withDefault(finiteNumber, 0.85)),
+        background: field("background", nullable(text)),
+      }),
+    meta: () => ok(nested("meta")),
+  });
+}
+
+export function formatIssues(issues: readonly ValidationIssue[]): string {
+  return issues.map((entry) => `${entry.path}: expected ${entry.expected}`).join("; ");
+}
+
+/** The throwing boundary. Every issue found travels with the error. */
+export function parseDocument(value: unknown): EditorDocument {
+  const result = validateDocument(value);
+  if (result.ok) return result.value;
+  throw new PixenError("INVALID_DOCUMENT", `Invalid document at ${formatIssues(result.error)}`, {
+    details: { issues: result.error },
+  });
 }

@@ -1,25 +1,28 @@
 import type { Adjustments } from "../model/types.js";
 import type { Canvas2D } from "../image/canvas.js";
 
-let filterSupport: boolean | null = null;
+/**
+ * Canvas2D `filter` is unavailable on older Safari, so it is feature-detected —
+ * per context, cached in a WeakMap rather than a module-level flag, so a test or
+ * a second canvas can never inherit another one's answer.
+ */
+const filterSupport = new WeakMap<object, boolean>();
 
-/** Canvas2D `filter` is unavailable on older Safari, so it is feature-detected once. */
 export function supportsContextFilter(context: Canvas2D): boolean {
-  if (filterSupport !== null) return filterSupport;
+  const cached = filterSupport.get(context);
+  if (cached !== undefined) return cached;
+
+  let supported = false;
   try {
     const previous = context.filter;
     context.filter = "brightness(1.5)";
-    filterSupport = context.filter !== "none" && context.filter !== "";
+    supported = context.filter !== "none" && context.filter !== "";
     context.filter = previous ?? "none";
   } catch {
-    filterSupport = false;
+    supported = false;
   }
-  return filterSupport;
-}
-
-/** Test seam: lets the suite exercise both the filter and the pixel fallback path. */
-export function setContextFilterSupport(value: boolean | null): void {
-  filterSupport = value;
+  filterSupport.set(context, supported);
+  return supported;
 }
 
 /**

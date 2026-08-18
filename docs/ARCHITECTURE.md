@@ -62,6 +62,39 @@ The same `createScene` code produces both. They differ only in which region they
 render (`crop` versus `stage`) and how the region maps onto the target
 (`fit: "stretch"` for export, `fit: "none"` plus a view matrix for the viewport).
 
+## Pure core, imperative shell
+
+Every part of Pixen that *decides* something is a pure function over data; the
+classes above them only hold the current value, own the effects, and notify
+subscribers. The split is what makes the behaviour reachable from an ordinary
+unit test instead of only from a browser.
+
+| Decision | Pure module | Shell |
+| --- | --- | --- |
+| What an edit does to a document | `engine/commands.ts` | — |
+| What an intent means for state, history and selection | `engine/session.ts` | `engine/editor.ts` |
+| When history records, collapses or refuses | `engine/history.ts` | `engine/editor.ts` |
+| What to draw, and in what order | `render/scene.ts`, `render/ops.ts` | `render/canvas2d.ts` |
+| What a pointer gesture means | `web/gestures.ts` | `web/viewport.ts` |
+| Whether a document is valid, and why | `model/validate.ts` | `model/serialize.ts` |
+
+Two conventions keep it honest:
+
+- **Intents are data.** `editor.dispatch({ kind: "rotate-quarter-turns", turns: 1 })`
+  is the same thing `editor.rotateRight()` does, and it can be logged, queued,
+  replayed or asserted on. The one exception is `{ kind: "transform" }`, the
+  escape hatch a plugin needs to run a command the union does not model.
+- **Failures are values inside, exceptions at the edge.** Validation, history
+  transitions and the session reducer return `Result<T, E>`; the `Editor` throws
+  at the public boundary because that is what JavaScript hosts expect. Validation
+  accumulates every issue rather than stopping at the first.
+
+The renderer follows the same rule: `buildSceneOps` turns a scene into a list of
+drawing operations — paths, transforms, text runs — and `executeOps` applies them
+to a canvas. Arrow-head geometry, text wrapping, rotation centres and the
+adjustment fallback are therefore all testable in node, with no canvas involved.
+The op list is also the seam a second renderer would plug into.
+
 ## History and transactions
 
 History stores snapshots, not inverse commands. That is affordable precisely
@@ -102,15 +135,19 @@ must not disagree because of a browser capability.
 
 ## Testing
 
-- **Unit** (`vitest`, node): geometry, crop interaction maths, commands,
-  history transactions, serialisation, migrations, EXIF, resize and policy
-  rules.
+- **Unit** (`vitest`, node): geometry, crop interaction maths, commands, the
+  session reducer, history transitions, validation, draw-op building, pointer
+  gestures, serialisation, migrations, EXIF, resize and policy rules.
 - **Browser** (`playwright`, chromium): the built playground — decode, canvas
   output, pointer gestures, undo semantics, encoders, and whether a redaction
   really removes pixels from the exported file.
 
-The browser suite exists because an image editor's worst failures are the ones
-unit tests cannot see. Its first run caught four: `ImageBitmap.width` being
+The browser suite covers what only a real engine can answer — decoding, canvas
+output, encoders, and the DOM plumbing itself. Everything the plumbing *decides*
+now has a unit test instead, which is why the browser suite stays small.
+
+It exists because an image editor's worst failures are the ones unit tests
+cannot see. Its first run caught four: `ImageBitmap.width` being
 read-only during decode, invisible layout rows swallowing canvas pointer events,
 `[hidden]` overlays staying visible under our own display rules, and
 `preventDefault()` on pointerdown killing keyboard shortcuts.
