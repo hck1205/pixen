@@ -1,0 +1,20 @@
+{
+  "name": "pixen",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "typecheck": "tsc -b packages/core packages/web packages/react",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "playground": "pnpm --filter @pixen/playground dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
