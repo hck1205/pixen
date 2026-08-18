@@ -1,7 +1,19 @@
 import { PixenError } from "../errors/index.js";
 import { collectAll, err, isErr, ok, type Result } from "../fp/result.js";
 import type { Point, Rect } from "../geometry/types.js";
-import { DEFAULT_STROKE } from "./layers.js";
+import {
+  DEFAULT_CORNER_RADIUS,
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+  DEFAULT_LAYER_LOCKED,
+  DEFAULT_LAYER_OPACITY,
+  DEFAULT_LAYER_ROTATION,
+  DEFAULT_LAYER_VISIBLE,
+  DEFAULT_QUALITY,
+  DEFAULT_STROKE,
+  DEFAULT_TEXT_ALIGN,
+  DEFAULT_TEXT_COLOUR,
+} from "./defaults.js";
 import type { EditorDocument, EditorLayer, ImageFormat, Stroke } from "./types.js";
 
 export interface ValidationIssue {
@@ -135,10 +147,10 @@ export const stroke: Validator<Stroke> = (value, path) => {
 const layerBase = {
   id: field("id", text),
   name: field("name", optional(text)),
-  visible: field("visible", withDefault(boolean, true)),
-  locked: field("locked", withDefault(boolean, false)),
-  opacity: field("opacity", withDefault(finiteNumber, 1)),
-  rotation: field("rotation", withDefault(finiteNumber, 0)),
+  visible: field("visible", withDefault(boolean, DEFAULT_LAYER_VISIBLE)),
+  locked: field("locked", withDefault(boolean, DEFAULT_LAYER_LOCKED)),
+  opacity: field("opacity", withDefault(finiteNumber, DEFAULT_LAYER_OPACITY)),
+  rotation: field("rotation", withDefault(finiteNumber, DEFAULT_LAYER_ROTATION)),
 };
 
 export const layer: Validator<EditorLayer> = (value, path) => {
@@ -154,7 +166,7 @@ export const layer: Validator<EditorLayer> = (value, path) => {
         frame: field("frame", rect),
         stroke: field("stroke", nullable(stroke)),
         fill: field("fill", nullable(text)),
-        cornerRadius: field("cornerRadius", withDefault(finiteNumber, 0)),
+        cornerRadius: field("cornerRadius", withDefault(finiteNumber, DEFAULT_CORNER_RADIUS)),
       });
     case "ellipse":
       return shape<EditorLayer & { type: "ellipse" }>(source, path, {
@@ -188,10 +200,10 @@ export const layer: Validator<EditorLayer> = (value, path) => {
         type: () => ok("text" as const),
         position: field("position", point),
         text: field("text", text),
-        fontSize: field("fontSize", withDefault(finiteNumber, 48)),
-        fontFamily: field("fontFamily", withDefault(text, "system-ui, sans-serif")),
-        color: field("color", withDefault(text, "#ffffff")),
-        align: field("align", withDefault(literalUnion("left", "center", "right"), "left")),
+        fontSize: field("fontSize", withDefault(finiteNumber, DEFAULT_FONT_SIZE)),
+        fontFamily: field("fontFamily", withDefault(text, DEFAULT_FONT_FAMILY)),
+        color: field("color", withDefault(text, DEFAULT_TEXT_COLOUR)),
+        align: field("align", withDefault(literalUnion("left", "center", "right"), DEFAULT_TEXT_ALIGN)),
         backgroundColor: field("backgroundColor", nullable(text)),
         maxWidth: field("maxWidth", nullable(finiteNumber)),
       });
@@ -254,7 +266,7 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
         width: field("width", nullable(finiteNumber)),
         height: field("height", nullable(finiteNumber)),
         format: field("format", nullable(imageFormat)),
-        quality: field("quality", withDefault(finiteNumber, 0.85)),
+        quality: field("quality", withDefault(finiteNumber, DEFAULT_QUALITY)),
         background: field("background", nullable(text)),
       }),
     meta: () => ok(nested("meta")),

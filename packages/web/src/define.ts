@@ -1,4 +1,4 @@
-import { PixenImageEditorElement } from "./element.js";
+import { PixenImageEditorElement } from "./element/index.js";
 
 export const TAG_NAME = "pixen-image-editor";
 

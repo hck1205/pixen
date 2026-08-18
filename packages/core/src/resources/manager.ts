@@ -34,12 +34,16 @@ interface ResourceEntry {
   released: boolean;
 }
 
+/**
+ * Longest edge of the preview bitmap, and the floor below which a preview stops
+ * being useful. Editing at preview resolution and exporting at full resolution
+ * is what keeps a 48-megapixel image interactive on a phone.
+ */
+export const DEFAULT_PREVIEW_MAX_SIZE = 2048;
+export const MIN_PREVIEW_MAX_SIZE = 64;
+
 export interface ResourceManagerOptions {
-  /**
-   * Longest edge of the preview bitmap the editor renders while interacting.
-   * Export always uses the full-resolution source, so this only trades preview
-   * sharpness for memory — the single most effective mobile safeguard we have.
-   */
+  /** Longest edge of the preview bitmap the editor renders while interacting. */
   previewMaxSize?: number;
 }
 
@@ -55,7 +59,7 @@ export class ResourceManager {
   #previewMaxSize: number;
 
   constructor(options: ResourceManagerOptions = {}) {
-    this.#previewMaxSize = options.previewMaxSize ?? 2048;
+    this.#previewMaxSize = options.previewMaxSize ?? DEFAULT_PREVIEW_MAX_SIZE;
   }
 
   get previewMaxSize(): number {
@@ -63,7 +67,7 @@ export class ResourceManager {
   }
 
   set previewMaxSize(value: number) {
-    this.#previewMaxSize = Math.max(64, Math.round(value));
+    this.#previewMaxSize = Math.max(MIN_PREVIEW_MAX_SIZE, Math.round(value));
   }
 
   /** Decodes any supported input and registers the result. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cornerSegments, gridSegments, inflate, projectRect, CORNER_ARM } from "../src/overlay.js";
+import { cornerSegments, gridSegments, inflate, projectRect, CORNER_ARM } from "../src/viewport/overlay.js";
 
 const rect = { x: 0, y: 0, width: 300, height: 150 };
 

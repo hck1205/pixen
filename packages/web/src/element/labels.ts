@@ -1,5 +1,5 @@
 import type { HistorySummary, Size } from "@pixen/core";
-import type { PixenStrings } from "./i18n.js";
+import type { PixenStrings } from "../i18n/index.js";
 
 /**
  * Wording for the chrome, kept pure so it can be checked without a DOM.

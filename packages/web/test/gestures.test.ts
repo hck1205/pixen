@@ -33,8 +33,8 @@ import {
   type GestureContext,
   type GestureEffect,
   type GestureState,
-} from "../src/gestures.js";
-import { DEFAULT_STYLE } from "../src/tools.js";
+} from "../src/viewport/gestures.js";
+import { DEFAULT_STYLE } from "../src/tools/index.js";
 
 /**
  * Identity matrices make screen, stage and image coordinates the same, so these

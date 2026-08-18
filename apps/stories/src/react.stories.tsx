@@ -3,6 +3,7 @@ import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { EditorDocument } from "@pixen/core";
 import type { Story, StoryDefault } from "@ladle/react";
 import { ResultPanel, Row, Stage, useSampleImage, type ExportSummary } from "./harness.js";
+import { codeBlock, hostButton, logList } from "./styles.js";
 
 export default {
   title: "React",
@@ -60,17 +61,17 @@ export const SaveAndResume: Story = () => {
       <Stage height="auto" title="Stored document">
         <div style={{ display: "grid", gap: 10, justifyItems: "start" }}>
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" style={button} onClick={() => setSaved(editor.current?.getDocument() ?? null)}>
+            <button type="button" style={hostButton} onClick={() => setSaved(editor.current?.getDocument() ?? null)}>
               Save
             </button>
-            <button type="button" style={button} onClick={() => setInstance((value) => value + 1)}>
+            <button type="button" style={hostButton} onClick={() => setInstance((value) => value + 1)}>
               Remount
             </button>
-            <button type="button" style={button} onClick={() => setSaved(null)}>
+            <button type="button" style={hostButton} onClick={() => setSaved(null)}>
               Clear
             </button>
           </div>
-          <pre style={pre}>{saved ? JSON.stringify(saved, null, 2) : "Nothing saved yet."}</pre>
+          <pre style={codeBlock}>{saved ? JSON.stringify(saved, null, 2) : "Nothing saved yet."}</pre>
         </div>
       </Stage>
     </Row>
@@ -97,7 +98,7 @@ export const EventLog: Story = () => {
         />
       </Stage>
       <Stage height="auto" title="onChange">
-        <ol style={log}>
+        <ol style={logList}>
           {events.map((event) => (
             <li key={event.at} style={{ opacity: event.transient ? 0.55 : 1 }}>
               <code>{event.reason}</code>
@@ -111,34 +112,5 @@ export const EventLog: Story = () => {
   );
 };
 
-const button: React.CSSProperties = {
-  font: "600 13px/1 system-ui, sans-serif",
-  color: "inherit",
-  background: "rgba(127,140,170,0.16)",
-  border: "1px solid rgba(127,140,170,0.28)",
-  borderRadius: 8,
-  padding: "9px 12px",
-  cursor: "pointer",
-};
 
-const pre: React.CSSProperties = {
-  margin: 0,
-  maxHeight: 420,
-  overflow: "auto",
-  padding: 12,
-  borderRadius: 10,
-  background: "rgba(127,140,170,0.12)",
-  font: "400 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace",
-  maxWidth: "100%",
-};
 
-const log: React.CSSProperties = {
-  margin: 0,
-  padding: 0,
-  listStyle: "none",
-  display: "grid",
-  gap: 4,
-  maxHeight: 420,
-  overflow: "auto",
-  font: "400 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace",
-};

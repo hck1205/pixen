@@ -124,6 +124,30 @@ Colour adjustments use the canvas `filter` property, with a pixel-level fallback
 that matches the same maths for engines that lack it — a preview and an export
 must not disagree because of a browser capability.
 
+## Source layout
+
+Folders are concerns, and a concern that grows its own parts becomes a folder
+with a barrel — the same shape repeated at every depth:
+
+```
+packages/web/src/
+  element/          the custom element and everything it owns
+    chrome/         what the UI is made of
+      inspector/    one module per section: crop, style, layer, adjustments, view
+    dom/            button, input, field factories; in-place state updates
+    input/          what a keystroke or a drop means, as pure functions
+    constants.ts    every literal the chrome depends on, named
+  viewport/         canvas, gestures, overlay geometry, view fitting
+  tools/            what a tool is, and how new annotations look
+  i18n/             one module per locale, plus the registry
+  theme/            styles and icons
+```
+
+The rule that produces this: **the module that decides is pure and tested, the
+module that acts is thin.** `input/keyboard.ts` resolves a keystroke to an
+action; the element switches over it. `chrome/inspector/sections.ts` decides
+which section to show; the builders only know how to build one.
+
 ## Package boundaries
 
 - `@pixen/core` — no DOM beyond canvas; runs in a page, a worker or a test.

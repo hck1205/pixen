@@ -4,32 +4,29 @@
  * Importing this module registers the element. Everything it renders is driven
  * by an `@pixen/core` Editor instance, which stays reachable as `element.editor`
  * for hosts that want the headless API alongside the UI.
+ *
+ * The source is grouped by concern rather than by file type:
+ *
+ *   element/    the custom element, its chrome, its DOM helpers, its input
+ *   viewport/   the canvas, gestures, overlay geometry and view fitting
+ *   tools/      what a tool is, and how new annotations look
+ *   i18n/       the strings, one module per locale
+ *   theme/      styles and icons
  */
 // Side-effect import: importing this package registers the custom element.
 import "./define.js";
 
-export { PixenImageEditorElement, type AspectRatioOption } from "./element.js";
+export { PixenImageEditorElement } from "./element/index.js";
 export { definePixenImageEditor, TAG_NAME } from "./define.js";
-export { styles as pixenStyles } from "./styles.js";
-export { icons, type IconName } from "./icons.js";
-export { en, ko, registerLocale, resolveStrings, type PixenStrings } from "./i18n.js";
-export {
-  DEFAULT_STYLE,
-  DEFAULT_TOOLS,
-  normaliseTools,
-  type AnnotationStyle,
-  type CropToolOptions,
-  type ToolDefinition,
-  type ToolId,
-} from "./tools.js";
-export { Viewport, type ViewportCallbacks } from "./viewport.js";
-export * from "./gestures.js";
-export * from "./overlay.js";
-export * from "./labels.js";
-export * from "./view.js";
+
+export * from "./element/index.js";
+export * from "./viewport/index.js";
+export * from "./tools/index.js";
+export { en, ko, registerLocale, resolveStrings, type PixenStrings } from "./i18n/index.js";
+export { styles as pixenStyles, icons, type IconName } from "./theme/index.js";
 
 declare global {
   interface HTMLElementTagNameMap {
-    "pixen-image-editor": import("./element.js").PixenImageEditorElement;
+    "pixen-image-editor": import("./element/index.js").PixenImageEditorElement;
   }
 }

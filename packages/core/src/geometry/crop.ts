@@ -52,6 +52,9 @@ export function handlePosition(crop: Rect, handle: CropHandle): Point {
   };
 }
 
+/** Smallest crop a drag may produce, in stage pixels. */
+export const DEFAULT_MIN_CROP_SIZE = 16;
+
 export interface ResizeCropOptions {
   /** Region the crop may not leave — normally the stage rect. */
   bounds: Rect;
@@ -74,7 +77,7 @@ export function resizeCrop(
 ): Rect {
   const { bounds } = options;
   const aspectRatio = options.aspectRatio ?? null;
-  const minSize = options.minSize ?? 16;
+  const minSize = options.minSize ?? DEFAULT_MIN_CROP_SIZE;
   const axes = HANDLE_AXES[handle];
 
   let left = crop.x;
