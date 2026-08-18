@@ -23,6 +23,8 @@ export {
   type ToolId,
 } from "./tools.js";
 export { Viewport, type ViewportCallbacks } from "./viewport.js";
+export * from "./gestures.js";
+export * from "./overlay.js";
 
 declare global {
   interface HTMLElementTagNameMap {

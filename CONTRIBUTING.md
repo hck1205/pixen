@@ -59,6 +59,12 @@ pnpm check:independence # the scan on its own, with readable output
 
 - The engine is the single source of truth. UI layers observe it; they never
   keep a second copy of the document.
+- Decisions go in pure functions; classes hold state, effects and subscribers,
+  and nothing else. If a rule can only be exercised through a DOM event or a
+  canvas context, it is in the wrong module — see the table in
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#pure-core-imperative-shell).
+- State changes go through `editor.dispatch(intent)`. Intents are data, so they
+  can be logged, replayed and asserted on.
 - Document state is JSON. Anything with a lifetime (bitmaps, blobs, textures)
   belongs in the `ResourceManager`, keyed by id.
 - Any gesture that produces more than one state change is wrapped in an editor

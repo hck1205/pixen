@@ -30,19 +30,25 @@ was supplied to an AI tool as input at any point.
 | `geometry/rect.ts` | Rectangle algebra, aspect fitting, rotated bounds | First principles; rotated bounding box is `w·|cos| + h·|sin|` |
 | `geometry/spaces.ts` | The image / stage / output / view coordinate model | Original design for this project |
 | `geometry/crop.ts` | Handle-drag resize with edge anchoring and ratio locking | First principles: pin the opposite edge, solve the free axis from the locked ratio |
-| `model/*` | `EditorDocument` schema, layers, validation, migrations | Original design for this project |
+| `model/*` | `EditorDocument` schema, layers, migrations | Original design for this project |
+| `model/validate.ts` | Composable validators accumulating every issue | Ordinary parser-combinator technique; the shapes validated are our own schema |
+| `fp/*` | `Result`, `pipe`, immutable array helpers | Standard functional idioms, written here in a few dozen lines rather than taken from a library |
 | `model/palette.ts` | Annotation colours and default ratios | Chosen for this project; not taken from any design system |
 | `engine/commands.ts` | Pure document transforms, crop remapping across a rotate | First principles, using the matrices above |
-| `engine/history.ts` | Snapshot undo with explicit transactions | Ordinary software design; undo-as-snapshot and command grouping are textbook concepts, not anyone's implementation |
+| `engine/history.ts` | Snapshot undo with explicit transactions, as immutable state | Ordinary software design; undo-as-snapshot and command grouping are textbook concepts, not anyone's implementation |
+| `engine/session.ts` | Intent-to-command reducer over document, selection and history | Original design for this project; the reducer shape is a common functional idiom |
 | `image/exif.ts` | JPEG APP1 / TIFF IFD orientation parsing | The Exif and TIFF 6.0 specifications: `FFD8` SOI, `FFE1` APP1, the `Exif\0\0` header, `II`/`MM` byte order, magic `0x002A`, IFD entry layout, orientation tag `0x0112`. Written from the specified byte layout |
 | `image/canvas.ts`, `image/encode.ts` | Surface allocation, encoding, byte budgets | MDN/WHATWG: `OffscreenCanvas.convertToBlob`, `HTMLCanvasElement.toBlob`. The quality-reduction loop is our own |
 | `image/decode.ts` | Decode from blob/URL/bitmap, EXIF normalisation | MDN/WHATWG: `createImageBitmap`, `fetch`, `HTMLImageElement` |
 | `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
 | `render/scene.ts` | Document → draw list projection | Original design for this project |
 | `render/adjustments.ts` | Brightness / contrast / saturation, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix in that specification |
-| `render/canvas2d.ts` | Shape, arrow, path and text drawing | Canvas2D API; greedy line breaking; quadratic midpoint smoothing for free-draw; arrowheads from trigonometry |
+| `render/ops.ts` | Scene to draw-operation list: paths, arrow heads, text layout | Greedy line breaking; quadratic midpoint smoothing for free-draw; arrow heads from trigonometry |
+| `render/canvas2d.ts` | Executes a draw-operation list | Canvas2D API |
 | `export/*` | Full-resolution export, headless processing, policies | Original design for this project |
-| `web/element.ts`, `web/viewport.ts` | Custom element, viewport, gesture handling | Web Components, Pointer Events and Resize Observer as specified by WHATWG/W3C. Layout, interaction model and chrome are original |
+| `web/gestures.ts` | Pointer gestures as a state machine | Original design for this project |
+| `web/overlay.ts` | Crop chrome geometry | Rule-of-thirds guides and corner brackets, laid out here |
+| `web/element.ts`, `web/viewport.ts` | Custom element, viewport, event plumbing | Web Components, Pointer Events and Resize Observer as specified by WHATWG/W3C. Layout, interaction model and chrome are original |
 | `web/icons.ts` | Icon set | Drawn for this project as single-weight stroked primitives on a 24×24 grid |
 | `web/styles.ts` | Theme tokens and layout | Written for this project |
 | `react/index.tsx` | Props → properties, events → callbacks | React documentation on custom elements and `useImperativeHandle` |

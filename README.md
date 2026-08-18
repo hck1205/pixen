@@ -98,6 +98,22 @@ const result = await processImage(file, {
 console.log(result.bytes, result.savedBytes, result.compressionRatio);
 ```
 
+## Intents
+
+Every state change is an intent, and the convenience methods are shorthand for
+dispatching one. Intents are plain data, so they are easy to log, queue, replay
+in a test, or send across a worker boundary:
+
+```js
+editor.dispatch({ kind: "rotate-quarter-turns", turns: 1 });
+editor.dispatch({ kind: "begin-transaction", label: "Drag crop" });
+editor.dispatch({ kind: "drag-crop-handle", handle: "bottom-right", pointer: { x: 800, y: 400 } });
+editor.dispatch({ kind: "commit-transaction" }); // one undo step
+```
+
+The reducer behind them (`session.reduce`) is pure, so editor behaviour can be
+tested without constructing an editor at all.
+
 ## Saving and resuming an edit
 
 The document is plain JSON with a `schemaVersion`, and it never contains pixels:

@@ -1,14 +1,38 @@
-import { PixenError } from "../errors/index.js";
-import { cloneDocument } from "../model/document.js";
-import type { EditorDocument } from "../model/types.js";
+import { err, ok, type Result } from "../fp/result.js";
 
-export interface HistoryEntry {
-  label: string;
-  before: EditorDocument;
-  after: EditorDocument;
+/**
+ * Undo history as an immutable value.
+ *
+ * Nothing here mutates, allocates, or knows what a document is: it is a stack
+ * pair plus an optional open transaction, parameterised over the snapshot type.
+ * The editor keeps one of these in a field and replaces it; every transition
+ * below is a pure function you can call from a test with a plain object.
+ *
+ * Snapshots — rather than inverse commands — are affordable because documents
+ * hold no pixels: a snapshot is a small JSON object while bitmaps stay in the
+ * resource manager.
+ */
+export interface HistoryEntry<T> {
+  readonly label: string;
+  readonly before: T;
+  readonly after: T;
 }
 
-export interface HistoryState {
+export interface PendingTransaction<T> {
+  readonly label: string;
+  readonly before: T;
+}
+
+export interface HistoryState<T> {
+  readonly past: readonly HistoryEntry<T>[];
+  readonly future: readonly HistoryEntry<T>[];
+  /** The gesture in progress, if any. */
+  readonly pending: PendingTransaction<T> | null;
+  readonly limit: number;
+}
+
+/** What the UI needs to render undo/redo affordances. */
+export interface HistorySummary {
   canUndo: boolean;
   canRedo: boolean;
   undoLabel: string | null;
@@ -17,125 +41,139 @@ export interface HistoryState {
   inTransaction: boolean;
 }
 
-export interface HistoryOptions {
-  /** Entries kept before the oldest is dropped. */
-  limit?: number;
+export type HistoryFailure =
+  | { kind: "transaction-already-open"; openLabel: string; requestedLabel: string }
+  | { kind: "no-open-transaction"; operation: "commit" | "rollback" }
+  | { kind: "transaction-open"; operation: "undo" | "redo"; openLabel: string };
+
+export const DEFAULT_HISTORY_LIMIT = 100;
+
+export function createHistory<T>(limit: number = DEFAULT_HISTORY_LIMIT): HistoryState<T> {
+  return { past: [], future: [], pending: null, limit: Math.max(1, Math.floor(limit)) };
+}
+
+export function summarise<T>(state: HistoryState<T>): HistorySummary {
+  return {
+    canUndo: state.past.length > 0,
+    canRedo: state.future.length > 0,
+    undoLabel: state.past.at(-1)?.label ?? null,
+    redoLabel: state.future.at(-1)?.label ?? null,
+    depth: state.past.length,
+    inTransaction: state.pending !== null,
+  };
+}
+
+/** Drops the oldest entries once the stack passes its limit. */
+function pushEntry<T>(state: HistoryState<T>, entry: HistoryEntry<T>): HistoryState<T> {
+  const past = [...state.past, entry];
+  return {
+    ...state,
+    past: past.length > state.limit ? past.slice(past.length - state.limit) : past,
+    future: [],
+  };
 }
 
 /**
- * Snapshot history with explicit transactions.
- *
- * A pointer drag produces a continuous stream of document states; the editor
- * opens a transaction on pointerdown and commits on pointerup, so the whole
- * gesture undoes as one step. Snapshots — rather than inverse commands — are
- * viable here precisely because documents hold no pixels: a snapshot is a small
- * JSON object, while the bitmaps stay in the ResourceManager.
+ * Records an already-applied atomic change. While a transaction is open this is
+ * a no-op: the gesture as a whole is what will be recorded, not its frames.
  */
-export class History {
-  #undo: HistoryEntry[] = [];
-  #redo: HistoryEntry[] = [];
-  #limit: number;
-  #transaction: { label: string; before: EditorDocument } | null = null;
-
-  constructor(options: HistoryOptions = {}) {
-    this.#limit = Math.max(1, options.limit ?? 100);
-  }
-
-  get inTransaction(): boolean {
-    return this.#transaction !== null;
-  }
-
-  get transactionLabel(): string | null {
-    return this.#transaction?.label ?? null;
-  }
-
-  state(): HistoryState {
-    return {
-      canUndo: this.#undo.length > 0,
-      canRedo: this.#redo.length > 0,
-      undoLabel: this.#undo.at(-1)?.label ?? null,
-      redoLabel: this.#redo.at(-1)?.label ?? null,
-      depth: this.#undo.length,
-      inTransaction: this.inTransaction,
-    };
-  }
-
-  /** Records an already-applied atomic change. */
-  push(label: string, before: EditorDocument, after: EditorDocument): void {
-    if (this.#transaction) return; // the open transaction will record the whole gesture
-    this.#undo.push({ label, before: cloneDocument(before), after: cloneDocument(after) });
-    if (this.#undo.length > this.#limit) this.#undo.shift();
-    this.#redo.length = 0;
-  }
-
-  begin(label: string, document: EditorDocument): void {
-    if (this.#transaction) {
-      throw new PixenError(
-        "INVALID_STATE",
-        `A transaction ("${this.#transaction.label}") is already open`,
-        { details: { openLabel: this.#transaction.label, requestedLabel: label } },
-      );
-    }
-    this.#transaction = { label, before: cloneDocument(document) };
-  }
-
-  /**
-   * Closes the open transaction. A gesture that ended where it started records
-   * nothing, so a click that does not move never costs an undo step.
-   */
-  commit(document: EditorDocument): boolean {
-    const transaction = this.#transaction;
-    if (!transaction) {
-      throw new PixenError("INVALID_STATE", "commit() was called without an open transaction");
-    }
-    this.#transaction = null;
-
-    if (documentsEqual(transaction.before, document)) return false;
-
-    this.#undo.push({ label: transaction.label, before: transaction.before, after: cloneDocument(document) });
-    if (this.#undo.length > this.#limit) this.#undo.shift();
-    this.#redo.length = 0;
-    return true;
-  }
-
-  /** Abandons the open transaction and returns the state to restore. */
-  rollback(): EditorDocument {
-    const transaction = this.#transaction;
-    if (!transaction) {
-      throw new PixenError("INVALID_STATE", "rollback() was called without an open transaction");
-    }
-    this.#transaction = null;
-    return transaction.before;
-  }
-
-  undo(): EditorDocument | null {
-    if (this.#transaction) {
-      throw new PixenError("INVALID_STATE", "Cannot undo while a transaction is open");
-    }
-    const entry = this.#undo.pop();
-    if (!entry) return null;
-    this.#redo.push(entry);
-    return cloneDocument(entry.before);
-  }
-
-  redo(): EditorDocument | null {
-    if (this.#transaction) {
-      throw new PixenError("INVALID_STATE", "Cannot redo while a transaction is open");
-    }
-    const entry = this.#redo.pop();
-    if (!entry) return null;
-    this.#undo.push(entry);
-    return cloneDocument(entry.after);
-  }
-
-  clear(): void {
-    this.#undo.length = 0;
-    this.#redo.length = 0;
-    this.#transaction = null;
-  }
+export function record<T>(state: HistoryState<T>, label: string, before: T, after: T): HistoryState<T> {
+  if (state.pending) return state;
+  return pushEntry(state, { label, before, after });
 }
 
-/** Documents are plain JSON by contract, so this comparison is exact. */
-export function documentsEqual(a: EditorDocument, b: EditorDocument): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+export function begin<T>(
+  state: HistoryState<T>,
+  label: string,
+  snapshot: T,
+): Result<HistoryState<T>, HistoryFailure> {
+  if (state.pending) {
+    return err({
+      kind: "transaction-already-open",
+      openLabel: state.pending.label,
+      requestedLabel: label,
+    });
+  }
+  return ok({ ...state, pending: { label, before: snapshot } });
+}
+
+export type Equals<T> = (a: T, b: T) => boolean;
+
+/** Snapshots are plain JSON by contract, so structural comparison is exact. */
+export const jsonEquals: Equals<unknown> = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * Closes the open transaction. A gesture that ended where it started records
+ * nothing, so a click that does not move never costs an undo step.
+ */
+export function commit<T>(
+  state: HistoryState<T>,
+  snapshot: T,
+  equals: Equals<T> = jsonEquals,
+): Result<{ state: HistoryState<T>; recorded: boolean }, HistoryFailure> {
+  const pending = state.pending;
+  if (!pending) return err({ kind: "no-open-transaction", operation: "commit" });
+
+  const closed: HistoryState<T> = { ...state, pending: null };
+  if (equals(pending.before, snapshot)) return ok({ state: closed, recorded: false });
+
+  return ok({
+    state: pushEntry(closed, { label: pending.label, before: pending.before, after: snapshot }),
+    recorded: true,
+  });
+}
+
+/** Abandons the gesture, handing back the state to restore. */
+export function rollback<T>(
+  state: HistoryState<T>,
+): Result<{ state: HistoryState<T>; snapshot: T }, HistoryFailure> {
+  const pending = state.pending;
+  if (!pending) return err({ kind: "no-open-transaction", operation: "rollback" });
+  return ok({ state: { ...state, pending: null }, snapshot: pending.before });
+}
+
+/** `snapshot` is null when there was nothing to undo. */
+export function undo<T>(
+  state: HistoryState<T>,
+): Result<{ state: HistoryState<T>; snapshot: T | null }, HistoryFailure> {
+  if (state.pending) {
+    return err({ kind: "transaction-open", operation: "undo", openLabel: state.pending.label });
+  }
+  const entry = state.past.at(-1);
+  if (!entry) return ok({ state, snapshot: null });
+
+  return ok({
+    state: { ...state, past: state.past.slice(0, -1), future: [...state.future, entry] },
+    snapshot: entry.before,
+  });
+}
+
+export function redo<T>(
+  state: HistoryState<T>,
+): Result<{ state: HistoryState<T>; snapshot: T | null }, HistoryFailure> {
+  if (state.pending) {
+    return err({ kind: "transaction-open", operation: "redo", openLabel: state.pending.label });
+  }
+  const entry = state.future.at(-1);
+  if (!entry) return ok({ state, snapshot: null });
+
+  return ok({
+    state: { ...state, past: [...state.past, entry], future: state.future.slice(0, -1) },
+    snapshot: entry.after,
+  });
+}
+
+export function clear<T>(state: HistoryState<T>): HistoryState<T> {
+  return createHistory<T>(state.limit);
+}
+
+export function describeFailure(failure: HistoryFailure): string {
+  switch (failure.kind) {
+    case "transaction-already-open":
+      return `A transaction ("${failure.openLabel}") is already open, so "${failure.requestedLabel}" cannot start`;
+    case "no-open-transaction":
+      return `${failure.operation}() was called without an open transaction`;
+    case "transaction-open":
+      return `Cannot ${failure.operation} while the transaction "${failure.openLabel}" is open`;
+  }
 }
