@@ -1,0 +1,71 @@
+import { PixenError } from "../errors/index.js";
+import type { Size } from "../geometry/types.js";
+
+export type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
+export type Canvas2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+export interface CanvasSurface {
+  canvas: AnyCanvas;
+  context: Canvas2D;
+}
+
+/** Guard against decompression bombs and canvases the platform silently refuses. */
+export const MAX_CANVAS_PIXELS = 268_435_456; // 16384 x 16384
+
+export function assertDrawableSize(size: Size, what = "image"): void {
+  const width = Math.ceil(size.width);
+  const height = Math.ceil(size.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
+    throw new PixenError("INVALID_IMAGE", `Refusing to allocate a ${width}x${height} ${what}`, {
+      details: { width, height },
+    });
+  }
+  if (width * height > MAX_CANVAS_PIXELS) {
+    throw new PixenError(
+      "MEMORY_LIMIT",
+      `${what} of ${width}x${height} exceeds the ${MAX_CANVAS_PIXELS} pixel limit`,
+      { details: { width, height, limit: MAX_CANVAS_PIXELS } },
+    );
+  }
+}
+
+export function supportsOffscreenCanvas(): boolean {
+  return typeof OffscreenCanvas !== "undefined";
+}
+
+/**
+ * Allocates a drawing surface. Prefers `OffscreenCanvas` so the same code runs
+ * on the main thread and in a worker; falls back to a DOM canvas.
+ */
+export function createSurface(width: number, height: number, alpha = true): CanvasSurface {
+  assertDrawableSize({ width, height }, "canvas");
+  const w = Math.max(1, Math.round(width));
+  const h = Math.max(1, Math.round(height));
+
+  if (supportsOffscreenCanvas()) {
+    const canvas = new OffscreenCanvas(w, h);
+    const context = canvas.getContext("2d", { alpha }) as OffscreenCanvasRenderingContext2D | null;
+    if (!context) throw new PixenError("EXPORT_FAILED", "Could not acquire a 2D context on OffscreenCanvas");
+    return { canvas, context };
+  }
+
+  if (typeof document === "undefined") {
+    throw new PixenError("EXPORT_FAILED", "No canvas implementation available in this environment");
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const context = canvas.getContext("2d", { alpha });
+  if (!context) throw new PixenError("EXPORT_FAILED", "Could not acquire a 2D context on HTMLCanvasElement");
+  return { canvas, context };
+}
+
+/** Releases the backing store of a canvas that is about to be dropped. */
+export function releaseSurface(surface: CanvasSurface | null | undefined): void {
+  if (!surface) return;
+  // Zeroing the dimensions is the only portable way to free canvas memory
+  // immediately, which matters a lot on mobile Safari.
+  surface.canvas.width = 0;
+  surface.canvas.height = 0;
+}
