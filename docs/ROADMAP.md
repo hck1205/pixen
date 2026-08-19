@@ -25,7 +25,9 @@ unit tests and a browser suite driving the real bundle.
 
 ## Phase 2 — commercial V1
 
-- [ ] Device QA: iOS Safari, Android Chrome, Safari desktop
+- [ ] Device QA: iOS Safari, Android Chrome, Safari desktop. The suite already
+      runs against WebKit and Firefox with `PIXEN_BROWSERS=all`; what is missing
+      is the hardware
 - [ ] Memory ceilings and preview downscale tuning on real large images
 - [x] Worker-based decode and encode behind the existing API
 - [x] Story browser covering every UI state, for visual review
@@ -46,8 +48,11 @@ unit tests and a browser suite driving the real bundle.
 - [x] Text watermarks (a text layer plus the same placement maths)
 - [x] Frames: solid, inset and rounded, drawn over the finished picture
 - [x] Vue wrapper (`@pixen/vue`)
-- [ ] Svelte and Angular wrappers (both usable today through the element; see
-      [FRAMEWORKS.md](FRAMEWORKS.md))
+- [x] Svelte bindings (`@pixen/svelte`): an action, with no Svelte dependency
+- [ ] Angular: no package planned. The element binds with Angular's own property
+      and event syntax once `CUSTOM_ELEMENTS_SCHEMA` is declared, and a wrapper
+      would add an Angular toolchain to this repository to save one line — see
+      [FRAMEWORKS.md](FRAMEWORKS.md)
 - [x] Sticker tool over host-supplied artwork
 - [x] Public plugin API with a documented extension surface ([PLUGINS.md](PLUGINS.md))
 

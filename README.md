@@ -17,6 +17,7 @@ adapters over that element. You can use any layer on its own.
 | `@pixen/core` | The engine: document model, geometry, history, renderer, export pipeline, headless processing |
 | `@pixen/web` | `<pixen-image-editor>`, the framework-agnostic UI |
 | `@pixen/react` | React bindings for the element |
+| `@pixen/svelte` | Svelte bindings, as an action |
 | `@pixen/vue` | Vue 3 bindings for the element |
 
 ## Quick start — the element

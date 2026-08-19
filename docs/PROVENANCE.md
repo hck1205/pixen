@@ -62,6 +62,7 @@ was supplied to an AI tool as input at any point.
 | `web/tools/stickers.ts` | Normalising host-supplied sticker definitions | Original design for this project. Pixen ships no sticker artwork |
 | `web/plugins/*` | The extension surface | Original design for this project; a setup function returning a teardown is an ordinary idiom |
 | `react/index.tsx` | Props → properties, events → callbacks | React documentation on custom elements and `useImperativeHandle` |
+| `svelte/index.ts` | The element as a Svelte action | The Svelte documentation on actions: a function returning `update` and `destroy` |
 
 ## What functional similarity does and does not mean
 

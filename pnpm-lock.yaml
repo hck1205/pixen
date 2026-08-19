@@ -83,6 +83,15 @@ importers:
         specifier: ^19.0.0
         version: 19.2.8
 
+  packages/svelte:
+    dependencies:
+      '@pixen/core':
+        specifier: workspace:*
+        version: link:../core
+      '@pixen/web':
+        specifier: workspace:*
+        version: link:../web
+
   packages/vue:
     dependencies:
       '@pixen/core':

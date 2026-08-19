@@ -12,6 +12,7 @@ the rest of the documentation explains.
 | `@pixen/web` | `<pixen-image-editor>`, the framework-agnostic UI | core |
 | `@pixen/react` | React bindings | core, web |
 | `@pixen/vue` | Vue 3 bindings | core, web |
+| `@pixen/svelte` | Svelte bindings, as an action | core, web |
 
 `apps/playground` is the demo and the browser-test fixture. `apps/stories` is the
 Ladle story browser — the visual reference for the UI.
