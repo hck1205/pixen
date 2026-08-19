@@ -22,8 +22,17 @@ export { recolourPatch } from "./style.js";
  */
 export function buildInspector(context: ChromeContext): ChromeBuild {
   const view = buildViewControls(context);
+  // Plugin sections sit between the tool's own controls and the view controls:
+  // after what the tool needs, before what the viewport needs.
+  const contributed = context.plugins.activeSections().flatMap((section) => section.build());
+
   return {
-    nodes: [...buildContextualControls(context), divider(), ...view.nodes],
+    nodes: [
+      ...buildContextualControls(context),
+      ...(contributed.length > 0 ? [divider(), ...contributed] : []),
+      divider(),
+      ...view.nodes,
+    ],
     readouts: view.readouts,
   };
 }

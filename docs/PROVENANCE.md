@@ -60,6 +60,7 @@ was supplied to an AI tool as input at any point.
 | `web/i18n/*` | Strings in nine languages | Translated for this project from the English source strings, which were written here |
 | `web/viewport/text-box.ts` | Placing a real input over a text layer | First principles: the same origin and line height the renderer uses |
 | `web/tools/stickers.ts` | Normalising host-supplied sticker definitions | Original design for this project. Pixen ships no sticker artwork |
+| `web/plugins/*` | The extension surface | Original design for this project; a setup function returning a teardown is an ordinary idiom |
 | `react/index.tsx` | Props → properties, events → callbacks | React documentation on custom elements and `useImperativeHandle` |
 
 ## What functional similarity does and does not mean

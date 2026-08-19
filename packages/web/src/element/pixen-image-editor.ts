@@ -47,6 +47,7 @@ import {
   type ObservedAttribute,
   type PanelId,
 } from "./constants.js";
+import { PluginRegistry, type PixenPlugin } from "../plugins/index.js";
 import { SELECTORS, template } from "./template.js";
 
 /**
@@ -112,6 +113,7 @@ export class PixenImageEditorElement extends ElementBase {
   #readouts: Readouts = {};
   #apple = isAppleShortcutPlatform(typeof navigator === "undefined" ? "" : navigator.platform);
   #unsubscribe: Array<() => void> = [];
+  #plugins = new PluginRegistry(() => this.#renderChrome());
 
   constructor() {
     super();
@@ -201,6 +203,7 @@ export class PixenImageEditorElement extends ElementBase {
     this.removeEventListener("dragleave", this.#onDragLeave);
     this.removeEventListener("drop", this.#onDrop);
     this.removeEventListener("paste", this.#onPaste);
+    this.#plugins.dispose();
     this.#viewport?.destroy();
     this.#viewport = null;
     for (const off of this.#unsubscribe) off();
@@ -251,6 +254,7 @@ export class PixenImageEditorElement extends ElementBase {
 
   /** Releases decoded bitmaps. Call it when the host is done with the editor. */
   destroy(): void {
+    this.#plugins.dispose();
     this.#viewport?.destroy();
     this.#viewport = null;
     this.editor.destroy();
@@ -422,6 +426,7 @@ export class PixenImageEditorElement extends ElementBase {
       apple: this.#apple,
       busy: this.#busy,
       stickers: this.#stickers,
+      plugins: this.#plugins,
       actions: this.#actions,
     };
   }
@@ -544,6 +549,27 @@ export class PixenImageEditorElement extends ElementBase {
   #applyDirection(locale: string | null): void {
     if (this.#explicitDirection) return;
     this.setAttribute("dir", directionFor(locale));
+  }
+
+  // --- plugins -------------------------------------------------------------
+
+  /**
+   * Attaches a plugin.
+   *
+   * Called immediately with the element, the engine and the strings; whatever it
+   * returns is run when the element is torn down. A plugin attached before the
+   * element connects is applied when it does.
+   */
+  use(plugin: PixenPlugin): this {
+    const teardown = plugin({
+      element: this,
+      editor: this.editor,
+      strings: this.#strings,
+      addAction: (action) => this.#plugins.addAction(action),
+      addInspectorSection: (section) => this.#plugins.addInspectorSection(section),
+    });
+    this.#plugins.retain(teardown);
+    return this;
   }
 
   // --- stickers ------------------------------------------------------------

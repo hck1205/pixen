@@ -8,6 +8,19 @@ import type { ChromeContext } from "./context.js";
 export function buildActions(context: ChromeContext): Node[] {
   const { strings, actions, apple } = context;
 
+  const contributed = context.plugins.actions.map((action) =>
+    button({
+      ...(action.icon ? { icon: action.icon } : {}),
+      label: action.label,
+      ...(action.text ? { text: action.text } : {}),
+      className: [action.emphasis === "primary" ? "primary" : "", action.text ? "text" : ""]
+        .filter(Boolean)
+        .join(" "),
+      dataset: { action: `plugin:${action.id}` },
+      onClick: action.onClick,
+    }),
+  );
+
   return [
     button({
       icon: "undo",
@@ -33,6 +46,9 @@ export function buildActions(context: ChromeContext): Node[] {
       dataset: { action: "export" },
       onClick: actions.export,
     }),
+    // Plugin actions come after Export, so a host's own button never displaces
+    // the one people are looking for.
+    ...(contributed.length > 0 ? [divider(), ...contributed] : []),
   ];
 }
 
@@ -54,4 +70,10 @@ export function refreshActions(host: HTMLElement, context: ChromeContext): void 
 
   relabel(host, "undo", undoLabel(strings, history, apple));
   relabel(host, "redo", redoLabel(strings, history, apple));
+
+  // A plugin's own availability, asked rather than remembered, so it can depend
+  // on state the plugin knows about and the chrome does not.
+  for (const action of context.plugins.actions) {
+    setDisabled(host, `plugin:${action.id}`, action.disabled?.() === true);
+  }
 }

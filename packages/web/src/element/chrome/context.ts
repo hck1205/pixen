@@ -1,6 +1,7 @@
 import type { Editor, EditorLayer, ImageFormat } from "@pixen/core";
 import type { PixenStrings } from "../../i18n/index.js";
 import type { AnnotationStyle, StickerDefinition, ToolDefinition, ToolId } from "../../tools/index.js";
+import type { PluginRegistry } from "../../plugins/index.js";
 import type { AspectRatioOption, PanelId } from "../constants.js";
 
 /**
@@ -25,6 +26,8 @@ export interface ChromeContext {
   readonly busy: boolean;
   /** What the host offered for the sticker tool; empty when it offered none. */
   readonly stickers: readonly StickerDefinition[];
+  /** What plugins have contributed to the chrome. */
+  readonly plugins: PluginRegistry;
   readonly actions: ChromeActions;
 }
 

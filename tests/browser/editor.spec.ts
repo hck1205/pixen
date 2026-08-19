@@ -992,6 +992,82 @@ test("the image worker really runs, and agrees with the main thread", async ({ p
   expect(measure.pixelDifference).toBeLessThan(2);
 });
 
+test("a plugin adds a real button and a real inspector control", async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      use(plugin: (context: Record<string, any>) => void | (() => void)): unknown;
+      editor: { document: { layers: unknown[] } };
+    };
+
+    const clicks: string[] = [];
+    let hasSelection = false;
+
+    const remove = { action: null as null | (() => void) };
+    element.use((context) => {
+      remove.action = context.addAction({
+        id: "save",
+        label: "Save to server",
+        text: "Save",
+        emphasis: "primary",
+        onClick: () => clicks.push("save"),
+        disabled: () => clicks.length > 0,
+      });
+      context.addInspectorSection({
+        id: "notes",
+        when: () => hasSelection,
+        build: () => {
+          const node = document.createElement("span");
+          node.dataset.pluginSection = "notes";
+          node.textContent = "Plugin section";
+          return [node];
+        },
+      });
+      return () => clicks.push("torn down");
+    });
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const shadow = element.shadowRoot!;
+    const find = () => shadow.querySelector<HTMLButtonElement>('button[data-action="plugin:save"]');
+
+    const before = {
+      button: find()?.textContent?.trim() ?? "",
+      disabled: find()?.disabled ?? true,
+      sectionShown: shadow.querySelectorAll("[data-plugin-section]").length,
+    };
+
+    find()!.click();
+
+    // The section's `when` is asked on every rebuild, so flipping the condition
+    // and forcing a rebuild is enough to make it appear.
+    hasSelection = true;
+    element.tool = "select";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const after = {
+      clicks: [...clicks],
+      disabled: find()?.disabled ?? false,
+      sectionShown: shadow.querySelectorAll("[data-plugin-section]").length,
+    };
+
+    remove.action?.();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const removed = find() === null;
+
+    return { before, after, removed };
+  });
+
+  expect(result.before.button).toBe("Save");
+  expect(result.before.disabled).toBe(false);
+  expect(result.before.sectionShown).toBe(0);
+
+  expect(result.after.clicks).toEqual(["save"]);
+  // `disabled` is asked on refresh, so the plugin's own state controls it.
+  expect(result.after.disabled).toBe(true);
+  expect(result.after.sectionShown).toBe(1);
+
+  expect(result.removed).toBe(true);
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

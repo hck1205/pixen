@@ -23,6 +23,7 @@ export * from "./element/index.js";
 export * from "./viewport/index.js";
 export * from "./tools/index.js";
 export * from "./bindings/index.js";
+export * from "./plugins/index.js";
 export {
   availableLocales,
   directionFor,

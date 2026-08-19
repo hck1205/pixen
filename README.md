@@ -160,6 +160,24 @@ editor.addWatermark({
 });
 ```
 
+## Plugins
+
+```js
+editor.use((context) => {
+  return context.addAction({
+    id: "save",
+    label: "Save to server",
+    text: "Save",
+    emphasis: "primary",
+    onClick: () => void upload(context.editor),
+  });
+});
+```
+
+A plugin is a function called once with the element, the engine and the strings;
+what it returns is how it undoes itself. See [docs/PLUGINS.md](docs/PLUGINS.md),
+including what is deliberately not exposed yet and why.
+
 ## Off the main thread
 
 Decoding and encoding move to a worker where the browser allows it, so opening

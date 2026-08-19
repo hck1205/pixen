@@ -49,7 +49,7 @@ unit tests and a browser suite driving the real bundle.
 - [ ] Svelte and Angular wrappers (both usable today through the element; see
       [FRAMEWORKS.md](FRAMEWORKS.md))
 - [x] Sticker tool over host-supplied artwork
-- [ ] Public plugin API with a documented extension surface
+- [x] Public plugin API with a documented extension surface ([PLUGINS.md](PLUGINS.md))
 
 ## Phase 4 — differentiation
 
