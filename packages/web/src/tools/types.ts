@@ -1,5 +1,14 @@
 /** The identifiers a host uses to choose which tools appear. */
-export type ToolId = "crop" | "select" | "rect" | "ellipse" | "arrow" | "draw" | "text" | "redact";
+export type ToolId =
+  | "crop"
+  | "select"
+  | "rect"
+  | "ellipse"
+  | "arrow"
+  | "draw"
+  | "text"
+  | "sticker"
+  | "redact";
 
 export interface ToolDefinition {
   id: ToolId;
@@ -13,4 +22,9 @@ export interface CropToolOptions {
   /** Ratio applied on load. */
   defaultRatio?: number | null;
   minSize?: number;
+}
+
+export interface StickerToolOptions {
+  /** Width of a placed sticker, as a fraction of the visible crop's longest edge. */
+  scale?: number;
 }

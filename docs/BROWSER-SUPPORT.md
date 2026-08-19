@@ -46,7 +46,8 @@ prevents an edit or an export.
 
 | Feature | Available from | Without it |
 | --- | --- | --- |
-| `OffscreenCanvas` | Chrome 69 · Firefox 105 · Safari 16.4 | A DOM canvas is used; rendering cannot move off the main thread |
+| `OffscreenCanvas` | Chrome 69 · Firefox 105 · Safari 16.4 | A DOM canvas is used; decode and encode stay on the main thread |
+| `Worker` + blob URLs | Everywhere, unless a CSP forbids `worker-src blob:` | Decode and encode stay on the main thread |
 | Canvas `filter` | Chrome 52 · Firefox 49 · Safari 16.4 | Brightness, contrast and saturation run per pixel — same result, slower on large exports |
 | `createImageBitmap` | Chrome 50 · Firefox 42 · Safari 15 | Images decode through an `<img>` element: slower, more memory |
 | `CanvasRenderingContext2D.roundRect` | Chrome 99 · Firefox 112 · Safari 16.4 | Rounded annotation corners render square |
@@ -84,9 +85,18 @@ the failure mode is an import-time crash rather than a render-time one.
 
 - **SVG input is refused** on purpose (`UNSUPPORTED_FORMAT`); see
   [SECURITY.md](SECURITY.md).
-- **Workers are not used yet.** Decode and encode run on the main thread, which
-  is visible on very large images on low-end phones. The pipeline is already
-  worker-shaped — `OffscreenCanvas` where available, no DOM in the engine — so
-  this is a change of execution context, not of architecture.
+- **Decode and encode run on a worker** where the browser allows it, so a large
+  photograph no longer freezes the interface while it is read or written. The
+  worker ships inside the bundle as a blob URL, which means there is no second
+  file to serve and no build configuration — but also that a
+  `Content-Security-Policy` without `worker-src blob:` will refuse it. Every
+  path degrades: no `Worker`, no `OffscreenCanvas`, a policy that says no, or a
+  worker that stops answering all fall back to the main thread, which is exactly
+  what ran before.
+
+  Two deliberate limits. Blobs under 512 KB decode inline, because the round
+  trip costs more than it saves; and the byte-budget search encodes on the main
+  thread, because it tries up to five times and reading the canvas back for each
+  attempt would cost more than the offload returns.
 - **Very large images** are bounded at 268,435,456 pixels (16384 × 16384), above
   which `MEMORY_LIMIT` is raised rather than the tab being killed.

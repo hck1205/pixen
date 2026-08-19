@@ -5,8 +5,19 @@
  * layout on every history change, so state that changes often is written onto
  * the existing nodes instead.
  */
+/**
+ * Finds a control by its action name.
+ *
+ * The name is compared rather than interpolated into a selector: plugin actions
+ * are namespaced `plugin:<id>` and the id comes from a host, so an unquoted
+ * attribute selector would throw on the first colon — and quoting alone would
+ * still leave a host id containing a quote able to break the selector.
+ */
 function findAction(host: HTMLElement, action: string): HTMLButtonElement | null {
-  return host.querySelector<HTMLButtonElement>(`button[data-action=${action}]`);
+  for (const control of host.querySelectorAll<HTMLButtonElement>("button[data-action]")) {
+    if (control.dataset.action === action) return control;
+  }
+  return null;
 }
 
 export function setDisabled(host: HTMLElement, action: string, disabled: boolean): void {

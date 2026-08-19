@@ -3,6 +3,7 @@ import {
   Editor,
   isPixenError,
   PixenError,
+  toPixenError,
   type EditorDocument,
   type ExportOptions,
   type ExportResult,
@@ -10,9 +11,18 @@ import {
   type ImagePolicy,
   type PresetName,
 } from "@pixen/core";
-import { resolveStrings, type PixenStrings } from "../i18n/index.js";
-import { DEFAULT_STYLE, normaliseTools, type AnnotationStyle, type ToolDefinition, type ToolId } from "../tools/index.js";
-import { Viewport, type EdgeBox } from "../viewport/index.js";
+import { directionFor, resolveStrings, type PixenStrings } from "../i18n/index.js";
+import {
+  DEFAULT_STYLE,
+  normaliseStickers,
+  normaliseTools,
+  type AnnotationStyle,
+  type StickerDefinition,
+  type StickerToolOptions,
+  type ToolDefinition,
+  type ToolId,
+} from "../tools/index.js";
+import { textBoxPlacement, textBoxStyle, Viewport, type EdgeBox } from "../viewport/index.js";
 import {
   buildActions,
   buildEmptyState,
@@ -37,6 +47,7 @@ import {
   type ObservedAttribute,
   type PanelId,
 } from "./constants.js";
+import { PluginRegistry, type PixenPlugin } from "../plugins/index.js";
 import { SELECTORS, template } from "./template.js";
 
 /**
@@ -80,20 +91,29 @@ export class PixenImageEditorElement extends ElementBase {
   #busyHost!: HTMLElement;
   #statusHost!: HTMLElement;
   #fileInput!: HTMLInputElement;
+  #textInput!: HTMLTextAreaElement;
+  /** The text layer being edited on the canvas, if any. */
+  #editingText: string | null = null;
 
   #tools: ToolDefinition[] = normaliseTools(null);
+  #stickers: StickerDefinition[] = [];
+  /** Sticker id -> resource id, so the same artwork is decoded once. */
+  #stickerResources = new Map<string, string>();
   #ratios: AspectRatioOption[] = normaliseAspectRatios(null);
   #annotationStyle: AnnotationStyle = { ...DEFAULT_STYLE };
   #policy: ImagePolicy | PresetName | null = null;
   #strings: PixenStrings = resolveStrings("en");
   #panel: PanelId = "tool";
   #busy = false;
+  /** True when the host set `dir` itself, which then outranks the locale. */
+  #explicitDirection = false;
   #pendingSrc: string | null = null;
   #loadToken = 0;
   /** Readout nodes are updated in place so a drag does not rebuild the chrome. */
   #readouts: Readouts = {};
   #apple = isAppleShortcutPlatform(typeof navigator === "undefined" ? "" : navigator.platform);
   #unsubscribe: Array<() => void> = [];
+  #plugins = new PluginRegistry(() => this.#renderChrome());
 
   constructor() {
     super();
@@ -114,14 +134,20 @@ export class PixenImageEditorElement extends ElementBase {
     this.#busyHost = find(SELECTORS.busy);
     this.#statusHost = find(SELECTORS.status);
     this.#fileInput = find(SELECTORS.fileInput);
+    this.#textInput = find(SELECTORS.textInput);
 
     if (!this.hasAttribute("tabindex")) this.setAttribute("tabindex", "0");
     if (!this.hasAttribute("theme")) this.setAttribute("theme", "dark");
+    this.#explicitDirection = this.hasAttribute("dir");
+    this.#applyDirection(this.getAttribute("locale"));
 
     this.#viewport = new Viewport(this.#canvas, this.editor, {
       onChange: () => this.#syncUI(),
-      onViewChange: () => this.#updateReadouts(),
-      onTextCreated: (id) => this.#focusTextField(id),
+      onViewChange: () => {
+        this.#updateReadouts();
+        this.#positionTextEditor();
+      },
+      onEditText: (id) => this.#openTextEditor(id),
       measureChrome: () => this.#measureChrome(),
     });
     this.#viewport.style = this.#annotationStyle;
@@ -151,6 +177,9 @@ export class PixenImageEditorElement extends ElementBase {
     this.addEventListener("drop", this.#onDrop);
     this.addEventListener("paste", this.#onPaste);
     this.#fileInput.addEventListener("change", this.#onFilePicked);
+    this.#textInput.addEventListener("input", this.#onTextInput);
+    this.#textInput.addEventListener("blur", this.#onTextBlur);
+    this.#textInput.addEventListener("keydown", this.#onTextKeyDown);
 
     this.#renderChrome();
     this.#syncUI();
@@ -174,6 +203,7 @@ export class PixenImageEditorElement extends ElementBase {
     this.removeEventListener("dragleave", this.#onDragLeave);
     this.removeEventListener("drop", this.#onDrop);
     this.removeEventListener("paste", this.#onPaste);
+    this.#plugins.dispose();
     this.#viewport?.destroy();
     this.#viewport = null;
     for (const off of this.#unsubscribe) off();
@@ -197,6 +227,7 @@ export class PixenImageEditorElement extends ElementBase {
         return;
       case "locale":
         this.#strings = resolveStrings(value);
+        this.#applyDirection(value);
         this.#renderChrome();
         this.#syncUI();
         return;
@@ -223,6 +254,7 @@ export class PixenImageEditorElement extends ElementBase {
 
   /** Releases decoded bitmaps. Call it when the host is done with the editor. */
   destroy(): void {
+    this.#plugins.dispose();
     this.#viewport?.destroy();
     this.#viewport = null;
     this.editor.destroy();
@@ -393,6 +425,8 @@ export class PixenImageEditorElement extends ElementBase {
       zoom: this.#viewport?.zoom ?? 1,
       apple: this.#apple,
       busy: this.#busy,
+      stickers: this.#stickers,
+      plugins: this.#plugins,
       actions: this.#actions,
     };
   }
@@ -418,6 +452,7 @@ export class PixenImageEditorElement extends ElementBase {
     zoomBy: (factor) => this.#viewport?.zoomBy(factor),
     zoomToFit: () => this.zoomToFit(),
     chooseFile: () => this.#fileInput.click(),
+    placeSticker: (sticker) => void this.#placeSticker(sticker),
     announce: (message) => this.#announce(message),
   };
 
@@ -445,6 +480,12 @@ export class PixenImageEditorElement extends ElementBase {
 
     this.#emptyHost.hidden = ready;
     this.#canvas.style.visibility = ready ? "visible" : "hidden";
+    // The canvas is the picture, so it is named as one; a canvas with no
+    // accessible name is announced as nothing at all.
+    this.#canvas.setAttribute(
+      "aria-label",
+      ready ? `${this.#strings.canvas}, ${sizeLabel(this.editor.outputSize)}` : this.#strings.emptyTitle,
+    );
 
     refreshRail(this.#railHost, context);
     refreshActions(this.#actionsHost, context);
@@ -453,6 +494,22 @@ export class PixenImageEditorElement extends ElementBase {
     this.#readouts = inspector.readouts;
     this.#inspectorHost.replaceChildren(...inspector.nodes);
     this.#updateReadouts();
+
+    // The chrome that was just rebuilt may be a different height — a panel with
+    // more controls, or one that wrapped onto another row — so the image is
+    // re-fitted around what is actually there now.
+    this.#scheduleRefit();
+  }
+
+  #refitFrame = 0;
+
+  /** Coalesced to one frame: layout has to settle before the chrome measures. */
+  #scheduleRefit(): void {
+    if (this.#refitFrame !== 0 || typeof requestAnimationFrame === "undefined") return;
+    this.#refitFrame = requestAnimationFrame(() => {
+      this.#refitFrame = 0;
+      this.#viewport?.refit();
+    });
   }
 
   /** Cheap text-only refresh, safe to run at pointer speed. */
@@ -482,10 +539,160 @@ export class PixenImageEditorElement extends ElementBase {
     return { host, chrome };
   }
 
-  #focusTextField(layerId: string): void {
-    this.editor.select(layerId);
+  /**
+   * Mirrors the layout for a right-to-left locale.
+   *
+   * Only when the host has not said otherwise: a page that has already chosen a
+   * direction knows better than a language tag does. The chrome is laid out in
+   * logical properties, so `dir` is the whole of the mirroring.
+   */
+  #applyDirection(locale: string | null): void {
+    if (this.#explicitDirection) return;
+    this.setAttribute("dir", directionFor(locale));
+  }
+
+  // --- plugins -------------------------------------------------------------
+
+  /**
+   * Attaches a plugin.
+   *
+   * Called immediately with the element, the engine and the strings; whatever it
+   * returns is run when the element is torn down. A plugin attached before the
+   * element connects is applied when it does.
+   */
+  use(plugin: PixenPlugin): this {
+    const teardown = plugin({
+      element: this,
+      editor: this.editor,
+      strings: this.#strings,
+      addAction: (action) => this.#plugins.addAction(action),
+      addInspectorSection: (section) => this.#plugins.addInspectorSection(section),
+    });
+    this.#plugins.retain(teardown);
+    return this;
+  }
+
+  // --- stickers ------------------------------------------------------------
+
+  /** The stickers the sticker tool offers. Pixen ships none of its own. */
+  get stickers(): StickerDefinition[] {
+    return this.#stickers;
+  }
+
+  set stickers(value: unknown) {
+    this.#stickers = normaliseStickers(value);
     this.#syncUI();
-    this.#inspectorHost.querySelector<HTMLInputElement>("input[data-field=text]")?.focus();
+  }
+
+  /**
+   * Loads a sticker once and places it in the middle of the visible crop.
+   *
+   * The resource id is remembered per sticker, so placing the same artwork ten
+   * times decodes it once and the document carries ten references to one bitmap.
+   */
+  async #placeSticker(sticker: StickerDefinition): Promise<void> {
+    if (!this.editor.ready) return;
+    try {
+      const existing = this.#stickerResources.get(sticker.id);
+      const resource = existing
+        ? this.editor.resources.require(existing)
+        : await this.editor.resources.load(sticker.src);
+      this.#stickerResources.set(sticker.id, resource.id);
+
+      const options = this.#tools.find((tool) => tool.id === "sticker")?.options as StickerToolOptions | undefined;
+      this.editor.addSticker({
+        resourceId: resource.id,
+        size: { width: resource.width, height: resource.height },
+        name: sticker.label,
+        ...(typeof options?.scale === "number" ? { scale: options.scale } : {}),
+      });
+      this.#actions.selectTool("select");
+      this.#announce(sticker.label);
+    } catch (cause) {
+      this.#emit("pixen-error", { error: toPixenError(cause, "DECODE_FAILED", "The sticker could not be loaded") });
+    }
+  }
+
+  // --- on-canvas text ------------------------------------------------------
+
+  /**
+   * Edits a text layer where it sits, rather than in a field somewhere else.
+   *
+   * The layer is hidden while its editor is open, so there is exactly one copy
+   * of the text on screen and the caret is in it.
+   */
+  #openTextEditor(layerId: string): void {
+    const layer = this.editor.document.layers.find((candidate) => candidate.id === layerId);
+    if (!layer || layer.type !== "text" || !this.#viewport) return;
+
+    // The transaction was opened by whoever asked for the editor — the text
+    // tool on creation, the viewport on a double-click — so that creating and
+    // typing collapse into one undo step.
+    this.editor.select(layerId);
+    this.#editingText = layerId;
+    this.editor.updateLayer(layerId, { visible: false });
+
+    this.#textInput.value = layer.text;
+    this.#textInput.hidden = false;
+    this.#positionTextEditor();
+    this.#textInput.focus();
+    this.#textInput.setSelectionRange(layer.text.length, layer.text.length);
+  }
+
+  /** Keeps the editor over its layer while the view pans, zooms or resizes. */
+  #positionTextEditor(): void {
+    const id = this.#editingText;
+    if (!id || !this.#viewport) return;
+    const layer = this.editor.document.layers.find((candidate) => candidate.id === id);
+    if (!layer || layer.type !== "text") return;
+
+    const style = textBoxStyle(textBoxPlacement(layer, this.#viewport.imageToScreen()));
+    for (const [property, value] of Object.entries(style)) {
+      this.#textInput.style.setProperty(property, value);
+    }
+    // A textarea does not grow by itself, and a scrollbar mid-sentence is worse
+    // than a box that follows the text.
+    this.#textInput.style.height = "auto";
+    this.#textInput.style.height = `${this.#textInput.scrollHeight}px`;
+  }
+
+  #onTextInput = (): void => {
+    if (!this.#editingText) return;
+    this.editor.updateLayer(this.#editingText, { text: this.#textInput.value });
+    this.#positionTextEditor();
+  };
+
+  #onTextKeyDown = (event: KeyboardEvent): void => {
+    // Enter adds a line, as it does in any text box. Escape and the shortcuts
+    // are the editor's, so they must not reach the canvas handler underneath.
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.#closeTextEditor();
+      this.focus();
+      return;
+    }
+    event.stopPropagation();
+  };
+
+  #onTextBlur = (): void => this.#closeTextEditor();
+
+  /** Commits the edit, or removes a layer that was left empty. */
+  #closeTextEditor(): void {
+    const id = this.#editingText;
+    if (!id) return;
+    this.#editingText = null;
+    this.#textInput.hidden = true;
+
+    const text = this.#textInput.value;
+    if (text.trim() === "") {
+      // An empty text layer is invisible and unselectable, so it would be
+      // litter rather than content.
+      this.editor.removeLayer(id);
+      this.editor.rollbackTransaction();
+      return;
+    }
+    this.editor.updateLayer(id, { text, visible: true });
+    this.editor.commitTransaction();
   }
 
   #setBusy(busy: boolean): void {
@@ -512,6 +719,7 @@ export class PixenImageEditorElement extends ElementBase {
       tools: this.#tools,
       hasSelection: selected !== null,
       ready: this.editor.ready,
+      textSelected: selected?.type === "text",
     });
     if (!command) return;
     if (command.preventDefault) event.preventDefault();
@@ -527,6 +735,14 @@ export class PixenImageEditorElement extends ElementBase {
       case "delete-selection":
         if (selected) this.editor.removeLayer(selected.id);
         break;
+      case "edit-text": {
+        const selected = this.editor.selectedLayer;
+        if (selected?.type === "text") {
+          this.editor.beginTransaction(this.#strings.text);
+          this.#openTextEditor(selected.id);
+        }
+        break;
+      }
       case "clear-selection":
         this.editor.select(null);
         break;

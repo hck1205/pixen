@@ -13,25 +13,14 @@ const DEGREES_PER_RADIAN = 180 / Math.PI;
  * colour, and text has no stroke width. Opacity and rotation belong to every
  * layer, and the rotation field is how a precise angle is reached without
  * fighting the drag handle.
+ *
+ * Text is not edited here. It is edited on the canvas, where it appears —
+ * double-click it, or press Enter with it selected. A second field for the same
+ * string would be a second place to look.
  */
 export function buildLayerControls(context: ChromeContext, layer: EditorLayer): Node[] {
   const { strings, editor } = context;
   const nodes: Node[] = [];
-
-  if (layer.type === "text") {
-    nodes.push(
-      field(
-        strings.text,
-        input({
-          type: "text",
-          value: layer.text,
-          placeholder: strings.textPlaceholder,
-          dataset: { field: "text" },
-          onInput: (value) => editor.updateLayer(layer.id, { text: value }),
-        }),
-      ),
-    );
-  }
 
   // A bitmap has nothing to stroke; text carries a colour but no width.
   if (layer.type !== "image") {

@@ -10,6 +10,7 @@ import type {
   Adjustments,
   EditorDocument,
   EditorLayer,
+  FrameSettings,
   OutputSettings,
 } from "../model/types.js";
 import * as commands from "./commands.js";
@@ -51,6 +52,7 @@ export interface SessionState {
 export type Intent =
   | { kind: "rotate-by"; radians: number }
   | { kind: "rotate-quarter-turns"; turns: number }
+  | { kind: "straighten"; radians: number }
   | { kind: "flip"; axis: "x" | "y" }
   | { kind: "set-crop"; rect: Rect | null }
   | { kind: "drag-crop-handle"; handle: CropHandle; pointer: Point; minSize?: number }
@@ -58,6 +60,7 @@ export type Intent =
   | { kind: "set-aspect-ratio"; ratio: number | null }
   | { kind: "set-adjustments"; adjustments: Partial<Adjustments> }
   | { kind: "set-output"; output: Partial<OutputSettings> }
+  | { kind: "set-frame"; frame: Partial<FrameSettings> | null }
   | { kind: "resize"; resize: ResizeIntent }
   | { kind: "add-layer"; layer: EditorLayer; index?: number; select?: boolean }
   | { kind: "update-layer"; id: string; patch: Partial<EditorLayer> }
@@ -135,6 +138,12 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
         label: "Rotate",
         transform: (d) => commands.rotateQuarterTurns(d, intent.turns),
       };
+    case "straighten":
+      return {
+        reason: "straighten",
+        label: "Straighten",
+        transform: (d) => commands.straighten(d, intent.radians),
+      };
     case "flip":
       return {
         reason: "flip",
@@ -173,6 +182,8 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
         label: "Output settings",
         transform: (d) => commands.setOutput(d, intent.output),
       };
+    case "set-frame":
+      return { reason: "frame", label: "Frame", transform: (d) => commands.setFrame(d, intent.frame) };
     case "resize":
       return {
         reason: "resize",

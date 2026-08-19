@@ -52,42 +52,67 @@ const CHROME_MARGIN = 12;
  * The insets a measured chrome actually occupies.
  *
  * The constants above are a guess, and a guess stops being true the moment a
- * panel wraps onto a second row — which the adjust panel does. Each piece of
- * chrome is charged to the edge it is docked nearest, so a taller inspector
- * simply reserves more of the bottom.
+ * panel wraps onto a second row — which the adjust panel does.
+ *
+ * Each piece of chrome is assigned to the edge it will be charged against, and
+ * the assignment is *chosen* rather than guessed: every combination is scored by
+ * how much room it leaves and the best one wins. Guessing by nearest edge gets
+ * the compact layout wrong, where the tool rail lies in the lower middle — as
+ * close to the top as to the bottom, but belonging with the inspector below it,
+ * whose depth it shares for free.
  */
+const EDGES = ["left", "right", "top", "bottom"] as const;
+
+/** Above this many pieces the enumeration is not worth it; no layout has more. */
+const MAX_CHROME_PIECES = 6;
+
 export function insetsFromChrome(
   host: EdgeBox,
   chrome: readonly (EdgeBox | null | undefined)[],
   margin = CHROME_MARGIN,
 ): ViewInsets {
-  const insets: ViewInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+  const boxes = chrome.filter(
+    (rect): rect is EdgeBox => Boolean(rect) && rect!.right > rect!.left && rect!.bottom > rect!.top,
+  );
+  const none: ViewInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+  if (boxes.length === 0 || boxes.length > MAX_CHROME_PIECES) return none;
 
-  for (const rect of chrome) {
-    if (!rect || rect.right <= rect.left || rect.bottom <= rect.top) continue;
+  // What each piece would cost on each edge: how far in from that edge you must
+  // come before the piece no longer overlaps what is left.
+  const costs = boxes.map((rect) => ({
+    left: rect.right - host.left + margin,
+    right: host.right - rect.left + margin,
+    top: rect.bottom - host.top + margin,
+    bottom: host.bottom - rect.top + margin,
+  }));
 
-    const distance: ViewInsets = {
-      left: rect.left - host.left,
-      right: host.right - rect.right,
-      top: rect.top - host.top,
-      bottom: host.bottom - rect.bottom,
-    };
-    const edges = ["left", "right", "top", "bottom"] as const;
-    const edge = edges.reduce((closest, key) => (distance[key] < distance[closest] ? key : closest));
+  const width = host.right - host.left;
+  const height = host.bottom - host.top;
 
-    const depth =
-      edge === "left"
-        ? rect.right - host.left
-        : edge === "right"
-          ? host.right - rect.left
-          : edge === "top"
-            ? rect.bottom - host.top
-            : host.bottom - rect.top;
+  let best = none;
+  let bestScore = -1;
+  let bestTotal = Number.POSITIVE_INFINITY;
 
-    insets[edge] = Math.max(insets[edge], depth + margin);
+  const combinations = EDGES.length ** boxes.length;
+  for (let choice = 0; choice < combinations; choice += 1) {
+    const insets: ViewInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+    let index = choice;
+    for (const cost of costs) {
+      const edge = EDGES[index % EDGES.length]!;
+      index = Math.floor(index / EDGES.length);
+      insets[edge] = Math.max(insets[edge], cost[edge]);
+    }
+
+    const free = Math.max(0, width - insets.left - insets.right) * Math.max(0, height - insets.top - insets.bottom);
+    const total = insets.top + insets.right + insets.bottom + insets.left;
+    if (free > bestScore || (free === bestScore && total < bestTotal)) {
+      best = insets;
+      bestScore = free;
+      bestTotal = total;
+    }
   }
 
-  return insets;
+  return best;
 }
 
 export const MIN_ZOOM = 0.02;

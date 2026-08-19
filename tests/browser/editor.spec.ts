@@ -601,6 +601,496 @@ test("the image stays clear of the chrome with the adjust panel open", async ({ 
   expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
 });
 
+test("straightening leaves no blank corners in the exported file", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { straighten(radians: number): void; straightenAngle: number };
+      export(options?: Record<string, unknown>): Promise<{ blob: Blob }>;
+    };
+
+    /** How many sampled pixels are transparent — a blank corner would be. */
+    const transparentCorners = async (blob: Blob) => {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const context = canvas.getContext("2d")!;
+      // Cleared, not filled: anything the render did not cover stays transparent.
+      context.clearRect(0, 0, bitmap.width, bitmap.height);
+      context.drawImage(bitmap, 0, 0);
+
+      const inset = 2;
+      const points = [
+        [inset, inset],
+        [bitmap.width - inset, inset],
+        [inset, bitmap.height - inset],
+        [bitmap.width - inset, bitmap.height - inset],
+      ] as const;
+      return points.filter(([x, y]) => context.getImageData(x, y, 1, 1).data[3]! < 250).length;
+    };
+
+    const results: Record<string, number> = {};
+    for (const degrees of [0, 3, 12, 30, -20]) {
+      element.editor.straighten((degrees * Math.PI) / 180);
+      results[`d${degrees}`] = await transparentCorners(
+        (await element.export({ format: "image/png" })).blob,
+      );
+    }
+
+    element.editor.straighten(0);
+    return { ...results, angleAfterReset: element.editor.straightenAngle };
+  });
+
+  // Every angle exports a full frame of image, corners included.
+  expect(measure.d0).toBe(0);
+  expect(measure.d3).toBe(0);
+  expect(measure.d12).toBe(0);
+  expect(measure.d30).toBe(0);
+  expect(measure["d-20"]).toBe(0);
+  expect(measure.angleAfterReset).toBeCloseTo(0);
+});
+
+test("the straighten slider drives the document and undoes as one step", async ({ page }) => {
+  const before = await state(page);
+
+  const angle = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: { straightenAngle: number };
+    };
+    const slider = element.shadowRoot!.querySelector<HTMLInputElement>('input[data-field="straighten"]')!;
+    slider.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    slider.value = "8";
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    slider.value = "10";
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    slider.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return element.editor.straightenAngle;
+  });
+
+  expect((angle * 180) / Math.PI).toBeCloseTo(10, 1);
+  expect((await state(page)).history.depth).toBe(before.history.depth + 1);
+
+  // The shortcut is handled by the element, so it has to be the focused thing.
+  await page.evaluate(() => (document.querySelector("pixen-image-editor") as HTMLElement).focus());
+  await page.keyboard.press("ControlOrMeta+z");
+  const undone = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement & { editor: { straightenAngle: number } }).editor.straightenAngle,
+  );
+  expect(undone).toBeCloseTo(0);
+});
+
+test("a taller panel re-fits the image instead of hiding it", async ({ page }) => {
+  // The adjust panel wraps onto several rows on a phone-sized host; the fit has
+  // to follow the chrome that is actually there, not the one that was there
+  // when the image loaded.
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { stageSize: { width: number; height: number } };
+      viewport: { stageToScreen(p: { x: number; y: number }): { x: number; y: number } } | null;
+    };
+    const frame = element.parentElement as HTMLElement;
+    frame.style.width = "420px";
+    frame.style.height = "620px";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const shadow = element.shadowRoot!;
+    const settle = async () => {
+      for (let i = 0; i < 4; i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
+    };
+    await settle();
+
+    const bottomOf = () => {
+      const stage = element.editor.stageSize;
+      return element.viewport!.stageToScreen({ x: stage.width, y: stage.height }).y;
+    };
+    const inspectorTop = () => {
+      const canvas = shadow.querySelector("canvas")!.getBoundingClientRect();
+      return shadow.querySelector(".inspector")!.getBoundingClientRect().top - canvas.top;
+    };
+
+    const beforePanel = { image: bottomOf(), inspector: inspectorTop() };
+    shadow.querySelector<HTMLButtonElement>('button[data-panel="adjust"]')!.click();
+    await settle();
+    const afterPanel = { image: bottomOf(), inspector: inspectorTop() };
+
+    return { beforePanel, afterPanel };
+  });
+
+  // The tall panel really is taller, and the image moved out of its way.
+  expect(measure.afterPanel.inspector).toBeLessThan(measure.beforePanel.inspector);
+  expect(measure.afterPanel.image).toBeLessThanOrEqual(measure.afterPanel.inspector + 1);
+});
+
+test("text is typed on the canvas, where it appears", async ({ page }) => {
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).tool = "text";
+  });
+
+  const stage = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement).editor.stageSize,
+  );
+  const at = await stageToClient(page, { x: stage.width * 0.25, y: stage.height * 0.35 });
+  await page.mouse.click(at.x, at.y);
+
+  // Clicking with the text tool creates a layer and opens its editor on the
+  // canvas, so the very next keystroke is the text.
+  const editor = page.locator("pixen-image-editor").locator("textarea.text-input");
+  await expect(editor).toBeVisible();
+  await expect(editor).toBeFocused();
+
+  await page.keyboard.type("hello");
+  const whileEditing = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const layer = element.editor.document.layers[0] as unknown as { text: string; visible: boolean };
+    return { text: layer.text, visible: layer.visible };
+  });
+  expect(whileEditing.text).toBe("hello");
+  // Exactly one copy of the text on screen: the layer is hidden behind its editor.
+  expect(whileEditing.visible).toBe(false);
+
+  await page.keyboard.press("Escape");
+  await expect(editor).toBeHidden();
+
+  const after = await state(page);
+  expect(after.document.layers).toHaveLength(1);
+  expect((after.document.layers[0] as { text: string; visible: boolean }).visible).toBe(true);
+  // The whole edit is one step, however many keystrokes it took.
+  expect(after.history.depth).toBe(1);
+});
+
+test("an empty text layer is dropped rather than left as litter", async ({ page }) => {
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).tool = "text";
+  });
+  const stage = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement).editor.stageSize,
+  );
+  const at = await stageToClient(page, { x: stage.width * 0.4, y: stage.height * 0.4 });
+  await page.mouse.click(at.x, at.y);
+  await page.locator("pixen-image-editor").locator("textarea.text-input").waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+
+  const after = await state(page);
+  expect(after.document.layers).toHaveLength(0);
+  expect(after.history.depth).toBe(0);
+});
+
+test("double-clicking existing text reopens it for editing", async ({ page }) => {
+  const seeded = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+      };
+      tool: string;
+    };
+    const { width, height } = element.editor.document.source;
+    const layer = {
+      id: "text_under_test",
+      type: "text" as const,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      position: { x: width * 0.2, y: height * 0.3 },
+      text: "edit me",
+      fontSize: Math.round(height * 0.08),
+      fontFamily: "system-ui, sans-serif",
+      color: "#ffffff",
+      align: "left" as const,
+      backgroundColor: null,
+      maxWidth: null,
+    };
+    element.editor.addLayer(layer, { select: false });
+    element.tool = "select";
+    return { position: layer.position, fontSize: layer.fontSize };
+  });
+
+  const at = await imageToClient(page, {
+    x: seeded.position.x + seeded.fontSize,
+    y: seeded.position.y + seeded.fontSize / 2,
+  });
+  await page.mouse.dblclick(at.x, at.y);
+
+  const editor = page.locator("pixen-image-editor").locator("textarea.text-input");
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveValue("edit me");
+});
+
+test("a sticker lands in the middle of the crop, selected and ready to resize", async ({ page }) => {
+  const placed = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      stickers: unknown;
+      tool: string;
+      editor: {
+        document: { source: { width: number; height: number }; layers: Array<Record<string, unknown>> };
+        selectedLayer: { id: string; type: string } | null;
+        setCropRect(rect: { x: number; y: number; width: number; height: number } | null): void;
+      };
+    };
+
+    const mark = new OffscreenCanvas(120, 60);
+    const context = mark.getContext("2d")!;
+    context.fillStyle = "#00ff00";
+    context.fillRect(0, 0, 120, 60);
+    element.stickers = [{ id: "green", src: await mark.convertToBlob({ type: "image/png" }), label: "Green" }];
+
+    // Crop to a corner first: a sticker belongs in the middle of what is
+    // visible, which after a crop is not the middle of the image.
+    const { width, height } = element.editor.document.source;
+    const crop = { x: width * 0.5, y: height * 0.5, width: width * 0.4, height: height * 0.4 };
+    element.editor.setCropRect(crop);
+    element.tool = "sticker";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const shadow = element.shadowRoot!;
+    const buttons = [...shadow.querySelectorAll<HTMLButtonElement>(".inspector button")];
+    const sticker = buttons.find((candidate) => candidate.textContent?.includes("Green"));
+    sticker?.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const layer = element.editor.document.layers.at(-1) as
+      | { type: string; frame: { x: number; y: number; width: number; height: number } }
+      | undefined;
+    return {
+      offered: buttons.length,
+      layer,
+      crop,
+      selected: element.editor.selectedLayer?.id,
+      layerId: (layer as unknown as { id: string } | undefined)?.id,
+      tool: element.tool,
+    };
+  });
+
+  expect(placed.offered).toBeGreaterThan(0);
+  expect(placed.layer?.type).toBe("image");
+  // Centred on the crop, not on the image.
+  expect(placed.layer!.frame.x + placed.layer!.frame.width / 2).toBeCloseTo(placed.crop.x + placed.crop.width / 2, 0);
+  expect(placed.layer!.frame.y + placed.layer!.frame.height / 2).toBeCloseTo(placed.crop.y + placed.crop.height / 2, 0);
+  // Keeps the bitmap's 2:1 shape.
+  expect(placed.layer!.frame.width / placed.layer!.frame.height).toBeCloseTo(2, 1);
+  // Selected, with the select tool active, so the handles are already on it.
+  expect(placed.selected).toBe(placed.layerId);
+  expect(placed.tool).toBe("select");
+});
+
+test("a right-to-left locale mirrors the chrome without reversing the numbers", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    element.setAttribute("locale", "ar");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const shadow = element.shadowRoot!;
+    const host = element.getBoundingClientRect();
+    const rail = shadow.querySelector(".rail")!.getBoundingClientRect();
+    const readouts = [...shadow.querySelectorAll<HTMLElement>(".inspector .readout")];
+
+    return {
+      dir: element.getAttribute("dir"),
+      // The rail belongs on the side the reader starts from.
+      railIsOnTheRight: rail.left - host.left > host.right - rail.right,
+      exportLabel: shadow.querySelector('[part="actions"] button.primary')?.textContent?.trim() ?? "",
+      readoutDirs: readouts.map((node) => node.dir),
+      readoutTexts: readouts.map((node) => node.textContent?.trim() ?? ""),
+    };
+  });
+
+  expect(measure.dir).toBe("rtl");
+  expect(measure.railIsOnTheRight).toBe(true);
+  // The chrome is translated, not just mirrored.
+  expect(measure.exportLabel).toContain("تصدير");
+  // `1600 × 1067` reordered by the bidi algorithm reads `1067 × 1600` — not a
+  // formatting quibble but the wrong number.
+  expect(measure.readoutDirs.every((dir) => dir === "ltr")).toBe(true);
+  expect(measure.readoutTexts).toContain("1600 × 1067");
+});
+
+test("the image worker really runs, and agrees with the main thread", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const pixen = (window as unknown as { pixen: Record<string, unknown> }).pixen;
+    const ImageWorkerClass = pixen.ImageWorker as new () => {
+      ready: boolean;
+      decode(blob: Blob): Promise<{ bitmap: ImageBitmap; width: number; height: number } | null>;
+      encode(
+        pixels: ArrayBuffer,
+        width: number,
+        height: number,
+        format: string,
+        quality: number,
+      ): Promise<Blob | null>;
+      dispose(): void;
+    };
+    const available = (pixen.ImageWorker as unknown as { available: boolean }).available;
+
+    // A picture with real detail, so a JPEG of it is not trivially tiny.
+    const size = 1200;
+    const canvas = new OffscreenCanvas(size, size);
+    const context = canvas.getContext("2d")!;
+    const gradient = context.createLinearGradient(0, 0, size, size);
+    gradient.addColorStop(0, "#2040a0");
+    gradient.addColorStop(1, "#f0a020");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
+    for (let i = 0; i < 200; i += 1) {
+      context.fillStyle = `hsl(${i * 7}, 80%, ${40 + (i % 30)}%)`;
+      context.fillRect((i * 37) % size, (i * 53) % size, 24, 24);
+    }
+    const source = await canvas.convertToBlob({ type: "image/png" });
+    const pixels = context.getImageData(0, 0, size, size);
+
+    const worker = new ImageWorkerClass();
+    const decoded = await worker.decode(source);
+    const workerBlob = await worker.encode(
+      pixels.data.slice().buffer,
+      size,
+      size,
+      "image/jpeg",
+      0.8,
+    );
+    const started = worker.ready;
+
+    // The same encode on the main thread, for comparison.
+    const mainBlob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 });
+
+    /** Mean absolute luma difference between two encodings of the same pixels. */
+    const difference = async (a: Blob, b: Blob) => {
+      const read = async (blob: Blob) => {
+        const bitmap = await createImageBitmap(blob);
+        const surface = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = surface.getContext("2d")!;
+        ctx.drawImage(bitmap, 0, 0);
+        return ctx.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      };
+      const [left, right] = await Promise.all([read(a), read(b)]);
+      let total = 0;
+      let count = 0;
+      for (let i = 0; i < left.length; i += 4 * 13) {
+        total += Math.abs(left[i]! - right[i]!);
+        count += 1;
+      }
+      return count === 0 ? 255 : total / count;
+    };
+
+    const result = {
+      available,
+      started,
+      decodedSize: decoded ? [decoded.width, decoded.height] : null,
+      workerBytes: workerBlob?.size ?? 0,
+      workerType: workerBlob?.type ?? "",
+      pixelDifference: workerBlob ? await difference(workerBlob, mainBlob) : 255,
+    };
+    worker.dispose();
+    return result;
+  });
+
+  expect(measure.available).toBe(true);
+  expect(measure.started).toBe(true);
+  expect(measure.decodedSize).toEqual([1200, 1200]);
+  expect(measure.workerType).toBe("image/jpeg");
+  expect(measure.workerBytes).toBeGreaterThan(1000);
+  // Same encoder, same pixels, same settings: the two paths must not disagree
+  // about what the picture looks like.
+  expect(measure.pixelDifference).toBeLessThan(2);
+});
+
+test("a plugin adds a real button and a real inspector control", async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      use(plugin: (context: Record<string, any>) => void | (() => void)): unknown;
+      editor: { document: { layers: unknown[] } };
+    };
+
+    const clicks: string[] = [];
+    let hasSelection = false;
+
+    const remove = { action: null as null | (() => void) };
+    element.use((context) => {
+      remove.action = context.addAction({
+        id: "save",
+        label: "Save to server",
+        text: "Save",
+        emphasis: "primary",
+        onClick: () => clicks.push("save"),
+        disabled: () => clicks.length > 0,
+      });
+      context.addInspectorSection({
+        id: "notes",
+        when: () => hasSelection,
+        build: () => {
+          const node = document.createElement("span");
+          node.dataset.pluginSection = "notes";
+          node.textContent = "Plugin section";
+          return [node];
+        },
+      });
+      return () => clicks.push("torn down");
+    });
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const shadow = element.shadowRoot!;
+    const find = () => shadow.querySelector<HTMLButtonElement>('button[data-action="plugin:save"]');
+
+    const before = {
+      button: find()?.textContent?.trim() ?? "",
+      disabled: find()?.disabled ?? true,
+      sectionShown: shadow.querySelectorAll("[data-plugin-section]").length,
+    };
+
+    find()!.click();
+
+    // The section's `when` is asked on every rebuild, so flipping the condition
+    // and forcing a rebuild is enough to make it appear.
+    hasSelection = true;
+    element.tool = "select";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const after = {
+      clicks: [...clicks],
+      disabled: find()?.disabled ?? false,
+      sectionShown: shadow.querySelectorAll("[data-plugin-section]").length,
+    };
+
+    remove.action?.();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const removed = find() === null;
+
+    return { before, after, removed };
+  });
+
+  expect(result.before.button).toBe("Save");
+  expect(result.before.disabled).toBe(false);
+  expect(result.before.sectionShown).toBe(0);
+
+  expect(result.after.clicks).toEqual(["save"]);
+  // `disabled` is asked on refresh, so the plugin's own state controls it.
+  expect(result.after.disabled).toBe(true);
+  expect(result.after.sectionShown).toBe(1);
+
+  expect(result.removed).toBe(true);
+});
+
+test("the batch pipeline processes several images with no editor involved", async ({ page }) => {
+  await page.locator("#batch-sample").click();
+
+  const results = page.locator("#batch-results li");
+  await expect(results).toHaveCount(3, { timeout: 15_000 });
+  await expect(page.locator("#batch-progress")).toHaveText("3 / 3");
+
+  // Every one produced a downloadable file, named and measured.
+  for (let index = 0; index < 3; index += 1) {
+    const item = results.nth(index);
+    await expect(item).not.toHaveClass(/failed/);
+    await expect(item.locator("a")).toHaveAttribute("download", /\.(jpe?g|png|webp)$/);
+    await expect(item).toContainText("×");
+  }
+
+  const measured = await page.evaluate(() => {
+    const first = document.querySelector("#batch-results li")!;
+    return first.textContent ?? "";
+  });
+  // Bounded to 1600 on the long edge by the batch options.
+  expect(measured).toContain("1600 × 1067");
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

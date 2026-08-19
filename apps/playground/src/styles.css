@@ -33,7 +33,15 @@ main {
   min-height: 0;
 }
 
-.stage { min-height: 70vh; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+/* The stage keeps its own height; the panel beside it must not drive the page
+   taller as it fills up, or the editor is pushed below the fold. */
+.stage {
+  min-height: 70vh;
+  max-height: calc(100vh - 140px);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
 pixen-image-editor { width: 100%; height: 100%; }
 
 .panel {
@@ -45,6 +53,8 @@ pixen-image-editor { width: 100%; height: 100%; }
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
 }
 
 .row { display: grid; grid-template-columns: 74px 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
@@ -99,3 +109,18 @@ pre {
   main { grid-template-columns: 1fr; }
   .stage { min-height: 56vh; }
 }
+
+.note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+
+/* The batch list: a filename, what it became, and a link to take it away. */
+.batch {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.batch li { line-height: 1.4; }
+.batch a { color: var(--accent); }
+.batch li.failed { color: #ef6b63; }

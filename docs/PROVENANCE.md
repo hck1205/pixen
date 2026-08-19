@@ -29,6 +29,7 @@ was supplied to an AI tool as input at any point.
 | `geometry/matrix.ts` | 2D affine matrices: multiply, invert, apply | Linear algebra. The `{a,b,c,d,e,f}` field layout is the argument order of `CanvasRenderingContext2D.setTransform`, i.e. the platform's own contract |
 | `geometry/rect.ts` | Rectangle algebra, aspect fitting, rotated bounds | First principles; rotated bounding box is `w·|cos| + h·|sin|` |
 | `geometry/spaces.ts` | The image / stage / output / view coordinate model | Original design for this project |
+| `geometry/straighten.ts` | Free rotation, and the largest crop that is still all image | First principles: a centred rectangle fits a rotated one when its half-extents, projected onto the rotated axes, stay inside — two inequalities rather than a search |
 | `geometry/crop.ts` | Handle-drag resize with edge anchoring and ratio locking | First principles: pin the opposite edge, solve the free axis from the locked ratio |
 | `model/transform.ts` | Resizing and rotating a layer about its own centre | First principles: take the pointer into the layer's unrotated frame, pin the opposite corner, then correct for the drift rotation puts in the centre |
 | `model/*` | `EditorDocument` schema, layers, migrations | Original design for this project |
@@ -39,6 +40,7 @@ was supplied to an AI tool as input at any point.
 | `engine/history.ts` | Snapshot undo with explicit transactions, as immutable state | Ordinary software design; undo-as-snapshot and command grouping are textbook concepts, not anyone's implementation |
 | `engine/session.ts` | Intent-to-command reducer over document, selection and history | Original design for this project; the reducer shape is a common functional idiom |
 | `image/exif.ts` | JPEG APP1 / TIFF IFD orientation parsing | The Exif and TIFF 6.0 specifications: `FFD8` SOI, `FFE1` APP1, the `Exif\0\0` header, `II`/`MM` byte order, magic `0x002A`, IFD entry layout, orientation tag `0x0112`. Written from the specified byte layout |
+| `image/worker/*` | Decode and encode on a worker thread | MDN/WHATWG: `Worker`, `postMessage` transferables, `OffscreenCanvas.convertToBlob`. Shipping the body as a serialised function in a blob URL is our own choice, for the reason recorded in the module |
 | `image/canvas.ts`, `image/encode.ts` | Surface allocation, encoding, byte budgets | MDN/WHATWG: `OffscreenCanvas.convertToBlob`, `HTMLCanvasElement.toBlob`. The quality-reduction loop is our own |
 | `image/decode.ts` | Decode from blob/URL/bitmap, EXIF normalisation | MDN/WHATWG: `createImageBitmap`, `fetch`, `HTMLImageElement` |
 | `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
@@ -55,8 +57,12 @@ was supplied to an AI tool as input at any point.
 | `web/element/*`, `web/viewport/*` | Custom element, viewport, event plumbing | Web Components, Pointer Events and Resize Observer as specified by WHATWG/W3C. Layout, interaction model and chrome are original |
 | `web/theme/icons.ts` | Icon set | Drawn for this project as single-weight stroked primitives on a 24×24 grid |
 | `web/theme/styles.ts` | Theme tokens and layout | Written for this project |
-| `web/i18n/*` | English and Korean strings | Written for this project |
+| `web/i18n/*` | Strings in nine languages | Translated for this project from the English source strings, which were written here |
+| `web/viewport/text-box.ts` | Placing a real input over a text layer | First principles: the same origin and line height the renderer uses |
+| `web/tools/stickers.ts` | Normalising host-supplied sticker definitions | Original design for this project. Pixen ships no sticker artwork |
+| `web/plugins/*` | The extension surface | Original design for this project; a setup function returning a teardown is an ordinary idiom |
 | `react/index.tsx` | Props → properties, events → callbacks | React documentation on custom elements and `useImperativeHandle` |
+| `svelte/index.ts` | The element as a Svelte action | The Svelte documentation on actions: a function returning `update` and `destroy` |
 
 ## What functional similarity does and does not mean
 

@@ -197,6 +197,24 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
 }
 .rail .divider { inline-size: 22px; block-size: 1px; margin: 2px 0; }
 
+/* The on-canvas text editor: a real input dressed as the layer it stands in for. */
+.text-input {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  white-space: pre;
+  caret-color: var(--pixen-accent);
+  /* The layer underneath is hidden while editing, so this is the only copy. */
+  z-index: 3;
+}
+
+.text-input[hidden] { display: none; }
+
 .inspector {
   display: flex;
   /* Wraps rather than squashing: the adjust panel carries a dozen controls, and
@@ -321,7 +339,25 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
   .middle { min-inline-size: 0; }
   .rail { flex-direction: row; max-inline-size: 100%; min-inline-size: 0; }
   .rail .divider { inline-size: 1px; block-size: 22px; margin: 0 2px; }
-  .inspector { max-inline-size: 100%; inline-size: 100%; }
+  /* The on-canvas text editor: a real input dressed as the layer it stands in for. */
+.text-input {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  white-space: pre;
+  caret-color: var(--pixen-accent);
+  /* The layer underneath is hidden while editing, so this is the only copy. */
+  z-index: 3;
+}
+
+.text-input[hidden] { display: none; }
+
+.inspector { max-inline-size: 100%; inline-size: 100%; }
   .bottom { align-items: stretch; }
   .bottom .cluster { inline-size: 100%; border-radius: var(--pixen-radius); }
 }
@@ -337,7 +373,25 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
   .middle { align-items: flex-end; justify-content: center; min-inline-size: 0; }
   .rail { flex-direction: row; max-inline-size: 100%; min-inline-size: 0; }
   .rail .divider { inline-size: 1px; block-size: 22px; margin: 0 2px; }
-  .inspector { max-inline-size: 100%; inline-size: 100%; }
+  /* The on-canvas text editor: a real input dressed as the layer it stands in for. */
+.text-input {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  white-space: pre;
+  caret-color: var(--pixen-accent);
+  /* The layer underneath is hidden while editing, so this is the only copy. */
+  z-index: 3;
+}
+
+.text-input[hidden] { display: none; }
+
+.inspector { max-inline-size: 100%; inline-size: 100%; }
   .bottom { align-items: stretch; }
   .bottom .cluster { inline-size: 100%; border-radius: var(--pixen-radius); }
 }

@@ -63,6 +63,7 @@ export const TOOL_META: Readonly<Record<ToolId, ToolMeta>> = {
   arrow: { icon: "arrow", key: "arrow", shortcut: "a" },
   draw: { icon: "draw", key: "draw", shortcut: "d" },
   text: { icon: "text", key: "text", shortcut: "t" },
+  sticker: { icon: "sticker", key: "sticker", shortcut: "s" },
   redact: { icon: "redact", key: "redact", shortcut: "x" },
 };
 
@@ -85,6 +86,9 @@ export const STROKE_WIDTH_RANGE: SliderRange = { min: 0.001, max: 0.02, step: 0.
 /** Layer opacity, and rotation in degrees — the inspector's two layer sliders. */
 export const OPACITY_RANGE: SliderRange = { min: 0, max: 1, step: 0.05 };
 export const ROTATION_RANGE: SliderRange = { min: -180, max: 180, step: 1 };
+
+/** Straighten, in degrees. The engine clamps to the same ±45°. */
+export const STRAIGHTEN_RANGE: SliderRange = { min: -45, max: 45, step: 0.5 };
 
 /** Shortcut hints shown on the action buttons. */
 export const UNDO_KEY_SHORTCUTS = "Control+Z Meta+Z";

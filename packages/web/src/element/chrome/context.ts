@@ -1,6 +1,7 @@
 import type { Editor, EditorLayer, ImageFormat } from "@pixen/core";
 import type { PixenStrings } from "../../i18n/index.js";
-import type { AnnotationStyle, ToolDefinition, ToolId } from "../../tools/index.js";
+import type { AnnotationStyle, StickerDefinition, ToolDefinition, ToolId } from "../../tools/index.js";
+import type { PluginRegistry } from "../../plugins/index.js";
 import type { AspectRatioOption, PanelId } from "../constants.js";
 
 /**
@@ -23,6 +24,10 @@ export interface ChromeContext {
   /** Whether to spell shortcuts with ⌘ or Ctrl. */
   readonly apple: boolean;
   readonly busy: boolean;
+  /** What the host offered for the sticker tool; empty when it offered none. */
+  readonly stickers: readonly StickerDefinition[];
+  /** What plugins have contributed to the chrome. */
+  readonly plugins: PluginRegistry;
   readonly actions: ChromeActions;
 }
 
@@ -38,6 +43,8 @@ export interface ChromeActions {
   zoomBy(factor: number): void;
   zoomToFit(): void;
   chooseFile(): void;
+  /** Loads a sticker and drops it in the middle of the visible crop. */
+  placeSticker(sticker: StickerDefinition): void;
   /** Announce a change in a polite live region. */
   announce(message: string): void;
 }

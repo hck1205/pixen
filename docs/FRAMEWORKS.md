@@ -86,7 +86,27 @@ matching property, so `:tools="tools"` works.
 
 ## Svelte
 
-Svelte handles custom elements natively; no wrapper is needed.
+Svelte renders custom elements natively, so `@pixen/svelte` is not a component —
+it is an action, for the one thing the element cannot do for itself: keeping
+structured properties and event handlers in step with reactive values.
+
+```svelte
+<script>
+  import { pixen } from "@pixen/svelte";
+  let tools = ["crop", "redact"];
+</script>
+
+<pixen-image-editor
+  use:pixen={{ src, tools, export: (result) => upload(result.blob) }}
+  theme="dark"
+/>
+```
+
+The package contains no Svelte dependency and no compiler: an action is a plain
+function with `update` and `destroy`, which is a contract rather than a
+framework, so it works in Svelte 4 and 5 alike.
+
+Without it, the element works on its own:
 
 ```svelte
 <script>

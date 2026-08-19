@@ -52,10 +52,48 @@ export default defineConfig({
    * Safari; it is not Safari, so device testing still matters.
    */
   projects: selectedProjects(),
-  webServer: {
-    command: "pnpm --filter @pixen/playground preview -- --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+  /**
+   * The visual suite is opt-in.
+   *
+   * Golden images are only as stable as the renderer that made them, and font
+   * rasterisation differs between machines — a baseline recorded here would be a
+   * red build on someone else's. `PIXEN_VISUAL=1` turns it on, for a run inside
+   * the image the baselines were recorded in; see docs/TESTING.md.
+   */
+  testIgnore: process.env.PIXEN_VISUAL ? [] : ["**/visual.spec.ts"],
+
+  expect: {
+    toHaveScreenshot: {
+      // Tight on purpose. A looser ratio passed a build with the accent colour
+      // changed from blue to pink, because the accent covers well under one
+      // per cent of the page — a threshold that forgiving forgives regressions.
+      maxDiffPixelRatio: 0.0005,
+      threshold: 0.15,
+    },
   },
+
+  /**
+   * Never reuse a preview server.
+   *
+   * `ladle preview` resolves the build once at startup, so a server left over
+   * from an earlier run serves the *previous* bundle — and a suite photographing
+   * a stale build passes no matter what the change did. A port already in use
+   * fails loudly here, which is the outcome worth having.
+   */
+  webServer: [
+    {
+      command: "pnpm --filter @pixen/playground preview -- --port 4173 --strictPort",
+      url: "http://127.0.0.1:4173",
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      // The story browser: the visual suite photographs it, because the stories
+      // are already the reference for what the UI should look like.
+      command: "pnpm --filter @pixen/stories exec ladle preview --port 4174",
+      url: "http://127.0.0.1:4174",
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+  ],
 });

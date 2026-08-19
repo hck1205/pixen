@@ -1,7 +1,7 @@
 import type { Point, Rect } from "../geometry/types.js";
 import { DEFAULT_QUALITY } from "./defaults.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 
@@ -153,6 +153,27 @@ export type AdjustmentKey = (typeof ADJUSTMENT_KEYS)[number];
 /** Every key is a number; what each range means lives in `model/adjustments.ts`. */
 export type Adjustments = Record<AdjustmentKey, number>;
 
+/**
+ * A decorative border drawn over the finished picture.
+ *
+ * Document-level rather than a layer: a frame is not something you select and
+ * drag, it belongs to the output the way the background colour does — and
+ * keeping it out of `layers` means it cannot be reordered under an annotation.
+ */
+export const FRAME_STYLES = ["solid", "inset", "rounded"] as const;
+export type FrameStyle = (typeof FRAME_STYLES)[number];
+
+export interface FrameSettings {
+  style: FrameStyle;
+  /** Line thickness as a fraction of the output's longest edge. */
+  width: number;
+  colour: string;
+  /** Corner radius as a fraction of the longest edge; `rounded` only. */
+  radius: number;
+  /** Distance from the edge, as a fraction of the longest edge; `inset` only. */
+  inset: number;
+}
+
 export interface OutputSettings {
   /** Resize target in output pixels; null keeps the cropped size. */
   width: number | null;
@@ -172,6 +193,8 @@ export interface EditorDocument {
   /** Locked crop ratio, kept in the document so a resumed session behaves the same. */
   aspectRatio: number | null;
   adjustments: Adjustments;
+  /** A border drawn over everything, or null for none. */
+  frame: FrameSettings | null;
   layers: EditorLayer[];
   output: OutputSettings;
   /** Host-owned data. Pixen round-trips it and never reads it. */

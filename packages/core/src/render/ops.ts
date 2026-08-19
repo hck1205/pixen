@@ -1,9 +1,11 @@
 import { last } from "../fp/function.js";
 import { compose, rotation, translation } from "../geometry/matrix.js";
-import type { Matrix, Point, Rect } from "../geometry/types.js";
+import type { Matrix, Point, Rect, Size } from "../geometry/types.js";
 import type {
   Adjustments,
   EditorLayer,
+  FrameSettings,
+  FrameStyle,
   ImageLayer,
   RedactLayer,
   EllipseLayer,
@@ -77,6 +79,17 @@ export type DrawOp =
       rect: Rect;
       /** 0 leaves the image alone; 1 is the strongest fall-off offered. */
       strength: number;
+    }
+  | {
+      /** A border drawn over the finished picture. */
+      op: "frame";
+      rect: Rect;
+      style: FrameStyle;
+      /** All four in target pixels: the builder resolves the fractions. */
+      width: number;
+      radius: number;
+      inset: number;
+      colour: string;
     }
   | { op: "filter"; value: string }
   | { op: "transform"; matrix: Matrix }
@@ -414,6 +427,25 @@ function layerBodyOps(node: SceneLayerNode, measure: TextMeasurer, imageLongestE
 // --- scene -----------------------------------------------------------------
 
 /**
+ * Resolves a frame's fractions against the target it is drawn on.
+ *
+ * Stored as fractions so one setting suits a thumbnail and a 6000px export;
+ * resolved here so the executor only ever sees pixels.
+ */
+export function frameOp(frame: FrameSettings, region: Rect): Extract<DrawOp, { op: "frame" }> {
+  const longestEdge = Math.max(region.width, region.height);
+  return {
+    op: "frame",
+    rect: region,
+    style: frame.style,
+    width: Math.max(1, frame.width * longestEdge),
+    radius: Math.max(0, frame.radius * longestEdge),
+    inset: Math.max(0, frame.inset * longestEdge),
+    colour: frame.colour,
+  };
+}
+
+/**
  * The whole frame as a list of operations, in draw order.
  *
  * Colour adjustment takes the canvas `filter` when the engine has one and the
@@ -470,6 +502,9 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
     const longestEdge = Math.max(scene.image.size.width, scene.image.size.height);
     for (const node of scene.layers) ops.push(...layerOps(node, measure, longestEdge));
   }
+
+  // Around the picture, not around the canvas: in the viewport those differ.
+  if (scene.frame) ops.push(frameOp(scene.frame, scene.regionInTarget));
 
   return ops;
 }

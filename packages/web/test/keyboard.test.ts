@@ -127,3 +127,18 @@ describe("unknown keys", () => {
     expect(resolveKeyboardAction({ key: "Tab" }, context())).toBeNull();
   });
 });
+
+describe("editing text from the keyboard", () => {
+  it("opens the selected text layer on Enter", () => {
+    const command = resolveKeyboardAction({ key: "Enter" }, context({ hasSelection: true, textSelected: true }));
+    expect(command).toEqual({ action: { kind: "edit-text" }, preventDefault: true });
+  });
+
+  it("leaves Enter alone when the selection is not text", () => {
+    expect(resolveKeyboardAction({ key: "Enter" }, context({ hasSelection: true }))).toBeNull();
+  });
+
+  it("leaves Enter alone with nothing selected", () => {
+    expect(resolveKeyboardAction({ key: "Enter" }, context())).toBeNull();
+  });
+});

@@ -21,6 +21,7 @@ export function createDocument(source: SourceDescriptor): EditorDocument {
     crop: null,
     aspectRatio: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
+    frame: null,
     layers: [],
     output: { ...DEFAULT_OUTPUT },
     meta: {},

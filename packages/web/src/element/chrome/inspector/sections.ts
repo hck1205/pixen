@@ -14,6 +14,7 @@ export type InspectorSection =
   | "layer"
   | "redaction"
   | "select-hint"
+  | "sticker"
   | "text-hint"
   | "style";
 
@@ -42,6 +43,8 @@ export function inspectorSectionFor({
       return hasSelection ? "layer" : "select-hint";
     case "text":
       return "text-hint";
+    case "sticker":
+      return "sticker";
     case "redact":
       return "redaction";
     default:

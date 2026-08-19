@@ -113,6 +113,7 @@ export const PixenImageEditor = forwardRef<PixenImageEditorHandle, PixenImageEdi
     // One effect per structured prop, so each re-applies only when it changes.
     useEffect(() => applyProperty(elementRef.current!, "tools", props.tools), [props.tools]);
     useEffect(() => applyProperty(elementRef.current!, "aspectRatios", props.aspectRatios), [props.aspectRatios]);
+    useEffect(() => applyProperty(elementRef.current!, "stickers", props.stickers), [props.stickers]);
     useEffect(() => applyProperty(elementRef.current!, "policy", props.policy), [props.policy]);
     useEffect(() => applyProperty(elementRef.current!, "document", props.document), [props.document]);
     useEffect(() => applyProperty(elementRef.current!, "src", props.src), [props.src]);

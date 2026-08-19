@@ -1,5 +1,6 @@
 import { PixenError, toPixenError } from "../errors/index.js";
 import type { CropHandle } from "../geometry/crop.js";
+import { straightenAngleOf } from "../geometry/straighten.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
 import type { ResizeIntent } from "../image/resize.js";
 import type { DecodeOptions, ImageInput } from "../image/decode.js";
@@ -9,12 +10,23 @@ import type {
   Adjustments,
   EditorDocument,
   EditorLayer,
+  FrameSettings,
   ImageFormat,
   OutputSettings,
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
 import { exportDocument, type ExportOptions, type ExportResult } from "../export/pipeline.js";
-import { createWatermarkLayer, type WatermarkOptions } from "../export/watermark.js";
+import {
+  createTextWatermarkLayer,
+  createWatermarkLayer,
+  stickerFrame,
+  type TextWatermarkOptions,
+  type WatermarkOptions,
+} from "../export/watermark.js";
+import { invert } from "../geometry/matrix.js";
+import { transformBounds } from "../geometry/rect.js";
+import { imageToStage } from "../geometry/spaces.js";
+import { createImageLayer } from "../model/layers.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
 import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
 import {
@@ -346,6 +358,19 @@ export class Editor {
     return this.rotateQuarterTurns(-1);
   }
 
+  /**
+   * Sets the straighten angle in radians, clamped to ±45°, and pulls the crop
+   * in so the result has no blank corners.
+   */
+  straighten(radians: number): this {
+    return this.dispatch({ kind: "straighten", radians });
+  }
+
+  /** The straighten angle the document currently carries. */
+  get straightenAngle(): number {
+    return straightenAngleOf(this.document.transform.rotation);
+  }
+
   rotateRight(): this {
     return this.rotateQuarterTurns(1);
   }
@@ -466,6 +491,34 @@ export class Editor {
    */
   addWatermark(options: WatermarkOptions): this {
     return this.addLayer(createWatermarkLayer(this.document.source, options), { select: false });
+  }
+
+  /**
+   * Places a bitmap in the middle of what is currently cropped.
+   *
+   * Selected on arrival, because the next thing anyone does with a sticker is
+   * move or resize it, and its handles are how.
+   */
+  addSticker(options: { resourceId: string; size: Size; scale?: number; name?: string }): this {
+    const region = transformBounds(
+      invert(imageToStage(this.document.source, this.document.transform)),
+      effectiveCrop(this.document),
+    );
+    const frame = stickerFrame(region, options.size, options.scale);
+    return this.addLayer(
+      createImageLayer(options.resourceId, frame, { name: options.name ?? "sticker" }),
+      { select: true },
+    );
+  }
+
+  /** Sets or clears the border drawn over the finished picture. */
+  setFrame(frame: Partial<FrameSettings> | null): this {
+    return this.dispatch({ kind: "set-frame", frame });
+  }
+
+  /** A text watermark — a credit line — placed by the same arithmetic. */
+  addTextWatermark(options: TextWatermarkOptions): this {
+    return this.addLayer(createTextWatermarkLayer(this.document.source, options), { select: false });
   }
 
   select(id: string | null): this {

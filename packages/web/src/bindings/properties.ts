@@ -1,7 +1,7 @@
 import type { EditorDocument, ImagePolicy, PresetName } from "@pixen/core";
 import type { PixenImageEditorElement } from "../element/index.js";
 import type { AspectRatioOption } from "../element/constants.js";
-import type { ToolDefinition, ToolId } from "../tools/index.js";
+import type { StickerDefinition, ToolDefinition, ToolId } from "../tools/index.js";
 
 /**
  * The structured settings a framework binds to the element.
@@ -17,6 +17,7 @@ export interface PixenElementProperties {
   tools?: (ToolId | ToolDefinition)[] | null;
   aspectRatios?: (number | null | AspectRatioOption)[] | null;
   policy?: ImagePolicy | PresetName | null;
+  stickers?: (string | Blob | StickerDefinition)[] | null;
 }
 
 /** Applies one property. Undefined means "the host did not say", so nothing happens. */
@@ -50,6 +51,11 @@ export function applyProperty<K extends keyof PixenElementProperties>(
     case "aspectRatios": {
       const ratios = value as PixenElementProperties["aspectRatios"];
       if (ratios) element.aspectRatios = ratios;
+      return;
+    }
+    case "stickers": {
+      const stickers = value as PixenElementProperties["stickers"];
+      if (stickers) element.stickers = stickers;
       return;
     }
     case "policy":

@@ -115,9 +115,15 @@ function beginText(sample: PointerSample, context: GestureContext): GestureOutco
   });
   // Text is created complete and then edited, so it needs no drag state; the
   // tool hands over to select so the new layer can be moved straight away.
+  //
+  // The transaction opens here and is closed by whoever owns the editor, so
+  // creating a text layer and typing into it is a single undo step rather than
+  // two — and so the editor never has to ask whether one is already open,
+  // because transactions do not nest.
   return {
     state: IDLE,
     effects: [
+      intent({ kind: "begin-transaction", label: "Text" }),
       intent({ kind: "add-layer", layer }),
       { kind: "select-tool", tool: "select" },
       { kind: "focus-text", layerId: layer.id },

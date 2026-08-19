@@ -37,6 +37,21 @@ export const DEFAULT_REDACTION_STRENGTH = 0.02;
 export const MIN_REDACTION_STRENGTH = 0.002;
 export const MAX_REDACTION_STRENGTH = 0.08;
 
+/**
+ * The frame a host gets by switching one on, as fractions of the longest edge.
+ * A frame that scaled in pixels would be hairline on a 6000px export.
+ */
+export const DEFAULT_FRAME = Object.freeze({
+  style: "solid" as const,
+  width: 0.02,
+  colour: "#ffffff",
+  radius: 0.03,
+  inset: 0.02,
+});
+
+export const MIN_FRAME_WIDTH = 0.002;
+export const MAX_FRAME_WIDTH = 0.1;
+
 /** The stroke a new annotation gets when the caller does not supply one. */
 export const DEFAULT_STROKE = Object.freeze({
   color: DEFAULT_ANNOTATION_COLOUR,

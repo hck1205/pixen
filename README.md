@@ -17,6 +17,7 @@ adapters over that element. You can use any layer on its own.
 | `@pixen/core` | The engine: document model, geometry, history, renderer, export pipeline, headless processing |
 | `@pixen/web` | `<pixen-image-editor>`, the framework-agnostic UI |
 | `@pixen/react` | React bindings for the element |
+| `@pixen/svelte` | Svelte bindings, as an action |
 | `@pixen/vue` | Vue 3 bindings for the element |
 
 ## Quick start — the element
@@ -159,6 +160,88 @@ editor.addWatermark({
   opacity: 0.6,
 });
 ```
+
+## Plugins
+
+```js
+editor.use((context) => {
+  return context.addAction({
+    id: "save",
+    label: "Save to server",
+    text: "Save",
+    emphasis: "primary",
+    onClick: () => void upload(context.editor),
+  });
+});
+```
+
+A plugin is a function called once with the element, the engine and the strings;
+what it returns is how it undoes itself. See [docs/PLUGINS.md](docs/PLUGINS.md),
+including what is deliberately not exposed yet and why.
+
+## Off the main thread
+
+Decoding and encoding move to a worker where the browser allows it, so opening
+and exporting a large photograph does not freeze the interface. Nothing to
+configure: the worker ships inside the bundle, and every path falls back to the
+main thread if a `Content-Security-Policy`, a missing API, or a stalled worker
+gets in the way.
+
+## Languages
+
+Nine locales ship — `en`, `ko`, `ja`, `zh`, `es`, `fr`, `de`, `pt`, `ar` — and a
+host can register its own:
+
+```js
+import { registerLocale, availableLocales } from "@pixen/web";
+
+registerLocale("nl", { crop: "Bijsnijden" });   // completed from English
+availableLocales();                              // ["ar", "de", "en", ...]
+```
+
+`ar` reads right to left, and the editor mirrors for it: the chrome is laid out
+in logical properties, so the direction is the whole of the change. Numeric
+readouts stay left to right, because `1600 × 1067` reordered is the wrong
+number. A `dir` you set yourself always wins.
+
+## Stickers
+
+Pixen ships no artwork of its own — what a sticker is belongs to the product
+using it. Pass your own and Pixen places them:
+
+```html
+<pixen-image-editor id="editor"></pixen-image-editor>
+<script type="module">
+  editor.stickers = [
+    "/stickers/party-hat.svg",
+    { id: "logo", src: logoBlob, label: "Logo" },
+  ];
+</script>
+```
+
+A click drops one in the middle of the visible crop, selected, so its resize and
+rotate handles are already on it. The same artwork placed ten times is decoded
+once.
+
+## Text
+
+Text is edited on the canvas, where it appears: click with the text tool, or
+double-click existing text — or press Enter with it selected, for anyone not
+using a pointer. Creating and typing collapse into one undo step, and a layer
+left empty is dropped rather than kept as litter.
+
+## Straightening, frames and credit lines
+
+```js
+editor.straighten(3 * Math.PI / 180);   // ±45°, and the crop pulls in to match
+editor.setFrame({ style: "rounded", colour: "#ffffff", width: 0.02 });
+editor.addTextWatermark({ text: "© Studio", position: "bottom-right" });
+```
+
+Straightening is absolute, not cumulative: the slider shows the angle the
+document holds. The crop keeps its share of the frame, so straightening to 15°
+and back to 0 returns the framing you started with, and a tight crop stays tight
+instead of jumping to full frame.
 
 ## Adjustments and presets
 

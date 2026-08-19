@@ -134,10 +134,31 @@ describe("insetsFromChrome", () => {
     expect(insets.top).toBe(70);
   });
 
+  it("docks a bar along its long axis, not to whichever edge is nearest", () => {
+    // A full-width action bar tucked into the top-right corner is as close to
+    // the right edge as to the top; charging it to the right would reserve a
+    // third of the host's width for something an inch tall.
+    const actions = { left: 700, top: 12, right: 988, bottom: 60 };
+    const insets = insetsFromChrome(host, [actions], 10);
+    expect(insets.top).toBe(70);
+    expect(insets.right).toBe(0);
+  });
+
   it("keeps the deepest intrusion when two pieces share an edge", () => {
     const shallow = { left: 0, top: 540, right: 300, bottom: 580 };
     const deep = { left: 400, top: 460, right: 900, bottom: 580 };
     expect(insetsFromChrome(host, [shallow, deep], 0).bottom).toBe(140);
+  });
+
+  it("puts a bar floating in the lower middle with the panel below it", () => {
+    // The compact layout lays the tool rail down just above the inspector. It is
+    // marginally closer to the top, but charging it there costs the whole middle
+    // of the host; charged to the bottom it shares the inspector's depth.
+    const rail = { left: 12, top: 278, right: 988, bottom: 328 };
+    const inspector = { left: 8, top: 336, right: 992, bottom: 592 };
+    const insets = insetsFromChrome(host, [rail, inspector], 10);
+    expect(insets.top).toBe(0);
+    expect(insets.bottom).toBe(host.bottom - rail.top + 10);
   });
 
   it("ignores chrome that is not showing", () => {

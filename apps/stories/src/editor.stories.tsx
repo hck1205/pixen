@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ADJUSTMENT_KEYS,
   ADJUSTMENT_PRESETS,
   ADJUSTMENT_RANGES,
+  FRAME_STYLES,
   presetAdjustments,
   REDACTION_MODES,
   type RedactionMode,
@@ -10,8 +11,18 @@ import {
 } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Story, StoryDefault } from "@ladle/react";
-import { createTransparentSample, seedAnnotations, seedRedaction, seedWatermark } from "./fixtures.js";
+import {
+  createStickers,
+  createTransparentSample,
+  seedAnnotations,
+  seedRedaction,
+  seedWatermark,
+} from "./fixtures.js";
 import { ElementEditor, Row, SeededEditor, Stage, useBlob, useSampleImage } from "./harness.js";
+import { availableLocales } from "@pixen/web";
+
+/** Every locale the package registers, for the locale story's knob. */
+const LOCALE_OPTIONS = availableLocales();
 import { hostButton, hostPrimaryButton } from "./styles.js";
 
 /** What each redaction mode actually promises, in the words the docs use. */
@@ -84,6 +95,29 @@ Playground.argTypes = {
   quality: { control: { type: "range", min: 0.3, max: 1, step: 0.01 } },
   height: { control: { type: "range", min: 280, max: 900, step: 20 } },
 };
+
+/**
+ * Every locale Pixen ships, including one that reads right to left.
+ *
+ * The chrome is laid out in logical properties, so mirroring is `dir` and
+ * nothing else — which is exactly what this story is here to prove.
+ */
+export const Locales: Story<{ locale: string }> = ({ locale }) => {
+  const image = useSampleImage();
+  return (
+    <Row>
+      <Stage height={420} title={locale} note="Chosen with the knob.">
+        <PixenImageEditor key={locale} src={image} locale={locale} style={{ height: "100%" }} />
+      </Stage>
+      <Stage height={420} title="ar" note="Right to left: the rail and the chrome mirror.">
+        <PixenImageEditor src={image} locale="ar" style={{ height: "100%" }} />
+      </Stage>
+    </Row>
+  );
+};
+
+Locales.args = { locale: "ja" };
+Locales.argTypes = { locale: { options: LOCALE_OPTIONS, control: { type: "select" } } };
 
 /** Both themes together: the fastest way to catch a hard-coded colour. */
 export const Themes: Story = () => {
@@ -267,6 +301,78 @@ Watermark.argTypes = {
   opacity: { control: { type: "range", min: 0.1, max: 1, step: 0.05 } },
 };
 
+/**
+ * The sticker tool, with a host-supplied set.
+ *
+ * Pixen ships no artwork of its own; these three are drawn by the story. Click
+ * one and it lands in the middle of the crop, selected, so its handles are
+ * already on it.
+ */
+export const Stickers: Story = () => {
+  const image = useSampleImage();
+  const [stickers, setStickers] = useState<Array<{ id: string; src: Blob; label: string }> | null>(null);
+  const editor = useRef<PixenImageEditorHandle>(null);
+
+  useEffect(() => {
+    void createStickers().then(setStickers);
+  }, []);
+
+  return (
+    <Stage title="Stickers" note="`stickers` is a host property — a URL, a blob, or an object with a label.">
+      <PixenImageEditor
+        ref={editor}
+        src={image}
+        {...(stickers ? { stickers } : {})}
+        onLoad={() => editor.current?.setTool("sticker")}
+        style={{ height: "100%" }}
+      />
+    </Stage>
+  );
+};
+
+/** Straightening: a small free rotation that never leaves a blank corner. */
+export const Straighten: Story<{ degrees: number }> = ({ degrees }) => {
+  const image = useSampleImage();
+  return (
+    <Stage
+      title={`Straighten: ${degrees}°`}
+      note="The crop pulls in to stay all image, and keeps its share of the frame — so sliding back to 0 returns what you started with."
+    >
+      <SeededEditor
+        key={degrees}
+        image={image}
+        tool="crop"
+        seed={(instance) => instance.straighten((degrees * Math.PI) / 180)}
+      />
+    </Stage>
+  );
+};
+
+Straighten.args = { degrees: 8 };
+Straighten.argTypes = { degrees: { control: { type: "range", min: -45, max: 45, step: 1 } } };
+
+/** The three frame styles, and the text watermark, on the same picture. */
+export const Decoration: Story = () => {
+  const image = useSampleImage();
+  return (
+    <Row columns={2}>
+      {FRAME_STYLES.map((style) => (
+        <Stage key={style} height={320} title={`Frame: ${style}`}>
+          <SeededEditor image={image} seed={(instance) => instance.setFrame({ style, colour: "#f6f7fb" })} />
+        </Stage>
+      ))}
+      <Stage height={320} title="Text watermark" note="A credit line placed by the same arithmetic as a logo.">
+        <SeededEditor
+          image={image}
+          seed={(instance) =>
+            instance.addTextWatermark({ text: "© pixen sample", position: "bottom-right", opacity: 0.75 })
+          }
+        />
+      </Stage>
+    </Row>
+  );
+};
+
 /** Colour adjustment, driven from the story so the sliders can be compared. */
 export const Adjustments: Story<{
   exposure: number;
@@ -390,6 +496,69 @@ export const Policies: Story = () => {
         <PixenImageEditor src={image} policy="banner" style={{ height: "100%" }} />
       </Stage>
     </Row>
+  );
+};
+
+/**
+ * Level 4 customisation: a plugin.
+ *
+ * A plugin is a function called once with the element, the engine and the
+ * strings. It adds a button beside Export and a control in the inspector — the
+ * two places that were closed to hosts — and returns how to undo itself.
+ */
+export const Plugin: Story = () => {
+  const image = useSampleImage();
+  const [saved, setSaved] = useState<string | null>(null);
+  const editor = useRef<PixenImageEditorHandle>(null);
+
+  useEffect(() => {
+    const element = editor.current?.element;
+    if (!element) return;
+
+    // `use` returns the element for chaining, so the teardown is captured here
+    // rather than returned from the effect by mistake.
+    let dispose: (() => void) | undefined;
+    element.use((context) => {
+      const remove = context.addAction({
+        id: "save",
+        label: "Save to server",
+        text: "Save",
+        emphasis: "primary",
+        onClick: () => {
+          void context.editor.export().then((result) => {
+            setSaved(`${result.width} × ${result.height}, ${Math.round(result.bytes / 1024)} KB`);
+          });
+        },
+      });
+
+      const removeSection = context.addInspectorSection({
+        id: "layer-count",
+        build: () => {
+          const node = document.createElement("span");
+          node.textContent = `${context.editor.document.layers.length} layer(s)`;
+          node.style.color = "#a2a8b8";
+          node.style.fontSize = "12px";
+          return [node];
+        },
+      });
+
+      dispose = () => {
+        remove();
+        removeSection();
+      };
+      return dispose;
+    });
+
+    return () => dispose?.();
+  }, [image]);
+
+  return (
+    <Stage
+      title="Plugin"
+      note={saved ? `The plugin's action exported: ${saved}` : "Draw something, then press Save."}
+    >
+      <PixenImageEditor ref={editor} src={image} style={{ height: "100%" }} />
+    </Stage>
   );
 };
 

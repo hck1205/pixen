@@ -12,6 +12,7 @@ the rest of the documentation explains.
 | `@pixen/web` | `<pixen-image-editor>`, the framework-agnostic UI | core |
 | `@pixen/react` | React bindings | core, web |
 | `@pixen/vue` | Vue 3 bindings | core, web |
+| `@pixen/svelte` | Svelte bindings, as an action | core, web |
 
 `apps/playground` is the demo and the browser-test fixture. `apps/stories` is the
 Ladle story browser — the visual reference for the UI.
@@ -92,7 +93,7 @@ this project has actually shipped were invisible to unit tests.
 
 ## Where to read more
 
-`docs/ARCHITECTURE.md` (layers and coordinate model) · `docs/DOCUMENT-SCHEMA.md`
+`docs/TESTING.md` (the four suites) · `docs/ARCHITECTURE.md` (layers and coordinate model) · `docs/DOCUMENT-SCHEMA.md`
 (the stored contract) · `docs/BROWSER-SUPPORT.md` (what degrades where) ·
-`docs/FRAMEWORKS.md` (integration) · `docs/SECURITY.md` · `docs/PROVENANCE.md` ·
+`docs/FRAMEWORKS.md` (integration) · `docs/PLUGINS.md` (extension surface) · `docs/SECURITY.md` · `docs/PROVENANCE.md` ·
 `CONTRIBUTING.md`.

@@ -20,6 +20,7 @@ import {
   cancelGesture,
   cursorFor,
   endGesture,
+  hitLayer,
   IDLE,
   moveGesture,
   pinchFrom,
@@ -44,13 +45,19 @@ import {
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
 import { clampZoom, fitView, insetsFor, insetsFromChrome, MAX_ZOOM, MIN_ZOOM, type EdgeBox } from "./view.js";
 
+/** One label for the whole of "someone edited a text layer". */
+const TEXT_EDIT_LABEL = "Text";
+
 export interface ViewportCallbacks {
   /** Fired when the chrome has to be rebuilt: tool, selection, gesture end. */
   onChange?: () => void;
   /** Fired for zoom and pan, which only move a readout — no rebuild needed. */
   onViewChange?: () => void;
-  /** Fired after a text layer is created, so the host can focus its editor. */
-  onTextCreated?: (layerId: string) => void;
+  /**
+   * Fired when a text layer should be edited: after one is created, and when an
+   * existing one is double-clicked.
+   */
+  onEditText?: (layerId: string) => void;
   /**
    * The chrome as it currently measures, for fitting.
    *
@@ -116,6 +123,7 @@ export class Viewport {
     canvas.addEventListener("pointerup", this.#onPointerUp);
     canvas.addEventListener("pointercancel", this.#onPointerCancel);
     canvas.addEventListener("wheel", this.#onWheel, { passive: false });
+    canvas.addEventListener("dblclick", this.#onDoubleClick);
   }
 
   // --- view state ----------------------------------------------------------
@@ -159,6 +167,17 @@ export class Viewport {
     this.#autoFit = true;
     this.invalidate();
     this.#callbacks.onViewChange?.();
+  }
+
+  /**
+   * Re-runs the fit, but only while the view is still the one Pixen chose.
+   *
+   * The chrome's height depends on which panel is open, and a panel that grew
+   * would otherwise leave the image fitted to the space the old one left.
+   * Someone who has zoomed or panned by hand is left alone.
+   */
+  refit(): void {
+    if (this.#autoFit) this.fit();
   }
 
   zoomBy(factor: number, anchor?: Point): void {
@@ -232,6 +251,11 @@ export class Viewport {
 
   stageToScreen(point: Point): Point {
     return applyToPoint(this.#viewMatrix(), point);
+  }
+
+  /** image space -> CSS pixels on the canvas, for chrome placed over a layer. */
+  imageToScreen(): Matrix {
+    return compose(this.#viewMatrix(), invert(this.#imageFromStage()));
   }
 
   screenToImage(point: Point): Point {
@@ -344,7 +368,7 @@ export class Viewport {
         this.tool = effect.tool;
         break;
       case "focus-text":
-        this.#callbacks.onTextCreated?.(effect.layerId);
+        this.#callbacks.onEditText?.(effect.layerId);
         break;
     }
   }
@@ -420,6 +444,20 @@ export class Viewport {
     this.panBy(delta);
     this.#pinch = current;
   }
+
+  /** Double-clicking text edits it, which is where anyone would look first. */
+  #onDoubleClick = (event: MouseEvent): void => {
+    if (!this.#editor.ready) return;
+    const context = this.#gestureContext();
+    const hit = hitLayer(context, toImage(context, this.#eventPoint(event as unknown as PointerEvent)));
+    if (hit?.type !== "text") return;
+    event.preventDefault();
+    this.#editor.select(hit.id);
+    // Opened here for the same reason the text tool opens it: the editor closes
+    // whatever was opened for it, and transactions do not nest.
+    this.#editor.beginTransaction(TEXT_EDIT_LABEL);
+    this.#callbacks.onEditText?.(hit.id);
+  };
 
   #onWheel = (event: WheelEvent): void => {
     if (!this.#editor.ready) return;

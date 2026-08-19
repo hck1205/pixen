@@ -1,5 +1,5 @@
 import "@pixen/web";
-import { layerHandlePosition } from "@pixen/core";
+import { ImageWorker, layerHandlePosition, processImages } from "@pixen/core";
 import type { ExportResult, ImageFormat } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
 
@@ -10,7 +10,7 @@ import type { PixenImageEditorElement } from "@pixen/web";
  * come from the engine itself — re-deriving a handle position in the test would
  * only prove the test agrees with itself.
  */
-(window as unknown as { pixen: Record<string, unknown> }).pixen = { layerHandlePosition };
+(window as unknown as { pixen: Record<string, unknown> }).pixen = { layerHandlePosition, ImageWorker };
 
 const editor = document.querySelector<PixenImageEditorElement>("#editor")!;
 const preset = document.querySelector<HTMLSelectElement>("#preset")!;
@@ -22,6 +22,11 @@ const theme = document.querySelector<HTMLSelectElement>("#theme")!;
 const fileInput = document.querySelector<HTMLInputElement>("#file")!;
 const download = document.querySelector<HTMLAnchorElement>("#download")!;
 const configCode = document.querySelector<HTMLElement>("#config code")!;
+const batchOpen = document.querySelector<HTMLButtonElement>("#batch-open")!;
+const batchSample = document.querySelector<HTMLButtonElement>("#batch-sample")!;
+const batchFile = document.querySelector<HTMLInputElement>("#batch-file")!;
+const batchProgress = document.querySelector<HTMLElement>("#batch-progress")!;
+const batchResults = document.querySelector<HTMLOListElement>("#batch-results")!;
 
 let lastUrl: string | null = null;
 
@@ -150,6 +155,85 @@ editor.addEventListener("pixen-export", (event) => showResult((event as CustomEv
 editor.addEventListener("pixen-error", (event) => {
   const { error } = (event as CustomEvent<{ error: Error & { code?: string } }>).detail;
   console.error(`[pixen:${error.code ?? "unknown"}]`, error.message);
+});
+
+// --- batch ----------------------------------------------------------------
+
+/** Object URLs handed to download links, revoked when the list is replaced. */
+let batchUrls: string[] = [];
+
+function clearBatch(): void {
+  for (const url of batchUrls) URL.revokeObjectURL(url);
+  batchUrls = [];
+  batchResults.replaceChildren();
+}
+
+/**
+ * Runs the batch pipeline over whatever was chosen.
+ *
+ * This is the whole point of `processImages`: the same resize and re-encode the
+ * editor does, with no editor involved — which is what an upload form wants.
+ */
+async function runBatch(files: File[]): Promise<void> {
+  if (files.length === 0) return;
+  clearBatch();
+  batchOpen.disabled = true;
+  batchSample.disabled = true;
+  batchProgress.textContent = `0 / ${files.length}`;
+
+  try {
+    const outcomes = await processImages(files, {
+      maxWidth: 1600,
+      format: format.value ? (format.value as ImageFormat) : undefined,
+      quality: Number(quality.value),
+      concurrency: 2,
+      onProgress: ({ completed, total }) => {
+        batchProgress.textContent = `${completed} / ${total}`;
+      },
+    });
+
+    for (const [index, outcome] of outcomes.entries()) {
+      const item = document.createElement("li");
+      const name = files[index]?.name ?? `image ${index + 1}`;
+
+      if (outcome.status === "rejected") {
+        item.className = "failed";
+        item.textContent = `${name} — ${outcome.error.message}`;
+      } else {
+        const { result } = outcome;
+        const url = URL.createObjectURL(result.blob);
+        batchUrls.push(url);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = result.filename;
+        link.textContent = result.filename;
+
+        const detail = document.createElement("span");
+        const saved = result.savedBytes === null ? "" : `, saved ${formatBytes(result.savedBytes)}`;
+        detail.textContent = ` — ${result.width} × ${result.height}, ${formatBytes(result.bytes)}${saved}`;
+
+        item.append(link, detail);
+      }
+      batchResults.append(item);
+    }
+  } catch (error) {
+    batchProgress.textContent = String(error);
+  } finally {
+    batchOpen.disabled = false;
+    batchSample.disabled = false;
+  }
+}
+
+batchOpen.addEventListener("click", () => batchFile.click());
+batchFile.addEventListener("change", () => {
+  void runBatch([...(batchFile.files ?? [])]);
+});
+batchSample.addEventListener("click", () => {
+  // Generated rather than fetched, so the demo needs no network and no assets.
+  void Promise.all([sampleImage(), sampleImage(), sampleImage()]).then((blobs) =>
+    runBatch(blobs.map((blob, index) => new File([blob], `sample-${index + 1}.jpg`, { type: blob.type }))),
+  );
 });
 
 renderConfig();

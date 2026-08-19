@@ -1,5 +1,12 @@
+import { ar } from "./ar.js";
+import { de } from "./de.js";
 import { en } from "./en.js";
+import { es } from "./es.js";
+import { fr } from "./fr.js";
+import { ja } from "./ja.js";
 import { ko } from "./ko.js";
+import { pt } from "./pt.js";
+import { zh } from "./zh.js";
 import type { PixenStrings } from "./types.js";
 
 /**
@@ -11,18 +18,47 @@ import type { PixenStrings } from "./types.js";
  */
 const locales = new Map<string, PixenStrings>([
   ["en", en],
+  ["ar", ar],
+  ["de", de],
+  ["es", es],
+  ["fr", fr],
+  ["ja", ja],
   ["ko", ko],
+  ["pt", pt],
+  ["zh", zh],
 ]);
+
+/**
+ * Languages written right to left.
+ *
+ * The element mirrors its layout for these unless the host has said otherwise,
+ * because a tool rail on the left is wrong in a page that reads from the right.
+ */
+const RTL_LANGUAGES = new Set(["ar", "fa", "he", "ur", "ps", "sd", "yi"]);
 
 export function registerLocale(locale: string, strings: Partial<PixenStrings>): void {
   locales.set(locale, { ...en, ...strings });
 }
 
-export function resolveStrings(locale: string | null | undefined): PixenStrings {
-  if (!locale) return en;
-  // "ko-KR" falls back to "ko" before falling back to English.
-  return locales.get(locale) ?? locales.get(locale.split("-")[0] ?? "") ?? en;
+/** The base language of a tag: `ko-KR` is `ko`, and `zh-Hans-CN` is `zh`. */
+function baseLanguage(locale: string): string {
+  return locale.split("-")[0]?.toLowerCase() ?? "";
 }
 
-export { en, ko };
+export function resolveStrings(locale: string | null | undefined): PixenStrings {
+  if (!locale) return en;
+  return locales.get(locale) ?? locales.get(baseLanguage(locale)) ?? en;
+}
+
+/** Writing direction for a locale tag, for hosts that do not set one. */
+export function directionFor(locale: string | null | undefined): "ltr" | "rtl" {
+  return locale && RTL_LANGUAGES.has(baseLanguage(locale)) ? "rtl" : "ltr";
+}
+
+/** Every locale Pixen ships, for a host offering a language picker. */
+export function availableLocales(): string[] {
+  return [...locales.keys()].sort();
+}
+
+export { ar, de, en, es, fr, ja, ko, pt, zh };
 export type { PixenStrings };

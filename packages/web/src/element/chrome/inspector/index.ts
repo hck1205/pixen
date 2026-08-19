@@ -2,8 +2,10 @@ import { divider, hint } from "../../dom/index.js";
 import type { ChromeBuild, ChromeContext } from "../context.js";
 import { buildAdjustmentControls } from "./adjustments.js";
 import { buildCropControls } from "./crop.js";
+import { buildFrameControls } from "./frame.js";
 import { buildLayerControls } from "./layer.js";
 import { buildRedactionControls } from "./redaction.js";
+import { buildStickerControls } from "./sticker.js";
 import { inspectorSectionFor } from "./sections.js";
 import { buildStyleControls } from "./style.js";
 import { buildViewControls } from "./view.js";
@@ -20,8 +22,17 @@ export { recolourPatch } from "./style.js";
  */
 export function buildInspector(context: ChromeContext): ChromeBuild {
   const view = buildViewControls(context);
+  // Plugin sections sit between the tool's own controls and the view controls:
+  // after what the tool needs, before what the viewport needs.
+  const contributed = context.plugins.activeSections().flatMap((section) => section.build());
+
   return {
-    nodes: [...buildContextualControls(context), divider(), ...view.nodes],
+    nodes: [
+      ...buildContextualControls(context),
+      ...(contributed.length > 0 ? [divider(), ...contributed] : []),
+      divider(),
+      ...view.nodes,
+    ],
     readouts: view.readouts,
   };
 }
@@ -39,7 +50,9 @@ function buildContextualControls(context: ChromeContext): Node[] {
 
   switch (section) {
     case "adjustments":
-      return buildAdjustmentControls(context);
+      // The frame is a picture-level decision like the adjustments, so it lives
+      // in the same panel rather than earning a tool of its own.
+      return [...buildAdjustmentControls(context), divider(), ...buildFrameControls(context)];
     case "crop":
       return buildCropControls(context);
     case "layer":
@@ -48,6 +61,8 @@ function buildContextualControls(context: ChromeContext): Node[] {
       return [hint(strings.select)];
     case "text-hint":
       return [hint(strings.textPlaceholder), ...buildStyleControls(context, { includeWidth: false })];
+    case "sticker":
+      return buildStickerControls(context);
     case "redaction":
       return buildRedactionControls(context, selected?.type === "redact" ? selected : null);
     case "style":

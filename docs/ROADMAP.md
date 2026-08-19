@@ -19,19 +19,21 @@ unit tests and a browser suite driving the real bundle.
 - [x] Annotations: rectangle, ellipse, arrow, free draw, text, redaction
 - [x] Document serialise / restore
 - [x] Web component + React wrapper
-- [ ] Free-angle straightening UI (the engine already accepts any rotation)
+- [x] Free-angle straightening UI, with an auto-fitting crop
 - [x] Layer selection handles for resize and rotate
-- [ ] Text editing directly on the canvas rather than in the inspector
+- [x] Text editing directly on the canvas rather than in the inspector
 
 ## Phase 2 — commercial V1
 
-- [ ] Device QA: iOS Safari, Android Chrome, Safari desktop
+- [ ] Device QA: iOS Safari, Android Chrome, Safari desktop. The suite already
+      runs against WebKit and Firefox with `PIXEN_BROWSERS=all`; what is missing
+      is the hardware
 - [ ] Memory ceilings and preview downscale tuning on real large images
-- [ ] Worker-based decode and encode behind the existing API
+- [x] Worker-based decode and encode behind the existing API
 - [x] Story browser covering every UI state, for visual review
-- [ ] Visual regression suite with golden images over the stories
-- [ ] Localisation beyond `en` / `ko`, RTL layout check
-- [ ] Accessibility pass: focus order, roles, announcements, reduced motion
+- [x] Visual regression suite with golden images over the stories ([TESTING.md](TESTING.md))
+- [x] Localisation: nine locales, and an RTL layout that mirrors
+- [x] Accessibility: roles, names, pressed state, announcements, reduced motion
 - [ ] Documentation site and hosted playground
 - [ ] Licensing and distribution
 
@@ -43,15 +45,20 @@ unit tests and a browser suite driving the real bundle.
       for a GPU renderer
 - [x] Blur and pixelate redaction modes
 - [x] Image watermarks: corner, edge, centre or tiled, with opacity
-- [ ] Text watermarks (a text layer plus the same placement maths)
+- [x] Text watermarks (a text layer plus the same placement maths)
+- [x] Frames: solid, inset and rounded, drawn over the finished picture
 - [x] Vue wrapper (`@pixen/vue`)
-- [ ] Svelte and Angular wrappers (both usable today through the element; see
-      [FRAMEWORKS.md](FRAMEWORKS.md))
-- [ ] Public plugin API with a documented extension surface
+- [x] Svelte bindings (`@pixen/svelte`): an action, with no Svelte dependency
+- [ ] Angular: no package planned. The element binds with Angular's own property
+      and event syntax once `CUSTOM_ELEMENTS_SCHEMA` is declared, and a wrapper
+      would add an Angular toolchain to this repository to save one line — see
+      [FRAMEWORKS.md](FRAMEWORKS.md)
+- [x] Sticker tool over host-supplied artwork
+- [x] Public plugin API with a documented extension surface ([PLUGINS.md](PLUGINS.md))
 
 ## Phase 4 — differentiation
 
-- [ ] Batch processing UI on top of `processImages`
+- [x] Batch processing UI on top of `processImages`, in the playground
 - [ ] AI provider adapters (customer backend or their own key; Pixen runs no
       models and holds no keys)
 - [ ] Smart crop, background removal, upscale via those adapters
