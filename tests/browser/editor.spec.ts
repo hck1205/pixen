@@ -1068,6 +1068,29 @@ test("a plugin adds a real button and a real inspector control", async ({ page }
   expect(result.removed).toBe(true);
 });
 
+test("the batch pipeline processes several images with no editor involved", async ({ page }) => {
+  await page.locator("#batch-sample").click();
+
+  const results = page.locator("#batch-results li");
+  await expect(results).toHaveCount(3, { timeout: 15_000 });
+  await expect(page.locator("#batch-progress")).toHaveText("3 / 3");
+
+  // Every one produced a downloadable file, named and measured.
+  for (let index = 0; index < 3; index += 1) {
+    const item = results.nth(index);
+    await expect(item).not.toHaveClass(/failed/);
+    await expect(item.locator("a")).toHaveAttribute("download", /\.(jpe?g|png|webp)$/);
+    await expect(item).toContainText("×");
+  }
+
+  const measured = await page.evaluate(() => {
+    const first = document.querySelector("#batch-results li")!;
+    return first.textContent ?? "";
+  });
+  // Bounded to 1600 on the long edge by the batch options.
+  expect(measured).toContain("1600 × 1067");
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

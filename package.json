@@ -13,6 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "pnpm build && pnpm playground:build && playwright test",
+    "test:visual": "pnpm build && pnpm stories:build && PIXEN_VISUAL=1 playwright test visual.spec.ts",
+    "test:visual:update": "pnpm build && pnpm stories:build && PIXEN_VISUAL=1 playwright test visual.spec.ts --update-snapshots",
     "playground": "pnpm --filter @pixen/playground dev",
     "playground:build": "pnpm --filter @pixen/playground build",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo apps/*/dist apps/stories/build test-results playwright-report",

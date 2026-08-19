@@ -29,7 +29,7 @@ unit tests and a browser suite driving the real bundle.
 - [ ] Memory ceilings and preview downscale tuning on real large images
 - [x] Worker-based decode and encode behind the existing API
 - [x] Story browser covering every UI state, for visual review
-- [ ] Visual regression suite with golden images over the stories
+- [x] Visual regression suite with golden images over the stories ([TESTING.md](TESTING.md))
 - [x] Localisation: nine locales, and an RTL layout that mirrors
 - [x] Accessibility: roles, names, pressed state, announcements, reduced motion
 - [ ] Documentation site and hosted playground
@@ -53,7 +53,7 @@ unit tests and a browser suite driving the real bundle.
 
 ## Phase 4 — differentiation
 
-- [ ] Batch processing UI on top of `processImages`
+- [x] Batch processing UI on top of `processImages`, in the playground
 - [ ] AI provider adapters (customer backend or their own key; Pixen runs no
       models and holds no keys)
 - [ ] Smart crop, background removal, upscale via those adapters

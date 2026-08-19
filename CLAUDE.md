@@ -92,7 +92,7 @@ this project has actually shipped were invisible to unit tests.
 
 ## Where to read more
 
-`docs/ARCHITECTURE.md` (layers and coordinate model) · `docs/DOCUMENT-SCHEMA.md`
+`docs/TESTING.md` (the four suites) · `docs/ARCHITECTURE.md` (layers and coordinate model) · `docs/DOCUMENT-SCHEMA.md`
 (the stored contract) · `docs/BROWSER-SUPPORT.md` (what degrades where) ·
 `docs/FRAMEWORKS.md` (integration) · `docs/PLUGINS.md` (extension surface) · `docs/SECURITY.md` · `docs/PROVENANCE.md` ·
 `CONTRIBUTING.md`.

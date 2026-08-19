@@ -74,6 +74,19 @@
         </dl>
         <a id="download" class="download" hidden>Download result</a>
 
+        <h2>Batch</h2>
+        <p class="note">
+          The same pipeline with no editor at all: pick several images and each is
+          resized and re-encoded to the settings above.
+        </p>
+        <div class="actions">
+          <button id="batch-open">Choose images…</button>
+          <button id="batch-sample">Use samples</button>
+        </div>
+        <input id="batch-file" type="file" accept="image/*" multiple hidden />
+        <p id="batch-progress" class="note" role="status" aria-live="polite">—</p>
+        <ol id="batch-results" class="batch"></ol>
+
         <h2>Configuration</h2>
         <pre id="config"><code></code></pre>
       </aside>
