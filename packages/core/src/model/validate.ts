@@ -5,6 +5,7 @@ import { ADJUSTMENT_RANGES } from "./adjustments.js";
 import { REDACTION_COLOUR } from "./palette.js";
 import {
   DEFAULT_CORNER_RADIUS,
+  DEFAULT_FRAME,
   DEFAULT_REDACTION_MODE,
   DEFAULT_REDACTION_STRENGTH,
   DEFAULT_FONT_FAMILY,
@@ -20,10 +21,12 @@ import {
 } from "./defaults.js";
 import {
   ADJUSTMENT_KEYS,
+  FRAME_STYLES,
   REDACTION_MODES,
   type AdjustmentKey,
   type EditorDocument,
   type EditorLayer,
+  type FrameSettings,
   type ImageFormat,
   type Stroke,
 } from "./types.js";
@@ -165,6 +168,18 @@ const adjustmentFields = Object.fromEntries(
   [K in AdjustmentKey]: (source: Record<string, unknown>, path: string) => Result<number, ValidationIssue[]>;
 };
 
+export const frameSettings: Validator<FrameSettings> = (value, path) => {
+  const asRecord = record(value, path);
+  if (isErr(asRecord)) return asRecord;
+  return shape<FrameSettings>(asRecord.value, path, {
+    style: field("style", withDefault(literalUnion(...FRAME_STYLES), DEFAULT_FRAME.style)),
+    width: field("width", withDefault(finiteNumber, DEFAULT_FRAME.width)),
+    colour: field("colour", withDefault(text, DEFAULT_FRAME.colour)),
+    radius: field("radius", withDefault(finiteNumber, DEFAULT_FRAME.radius)),
+    inset: field("inset", withDefault(finiteNumber, DEFAULT_FRAME.inset)),
+  });
+};
+
 // --- layers ----------------------------------------------------------------
 
 const layerBase = {
@@ -296,6 +311,7 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
     aspectRatio: field("aspectRatio", nullable(finiteNumber)),
     adjustments: () =>
       shape<EditorDocument["adjustments"]>(nested("adjustments"), "$.adjustments", adjustmentFields),
+    frame: field("frame", nullable(frameSettings)),
     layers: field("layers", withDefault(arrayOf(layer), [])),
     output: () =>
       shape<EditorDocument["output"]>(nested("output"), "$.output", {

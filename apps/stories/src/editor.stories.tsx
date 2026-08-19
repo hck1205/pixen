@@ -3,6 +3,7 @@ import {
   ADJUSTMENT_KEYS,
   ADJUSTMENT_PRESETS,
   ADJUSTMENT_RANGES,
+  FRAME_STYLES,
   presetAdjustments,
   REDACTION_MODES,
   type RedactionMode,
@@ -265,6 +266,49 @@ Watermark.argTypes = {
   position: { options: WATERMARK_POSITIONS, control: { type: "select" } },
   scale: { control: { type: "range", min: 0.05, max: 0.6, step: 0.01 } },
   opacity: { control: { type: "range", min: 0.1, max: 1, step: 0.05 } },
+};
+
+/** Straightening: a small free rotation that never leaves a blank corner. */
+export const Straighten: Story<{ degrees: number }> = ({ degrees }) => {
+  const image = useSampleImage();
+  return (
+    <Stage
+      title={`Straighten: ${degrees}°`}
+      note="The crop pulls in to stay all image, and keeps its share of the frame — so sliding back to 0 returns what you started with."
+    >
+      <SeededEditor
+        key={degrees}
+        image={image}
+        tool="crop"
+        seed={(instance) => instance.straighten((degrees * Math.PI) / 180)}
+      />
+    </Stage>
+  );
+};
+
+Straighten.args = { degrees: 8 };
+Straighten.argTypes = { degrees: { control: { type: "range", min: -45, max: 45, step: 1 } } };
+
+/** The three frame styles, and the text watermark, on the same picture. */
+export const Decoration: Story = () => {
+  const image = useSampleImage();
+  return (
+    <Row columns={2}>
+      {FRAME_STYLES.map((style) => (
+        <Stage key={style} height={320} title={`Frame: ${style}`}>
+          <SeededEditor image={image} seed={(instance) => instance.setFrame({ style, colour: "#f6f7fb" })} />
+        </Stage>
+      ))}
+      <Stage height={320} title="Text watermark" note="A credit line placed by the same arithmetic as a logo.">
+        <SeededEditor
+          image={image}
+          seed={(instance) =>
+            instance.addTextWatermark({ text: "© pixen sample", position: "bottom-right", opacity: 0.75 })
+          }
+        />
+      </Stage>
+    </Row>
+  );
 };
 
 /** Colour adjustment, driven from the story so the sliders can be compared. */

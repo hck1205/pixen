@@ -160,6 +160,19 @@ editor.addWatermark({
 });
 ```
 
+## Straightening, frames and credit lines
+
+```js
+editor.straighten(3 * Math.PI / 180);   // ±45°, and the crop pulls in to match
+editor.setFrame({ style: "rounded", colour: "#ffffff", width: 0.02 });
+editor.addTextWatermark({ text: "© Studio", position: "bottom-right" });
+```
+
+Straightening is absolute, not cumulative: the slider shows the angle the
+document holds. The crop keeps its share of the frame, so straightening to 15°
+and back to 0 returns the framing you started with, and a tight crop stays tight
+instead of jumping to full frame.
+
 ## Adjustments and presets
 
 Nine adjustments — exposure, brightness, contrast, saturation, hue, grayscale,

@@ -29,6 +29,7 @@ was supplied to an AI tool as input at any point.
 | `geometry/matrix.ts` | 2D affine matrices: multiply, invert, apply | Linear algebra. The `{a,b,c,d,e,f}` field layout is the argument order of `CanvasRenderingContext2D.setTransform`, i.e. the platform's own contract |
 | `geometry/rect.ts` | Rectangle algebra, aspect fitting, rotated bounds | First principles; rotated bounding box is `w·|cos| + h·|sin|` |
 | `geometry/spaces.ts` | The image / stage / output / view coordinate model | Original design for this project |
+| `geometry/straighten.ts` | Free rotation, and the largest crop that is still all image | First principles: a centred rectangle fits a rotated one when its half-extents, projected onto the rotated axes, stay inside — two inequalities rather than a search |
 | `geometry/crop.ts` | Handle-drag resize with edge anchoring and ratio locking | First principles: pin the opposite edge, solve the free axis from the locked ratio |
 | `model/transform.ts` | Resizing and rotating a layer about its own centre | First principles: take the pointer into the layer's unrotated frame, pin the opposite corner, then correct for the drift rotation puts in the centre |
 | `model/*` | `EditorDocument` schema, layers, migrations | Original design for this project |

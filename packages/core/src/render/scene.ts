@@ -1,8 +1,9 @@
 import { compose, IDENTITY, meanScale, scaling, translation } from "../geometry/matrix.js";
+import { transformBounds } from "../geometry/rect.js";
 import { imageToStage, stageToOutput } from "../geometry/spaces.js";
 import type { Matrix, Rect, Size } from "../geometry/types.js";
 import { effectiveCrop, outputSize, stageRect } from "../model/document.js";
-import type { Adjustments, EditorDocument, EditorLayer } from "../model/types.js";
+import type { Adjustments, EditorDocument, EditorLayer, FrameSettings } from "../model/types.js";
 
 export type SceneRegion = "crop" | "stage";
 
@@ -35,6 +36,16 @@ export interface Scene {
   filter: string;
   /** The values behind that string, for the renderer's pixel fallback. */
   adjustments: Adjustments;
+  /** The border drawn over everything, or null for none. */
+  frame: FrameSettings | null;
+  /**
+   * Where the region lands on the target, in target pixels.
+   *
+   * The export's region *is* the target, but the viewport's is the picture
+   * floating inside a much larger canvas — so anything drawn around the picture
+   * rather than around the image needs this rather than `target`.
+   */
+  regionInTarget: Rect;
   image: SceneImageNode;
   layers: SceneLayerNode[];
   /** Target pixels per stage pixel. */
@@ -97,6 +108,8 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     background: document.output.background,
     filter: cssFilter(document.adjustments),
     adjustments: document.adjustments,
+    frame: document.frame,
+    regionInTarget: transformBounds(compose(view, regionMatrix), sourceRect),
     image: {
       source: input.source,
       size: {

@@ -53,4 +53,12 @@ export const ko: PixenStrings = {
   invert: "반전",
   vignette: "비네트",
   presets: "프리셋",
+  straighten: "수평 보정",
+  frame: "테두리",
+  frameNone: "없음",
+  frameSolid: "실선",
+  frameInset: "안쪽 선",
+  frameRounded: "둥근 모서리",
+  frameWidth: "테두리 굵기",
+  frameColour: "테두리 색",
 };

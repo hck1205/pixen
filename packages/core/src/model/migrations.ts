@@ -39,6 +39,16 @@ function migrateV2ToV3(document: Record<string, unknown>): Record<string, unknow
   };
 }
 
+/**
+ * v3 -> v4 added the optional `frame`.
+ *
+ * A v3 document had no frame, and `null` is exactly that, so this is a default
+ * rather than a change of meaning.
+ */
+function migrateV3ToV4(document: Record<string, unknown>): Record<string, unknown> {
+  return { frame: null, ...document };
+}
+
 export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
   if (migrations.has(fromVersion)) {
     throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
@@ -49,6 +59,7 @@ export function registerMigration(fromVersion: number, migration: DocumentMigrat
 /** Upgrades a raw document to the current schema version, or explains why it can't. */
 migrations.set(1, migrateV1ToV2);
 migrations.set(2, migrateV2ToV3);
+migrations.set(3, migrateV3ToV4);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {

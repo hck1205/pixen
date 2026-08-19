@@ -6,7 +6,7 @@ migratable from v1.
 
 ```jsonc
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "source": { "resourceId": "res_1a2b", "width": 4000, "height": 3000, "name": "beach.jpg", "mimeType": "image/jpeg" },
   "transform": { "rotation": 0, "flipX": false, "flipY": false },   // radians, clockwise
   "crop": { "x": 0, "y": 0, "width": 4000, "height": 3000 },        // stage space, or null
@@ -83,6 +83,25 @@ Presets are not a separate concept. Applying one writes these same fields, so it
 is one undo step, serialises as ordinary adjustments, and can be nudged
 afterwards rather than being a mode to leave.
 
+## Frames
+
+`frame` is `null`, or a border drawn over the finished picture:
+
+| Field | Meaning |
+| --- | --- |
+| `style` | `solid` on the edge, `inset` standing off it, or `rounded` |
+| `width` | Line thickness as a fraction of the picture's longest edge |
+| `colour` | Any CSS colour |
+| `radius` | Corner radius as a fraction of the longest edge; `rounded` only |
+| `inset` | Distance from the edge as a fraction of the longest edge; `inset` only |
+
+Document-level rather than a layer, because a frame is not something you select
+and drag — and keeping it out of `layers` means it cannot be reordered under an
+annotation. Everything is a fraction so one setting suits a thumbnail and a
+6000px export alike; the renderer resolves them against the picture it is
+drawing, which is why a frame in the viewport hugs the image rather than the
+canvas the image floats in.
+
 ## Versioning
 
 `migrateDocument` walks a raw document from its stored version to the current
@@ -91,7 +110,7 @@ one, applying each registered step in order:
 ```js
 import { registerMigration } from "@pixen/core";
 
-registerMigration(3, (document) => ({ ...document, /* v3 -> v4 changes */ }));
+registerMigration(4, (document) => ({ ...document, /* v4 -> v5 changes */ }));
 ```
 
 Shipped so far:

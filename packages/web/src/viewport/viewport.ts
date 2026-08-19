@@ -161,6 +161,17 @@ export class Viewport {
     this.#callbacks.onViewChange?.();
   }
 
+  /**
+   * Re-runs the fit, but only while the view is still the one Pixen chose.
+   *
+   * The chrome's height depends on which panel is open, and a panel that grew
+   * would otherwise leave the image fitted to the space the old one left.
+   * Someone who has zoomed or panned by hand is left alone.
+   */
+  refit(): void {
+    if (this.#autoFit) this.fit();
+  }
+
   zoomBy(factor: number, anchor?: Point): void {
     const next = clampZoom(this.#zoom * factor);
     if (next === this.#zoom) return;

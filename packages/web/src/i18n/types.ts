@@ -51,4 +51,12 @@ export interface PixenStrings {
   invert: string;
   vignette: string;
   presets: string;
+  straighten: string;
+  frame: string;
+  frameNone: string;
+  frameSolid: string;
+  frameInset: string;
+  frameRounded: string;
+  frameWidth: string;
+  frameColour: string;
 }

@@ -601,6 +601,125 @@ test("the image stays clear of the chrome with the adjust panel open", async ({ 
   expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
 });
 
+test("straightening leaves no blank corners in the exported file", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { straighten(radians: number): void; straightenAngle: number };
+      export(options?: Record<string, unknown>): Promise<{ blob: Blob }>;
+    };
+
+    /** How many sampled pixels are transparent — a blank corner would be. */
+    const transparentCorners = async (blob: Blob) => {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const context = canvas.getContext("2d")!;
+      // Cleared, not filled: anything the render did not cover stays transparent.
+      context.clearRect(0, 0, bitmap.width, bitmap.height);
+      context.drawImage(bitmap, 0, 0);
+
+      const inset = 2;
+      const points = [
+        [inset, inset],
+        [bitmap.width - inset, inset],
+        [inset, bitmap.height - inset],
+        [bitmap.width - inset, bitmap.height - inset],
+      ] as const;
+      return points.filter(([x, y]) => context.getImageData(x, y, 1, 1).data[3]! < 250).length;
+    };
+
+    const results: Record<string, number> = {};
+    for (const degrees of [0, 3, 12, 30, -20]) {
+      element.editor.straighten((degrees * Math.PI) / 180);
+      results[`d${degrees}`] = await transparentCorners(
+        (await element.export({ format: "image/png" })).blob,
+      );
+    }
+
+    element.editor.straighten(0);
+    return { ...results, angleAfterReset: element.editor.straightenAngle };
+  });
+
+  // Every angle exports a full frame of image, corners included.
+  expect(measure.d0).toBe(0);
+  expect(measure.d3).toBe(0);
+  expect(measure.d12).toBe(0);
+  expect(measure.d30).toBe(0);
+  expect(measure["d-20"]).toBe(0);
+  expect(measure.angleAfterReset).toBeCloseTo(0);
+});
+
+test("the straighten slider drives the document and undoes as one step", async ({ page }) => {
+  const before = await state(page);
+
+  const angle = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: { straightenAngle: number };
+    };
+    const slider = element.shadowRoot!.querySelector<HTMLInputElement>('input[data-field="straighten"]')!;
+    slider.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    slider.value = "8";
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    slider.value = "10";
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    slider.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return element.editor.straightenAngle;
+  });
+
+  expect((angle * 180) / Math.PI).toBeCloseTo(10, 1);
+  expect((await state(page)).history.depth).toBe(before.history.depth + 1);
+
+  // The shortcut is handled by the element, so it has to be the focused thing.
+  await page.evaluate(() => (document.querySelector("pixen-image-editor") as HTMLElement).focus());
+  await page.keyboard.press("ControlOrMeta+z");
+  const undone = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement & { editor: { straightenAngle: number } }).editor.straightenAngle,
+  );
+  expect(undone).toBeCloseTo(0);
+});
+
+test("a taller panel re-fits the image instead of hiding it", async ({ page }) => {
+  // The adjust panel wraps onto several rows on a phone-sized host; the fit has
+  // to follow the chrome that is actually there, not the one that was there
+  // when the image loaded.
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { stageSize: { width: number; height: number } };
+      viewport: { stageToScreen(p: { x: number; y: number }): { x: number; y: number } } | null;
+    };
+    const frame = element.parentElement as HTMLElement;
+    frame.style.width = "420px";
+    frame.style.height = "620px";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const shadow = element.shadowRoot!;
+    const settle = async () => {
+      for (let i = 0; i < 4; i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
+    };
+    await settle();
+
+    const bottomOf = () => {
+      const stage = element.editor.stageSize;
+      return element.viewport!.stageToScreen({ x: stage.width, y: stage.height }).y;
+    };
+    const inspectorTop = () => {
+      const canvas = shadow.querySelector("canvas")!.getBoundingClientRect();
+      return shadow.querySelector(".inspector")!.getBoundingClientRect().top - canvas.top;
+    };
+
+    const beforePanel = { image: bottomOf(), inspector: inspectorTop() };
+    shadow.querySelector<HTMLButtonElement>('button[data-panel="adjust"]')!.click();
+    await settle();
+    const afterPanel = { image: bottomOf(), inspector: inspectorTop() };
+
+    return { beforePanel, afterPanel };
+  });
+
+  // The tall panel really is taller, and the image moved out of its way.
+  expect(measure.afterPanel.inspector).toBeLessThan(measure.beforePanel.inspector);
+  expect(measure.afterPanel.image).toBeLessThanOrEqual(measure.afterPanel.inspector + 1);
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

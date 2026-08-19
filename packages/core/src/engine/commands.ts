@@ -6,11 +6,20 @@ import {
   type CropHandle,
 } from "../geometry/crop.js";
 import { compose, invert } from "../geometry/matrix.js";
-import { clampInside, constrainRect, transformBounds } from "../geometry/rect.js";
+import { center, clampInside, constrainRect, transformBounds } from "../geometry/rect.js";
+import {
+  centredRect,
+  clampStraighten,
+  inscribedSize,
+  nearestQuarterTurns,
+  rectIsAllImage,
+  straightenAngleOf,
+} from "../geometry/straighten.js";
 import { imageToStage } from "../geometry/spaces.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { effectiveCrop, stageRect } from "../model/document.js";
 import { clampAdjustments } from "../model/adjustments.js";
+import { DEFAULT_FRAME, MAX_FRAME_WIDTH, MIN_FRAME_WIDTH } from "../model/defaults.js";
 import { layerBounds, translateLayer } from "../model/layers.js";
 import { resizeLayer, rotateLayer, type LayerHandle } from "../model/transform.js";
 import { DEFAULT_ADJUSTMENTS } from "../model/types.js";
@@ -19,6 +28,7 @@ import type {
   DocumentTransform,
   EditorDocument,
   EditorLayer,
+  FrameSettings,
   OutputSettings,
 } from "../model/types.js";
 
@@ -86,6 +96,44 @@ export function rotateQuarterTurns(document: EditorDocument, turns: number): Edi
   return rotateBy(document, turns * QUARTER_TURN);
 }
 
+/**
+ * Sets the straighten angle — the part of the rotation that is not a quarter
+ * turn — and pulls the crop in so the result is still all image.
+ *
+ * Absolute rather than relative, because a slider that accumulated would drift
+ * away from the number it displays.
+ *
+ * The crop is carried as a *fraction* of the largest crop the angle allows,
+ * which is what makes the slider reversible: straightening to 15° and back to 0
+ * returns the framing you started with, and a tight crop stays tight instead of
+ * being blown up to full frame by a one-degree nudge.
+ */
+export function straighten(document: EditorDocument, radians: number): EditorDocument {
+  const angle = clampStraighten(radians);
+
+  const before = effectiveCrop(document);
+  const aspectRatio = document.aspectRatio ?? before.width / before.height;
+  const wasAllowed = inscribedSize(document.source, straightenAngleOf(document.transform.rotation), aspectRatio);
+  const fraction = Math.min(1, before.width / wasAllowed.width);
+
+  const rotation = nearestQuarterTurns(document.transform.rotation) * QUARTER_TURN + angle;
+  const rotated = setTransform(document, { ...document.transform, rotation });
+
+  const allowed = inscribedSize(rotated.source, angle, aspectRatio);
+  const size = { width: allowed.width * fraction, height: allowed.height * fraction };
+
+  // Keep the framing where it was when the straightened image still covers it.
+  // The largest allowed crop is centred by construction, so the image centre is
+  // always an answer when it does not.
+  const imageFromStage = invert(imageToStage(rotated.source, rotated.transform));
+  const atCropCentre = centredRect(center(effectiveCrop(rotated)), size);
+  const crop = rectIsAllImage(atCropCentre, imageFromStage, rotated.source)
+    ? atCropCentre
+    : centredRect(center(stageRect(rotated)), size);
+
+  return { ...rotated, crop };
+}
+
 export function flip(document: EditorDocument, axis: "x" | "y"): EditorDocument {
   const transform: DocumentTransform =
     axis === "x"
@@ -128,6 +176,18 @@ export function setAdjustments(document: EditorDocument, adjustments: Partial<Ad
   // Clamped on the way in: a host value outside the range would otherwise reach
   // the filter string and the exported pixels.
   return { ...document, adjustments: clampAdjustments({ ...document.adjustments, ...adjustments }) };
+}
+
+/**
+ * Sets or clears the frame.
+ *
+ * A partial patch turns one on with the defaults filled in, so a host that only
+ * cares about the colour writes only the colour.
+ */
+export function setFrame(document: EditorDocument, frame: Partial<FrameSettings> | null): EditorDocument {
+  if (frame === null) return { ...document, frame: null };
+  const width = Math.min(MAX_FRAME_WIDTH, Math.max(MIN_FRAME_WIDTH, frame.width ?? document.frame?.width ?? DEFAULT_FRAME.width));
+  return { ...document, frame: { ...DEFAULT_FRAME, ...document.frame, ...frame, width } };
 }
 
 export function setOutput(document: EditorDocument, output: Partial<OutputSettings>): EditorDocument {
@@ -215,6 +275,7 @@ export function resetEdits(document: EditorDocument): EditorDocument {
     crop: null,
     aspectRatio: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
+    frame: null,
     layers: [],
     output: { ...document.output, width: null, height: null },
   };

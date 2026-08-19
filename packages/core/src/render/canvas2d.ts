@@ -67,6 +67,9 @@ export function executeOps(context: Canvas2D, ops: readonly DrawOp[]): void {
       case "vignette":
         drawVignette(context, op);
         break;
+      case "frame":
+        drawFrame(context, op);
+        break;
       case "filter":
         context.filter = op.value;
         break;
@@ -364,6 +367,48 @@ function drawVignette(context: Canvas2D, op: Extract<DrawOp, { op: "vignette" }>
   gradient.addColorStop(1, `rgba(0, 0, 0, ${(strength * VIGNETTE_MAX_ALPHA).toFixed(3)})`);
   context.fillStyle = gradient;
   context.fillRect(-radius * 2, -radius * 2, radius * 4, radius * 4);
+  context.restore();
+}
+
+/**
+ * The three frame styles.
+ *
+ * `solid` and `rounded` sit on the very edge, so half the stroke would fall
+ * outside the canvas — they are inset by half a line width to stay whole.
+ * `inset` is a hairline standing off the edge, which is a different look rather
+ * than a different thickness.
+ */
+function drawFrame(context: Canvas2D, op: Extract<DrawOp, { op: "frame" }>): void {
+  const { rect, width, colour, style } = op;
+  if (width <= 0 || rect.width <= 0 || rect.height <= 0) return;
+
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.strokeStyle = colour;
+  context.lineWidth = width;
+
+  const offset = style === "inset" ? op.inset + width / 2 : width / 2;
+  const box = {
+    x: rect.x + offset,
+    y: rect.y + offset,
+    width: Math.max(0, rect.width - offset * 2),
+    height: Math.max(0, rect.height - offset * 2),
+  };
+
+  if (box.width <= 0 || box.height <= 0) {
+    context.restore();
+    return;
+  }
+
+  context.beginPath();
+  if (style === "rounded" && typeof context.roundRect === "function") {
+    // The radius cannot exceed half the shorter side, or the corners overlap.
+    const radius = Math.min(op.radius, box.width / 2, box.height / 2);
+    context.roundRect(box.x, box.y, box.width, box.height, radius);
+  } else {
+    context.rect(box.x, box.y, box.width, box.height);
+  }
+  context.stroke();
   context.restore();
 }
 

@@ -2,6 +2,7 @@ import { divider, hint } from "../../dom/index.js";
 import type { ChromeBuild, ChromeContext } from "../context.js";
 import { buildAdjustmentControls } from "./adjustments.js";
 import { buildCropControls } from "./crop.js";
+import { buildFrameControls } from "./frame.js";
 import { buildLayerControls } from "./layer.js";
 import { buildRedactionControls } from "./redaction.js";
 import { inspectorSectionFor } from "./sections.js";
@@ -39,7 +40,9 @@ function buildContextualControls(context: ChromeContext): Node[] {
 
   switch (section) {
     case "adjustments":
-      return buildAdjustmentControls(context);
+      // The frame is a picture-level decision like the adjustments, so it lives
+      // in the same panel rather than earning a tool of its own.
+      return [...buildAdjustmentControls(context), divider(), ...buildFrameControls(context)];
     case "crop":
       return buildCropControls(context);
     case "layer":

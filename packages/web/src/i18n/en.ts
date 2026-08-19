@@ -54,4 +54,12 @@ export const en: PixenStrings = {
   invert: "Invert",
   vignette: "Vignette",
   presets: "Presets",
+  straighten: "Straighten",
+  frame: "Frame",
+  frameNone: "None",
+  frameSolid: "Solid",
+  frameInset: "Inset",
+  frameRounded: "Rounded",
+  frameWidth: "Frame width",
+  frameColour: "Frame colour",
 };

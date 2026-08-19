@@ -453,6 +453,22 @@ export class PixenImageEditorElement extends ElementBase {
     this.#readouts = inspector.readouts;
     this.#inspectorHost.replaceChildren(...inspector.nodes);
     this.#updateReadouts();
+
+    // The chrome that was just rebuilt may be a different height — a panel with
+    // more controls, or one that wrapped onto another row — so the image is
+    // re-fitted around what is actually there now.
+    this.#scheduleRefit();
+  }
+
+  #refitFrame = 0;
+
+  /** Coalesced to one frame: layout has to settle before the chrome measures. */
+  #scheduleRefit(): void {
+    if (this.#refitFrame !== 0 || typeof requestAnimationFrame === "undefined") return;
+    this.#refitFrame = requestAnimationFrame(() => {
+      this.#refitFrame = 0;
+      this.#viewport?.refit();
+    });
   }
 
   /** Cheap text-only refresh, safe to run at pointer speed. */

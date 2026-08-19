@@ -19,7 +19,7 @@ unit tests and a browser suite driving the real bundle.
 - [x] Annotations: rectangle, ellipse, arrow, free draw, text, redaction
 - [x] Document serialise / restore
 - [x] Web component + React wrapper
-- [ ] Free-angle straightening UI (the engine already accepts any rotation)
+- [x] Free-angle straightening UI, with an auto-fitting crop
 - [x] Layer selection handles for resize and rotate
 - [ ] Text editing directly on the canvas rather than in the inspector
 
@@ -43,7 +43,8 @@ unit tests and a browser suite driving the real bundle.
       for a GPU renderer
 - [x] Blur and pixelate redaction modes
 - [x] Image watermarks: corner, edge, centre or tiled, with opacity
-- [ ] Text watermarks (a text layer plus the same placement maths)
+- [x] Text watermarks (a text layer plus the same placement maths)
+- [x] Frames: solid, inset and rounded, drawn over the finished picture
 - [x] Vue wrapper (`@pixen/vue`)
 - [ ] Svelte and Angular wrappers (both usable today through the element; see
       [FRAMEWORKS.md](FRAMEWORKS.md))
