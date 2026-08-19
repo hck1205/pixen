@@ -1133,3 +1133,117 @@ test("undo and redo survive a rotate, crop and annotate sequence", async ({ page
   expect(summary.final.ratio).toBeCloseTo(9 / 16, 5);
   expect(summary.final.rotation).toBeCloseTo(Math.PI, 5);
 });
+
+/**
+ * A slider that opens in the wrong place is a slider that lies about the
+ * document, and it is invisible to a unit test: the truth is in the browser's
+ * own value sanitising, which clamps against whatever bounds the input had at
+ * the moment the value was assigned.
+ */
+test("every inspector slider opens where the document actually is", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const readings = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      panel: string;
+      tool: string;
+      editor: { document: { output: { quality: number } } };
+    };
+    const shadow = element.shadowRoot!;
+    const field = (name: string) =>
+      shadow.querySelector<HTMLInputElement>(`input[data-field="${name}"]`);
+
+    element.panel = "output";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const quality = field("quality");
+
+    element.panel = "tool";
+    element.tool = "rect";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const width = field("width");
+
+    return {
+      documentQuality: element.editor.document.output.quality,
+      quality: quality ? { value: Number(quality.value), min: Number(quality.min) } : null,
+      strokeWidth: width ? { value: Number(width.value), min: Number(width.min) } : null,
+    };
+  });
+
+  expect(readings.quality?.value).toBeCloseTo(readings.documentQuality, 5);
+  // Not pinned to the floor, which is where a value assigned before its bounds
+  // ends up once the browser has snapped it to the default whole-number step.
+  expect(readings.quality?.value).toBeGreaterThan(readings.quality!.min);
+  expect(readings.strokeWidth?.value).toBeGreaterThan(readings.strokeWidth!.min);
+});
+
+/**
+ * The rail is the only persistent navigation, so a control that scrolls out of
+ * it is a feature nobody can find. Opening the tallest panel is the case that
+ * squeezed it.
+ */
+test("every rail button stays visible with the layer list open", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const visibility = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      panel: string;
+      editor: { addLayer(layer: unknown): unknown; document: { source: { width: number; height: number } } };
+    };
+    element.panel = "layers";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const rail = element.shadowRoot!.querySelector(".rail") as HTMLElement;
+    const bounds = rail.getBoundingClientRect();
+    const buttons = [...rail.querySelectorAll("button")];
+    return {
+      total: buttons.length,
+      visible: buttons.filter((button) => {
+        const box = button.getBoundingClientRect();
+        return box.top >= bounds.top - 1 && box.bottom <= bounds.bottom + 1;
+      }).length,
+      panels: buttons.filter((button) => button.dataset.panel).length,
+    };
+  });
+
+  expect(visibility.panels).toBe(3);
+  expect(visibility.visible).toBe(visibility.total);
+});
+
+/**
+ * Multi-size export is only really answerable in a browser: the plan is pure,
+ * but whether four renders and four encodes actually produce four different
+ * files at the sizes the plan promised is the engine's business.
+ */
+test("exporting several sizes produces one file per planned size", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const variants = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: {
+        outputSize: { width: number; height: number };
+        exportVariants(
+          specs: unknown[],
+          options?: Record<string, unknown>,
+        ): Promise<Array<{ label: string; filename: string; width: number; height: number; bytes: number }>>;
+      };
+    };
+    const results = await element.editor.exportVariants(
+      // 800 and "half of the natural size" are the same file when the source is
+      // 1600 wide, so the plan must drop one of them.
+      [{ width: 800 }, { width: 400 }, { width: 200, label: "thumb" }, { scale: 0.5 }],
+      { format: "image/webp" },
+    );
+    return { natural: element.editor.outputSize, results };
+  });
+
+  expect(variants.results.map((variant) => variant.label)).toEqual(["800w", "400w", "thumb"]);
+  expect(variants.results.map((variant) => variant.width)).toEqual([800, 400, 200]);
+  // Each name carries its label, and a smaller picture is a smaller file.
+  expect(variants.results.map((variant) => variant.filename.includes(variant.label))).toEqual([true, true, true]);
+  const bytes = variants.results.map((variant) => variant.bytes);
+  expect(bytes[0]).toBeGreaterThan(bytes[1]!);
+  expect(bytes[1]).toBeGreaterThan(bytes[2]!);
+});

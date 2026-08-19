@@ -22,10 +22,10 @@ export function buildLayerControls(context: ChromeContext, layer: EditorLayer): 
   const { strings, editor } = context;
   const nodes: Node[] = [];
 
-  // A bitmap has nothing to stroke; text carries a colour but no width.
-  if (layer.type !== "image") {
-    nodes.push(...buildStyleControls(context, { includeWidth: layer.type !== "text" }));
-  }
+  // Which controls a layer offers follows from what it is — a bitmap has
+  // nothing to stroke, text has no stroke width — and that decision lives in
+  // `styleControlsFor` rather than in a chain of conditions here.
+  nodes.push(...buildStyleControls(context, { tool: context.tool, layerType: layer.type }));
 
   nodes.push(
     field(

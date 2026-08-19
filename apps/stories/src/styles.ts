@@ -114,3 +114,17 @@ export const tableCell: CSSProperties = {
   padding: "8px 12px",
   borderBottom: "1px solid rgba(127, 140, 170, 0.18)",
 };
+
+/** The coverage page is a reference table, so it may use the full page width. */
+export const wideTable: CSSProperties = { ...table, maxWidth: "100%" };
+
+/** A capability's name, which should not be broken across lines. */
+export const capabilityCell: CSSProperties = { ...tableCell, fontWeight: 600, whiteSpace: "nowrap" };
+
+/** Evidence reads as a list of file names; wrapping one mid-name helps nobody. */
+export const evidenceCell: CSSProperties = {
+  ...tableCell,
+  opacity: 0.75,
+  whiteSpace: "nowrap",
+  font: "400 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace",
+};

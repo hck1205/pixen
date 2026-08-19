@@ -4,6 +4,8 @@ import { buildAdjustmentControls } from "./adjustments.js";
 import { buildCropControls } from "./crop.js";
 import { buildFrameControls } from "./frame.js";
 import { buildLayerControls } from "./layer.js";
+import { buildLayerList } from "./layers.js";
+import { buildOutputControls } from "./output.js";
 import { buildRedactionControls } from "./redaction.js";
 import { buildStickerControls } from "./sticker.js";
 import { inspectorSectionFor } from "./sections.js";
@@ -11,6 +13,8 @@ import { buildStyleControls } from "./style.js";
 import { buildViewControls } from "./view.js";
 
 export * from "./sections.js";
+export * from "./layer-rows.js";
+export * from "./output-settings.js";
 export { buildRedactionControls } from "./redaction.js";
 export { recolourPatch } from "./style.js";
 
@@ -55,17 +59,21 @@ function buildContextualControls(context: ChromeContext): Node[] {
       return [...buildAdjustmentControls(context), divider(), ...buildFrameControls(context)];
     case "crop":
       return buildCropControls(context);
+    case "layers":
+      return buildLayerList(context);
+    case "output":
+      return buildOutputControls(context);
     case "layer":
       return selected ? buildLayerControls(context, selected) : [hint(strings.select)];
     case "select-hint":
       return [hint(strings.select)];
     case "text-hint":
-      return [hint(strings.textPlaceholder), ...buildStyleControls(context, { includeWidth: false })];
+      return [hint(strings.textPlaceholder), ...buildStyleControls(context, { tool: context.tool })];
     case "sticker":
       return buildStickerControls(context);
     case "redaction":
       return buildRedactionControls(context, selected?.type === "redact" ? selected : null);
     case "style":
-      return buildStyleControls(context, { includeWidth: true });
+      return buildStyleControls(context, { tool: context.tool });
   }
 }

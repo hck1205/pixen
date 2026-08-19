@@ -16,6 +16,7 @@ import type {
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
 import { exportDocument, type ExportOptions, type ExportResult } from "../export/pipeline.js";
+import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
 import {
   createTextWatermarkLayer,
   createWatermarkLayer,
@@ -531,6 +532,23 @@ export class Editor {
     this.#assertAlive();
     try {
       return await exportDocument(this.document, this.resources, options);
+    } catch (cause) {
+      const error = toPixenError(cause, "EXPORT_FAILED", "The image could not be exported");
+      this.#emitter.emit("error", error);
+      throw error;
+    }
+  }
+
+  /**
+   * The same edit at several sizes, largest first.
+   *
+   * One picture is rarely one file. The sizes are planned before anything is
+   * rendered — see `planVariants` — so a host can show what it is about to get.
+   */
+  async exportVariants(specs: readonly VariantSpec[], options: ExportOptions = {}): Promise<ExportVariant[]> {
+    this.#assertAlive();
+    try {
+      return await exportVariants(this.document, this.resources, specs, options);
     } catch (cause) {
       const error = toPixenError(cause, "EXPORT_FAILED", "The image could not be exported");
       this.#emitter.emit("error", error);

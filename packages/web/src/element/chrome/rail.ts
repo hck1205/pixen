@@ -1,4 +1,4 @@
-import { button, divider, setPressed } from "../dom/index.js";
+import { button, setPressed } from "../dom/index.js";
 import { TOOL_META } from "../constants.js";
 import type { ChromeContext } from "./context.js";
 
@@ -28,14 +28,29 @@ export function buildRail(context: ChromeContext): Node[] {
     ];
   });
 
+  // A gap rather than a rule between the tools and the panels: the rail wraps
+  // into a second column on a short host, and a rule that lands at a column
+  // break separates nothing while looking as though it separates something.
   return [
     ...toolButtons,
-    divider(),
     button({
       icon: "tune",
       label: strings.adjustments,
+      className: "group-start",
       dataset: { panel: "adjust" },
       onClick: () => actions.togglePanel("adjust"),
+    }),
+    button({
+      icon: "layers",
+      label: strings.layers,
+      dataset: { panel: "layers" },
+      onClick: () => actions.togglePanel("layers"),
+    }),
+    button({
+      icon: "output",
+      label: strings.output,
+      dataset: { panel: "output" },
+      onClick: () => actions.togglePanel("output"),
     }),
   ];
 }
@@ -49,9 +64,8 @@ export function refreshRail(host: HTMLElement, context: ChromeContext): void {
     setPressed(control, context.panel === "tool" && control.dataset.tool === context.tool);
   }
 
-  const adjust = host.querySelector<HTMLButtonElement>("button[data-panel=adjust]");
-  if (adjust) {
-    adjust.disabled = !ready;
-    setPressed(adjust, context.panel === "adjust");
+  for (const panel of host.querySelectorAll<HTMLButtonElement>("button[data-panel]")) {
+    panel.disabled = !ready;
+    setPressed(panel, context.panel === panel.dataset.panel);
   }
 }

@@ -12,6 +12,8 @@ export type InspectorSection =
   | "adjustments"
   | "crop"
   | "layer"
+  | "layers"
+  | "output"
   | "redaction"
   | "select-hint"
   | "sticker"
@@ -33,6 +35,11 @@ export function inspectorSectionFor({
   redactionSelected = false,
 }: InspectorConditions): InspectorSection {
   if (panel === "adjust") return "adjustments";
+  // The layer list is a panel of its own: it is about the picture as a whole,
+  // not about whichever tool happens to be armed.
+  if (panel === "layers") return "layers";
+  // So is the output: what comes out of the editor is not what is armed in it.
+  if (panel === "output") return "output";
   // A selected redaction is edited wherever it was selected from.
   if (redactionSelected) return "redaction";
 

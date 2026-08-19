@@ -37,6 +37,13 @@ describe("inspectorSectionFor", () => {
     );
   });
 
+  it("shows the layer list whenever its panel is open, even over a selection", () => {
+    expect(inspectorSectionFor({ panel: "layers", tool: "crop", hasSelection: false })).toBe("layers");
+    expect(
+      inspectorSectionFor({ panel: "layers", tool: "select", hasSelection: true, redactionSelected: true }),
+    ).toBe("layers");
+  });
+
   it("still puts the adjustment panel first", () => {
     expect(
       inspectorSectionFor({ panel: "adjust", tool: "select", hasSelection: true, redactionSelected: true }),
@@ -56,9 +63,17 @@ describe("recolourPatch", () => {
     expect(recolourPatch(layer, "#123456")).toEqual({ color: "#123456" });
   });
 
-  it("recolours a filled shape through its fill — the redaction case", () => {
-    const layer = createRectLayer({ x: 0, y: 0, width: 1, height: 1 }, { stroke: null, fill: "#000" });
-    expect(recolourPatch(layer, "#123456")).toEqual({ fill: "#123456" });
+  it("recolours a shape through its stroke, since the fill has its own control", () => {
+    const filled = createRectLayer({ x: 0, y: 0, width: 10, height: 10 }, {
+      fill: "#000000",
+      stroke: { color: "#ffffff", width: 2 },
+    });
+    expect(recolourPatch(filled, "#123456")).toEqual({ stroke: { color: "#123456", width: 2 } });
+  });
+
+  it("falls back to the fill for a shape that has no stroke to colour", () => {
+    const hollow = createRectLayer({ x: 0, y: 0, width: 10, height: 10 }, { fill: "#000000", stroke: null });
+    expect(recolourPatch(hollow, "#123456")).toEqual({ fill: "#123456" });
   });
 
   it("recolours an outlined shape through its stroke, keeping the width", () => {

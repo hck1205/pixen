@@ -13,6 +13,7 @@ export interface ButtonSpec {
   text?: string;
   className?: string;
   active?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   dataset?: Record<string, string>;
   /** Announced by screen readers as the control's keyboard shortcut. */
@@ -30,6 +31,7 @@ export function button(spec: ButtonSpec): HTMLButtonElement {
   // reads the attribute, and a screen reader reads it too.
   if (spec.active !== undefined) node.setAttribute("aria-pressed", String(spec.active));
   if (spec.active) node.classList.add("active");
+  if (spec.disabled) node.disabled = true;
   if (spec.icon) node.appendChild(fragmentFromHTML(icons[spec.icon]));
   if (spec.text) node.appendChild(document.createTextNode(spec.text));
   for (const [key, value] of Object.entries(spec.dataset ?? {})) node.dataset[key] = value;
@@ -54,10 +56,15 @@ export interface InputSpec {
 export function input(spec: InputSpec): HTMLInputElement {
   const node = document.createElement("input");
   node.type = spec.type;
-  node.value = spec.value;
+  // Range and bounds before the value, not after: a range input sanitises what
+  // it is given against the bounds it has *at that moment*, and its defaults are
+  // 0..100 in steps of 1. Assigning 0.85 first snapped it to a whole number and
+  // then clamped it into the real range, so every fractional slider in the
+  // inspector opened somewhere other than where the document was.
   if (spec.min !== undefined) node.min = String(spec.min);
   if (spec.max !== undefined) node.max = String(spec.max);
   if (spec.step !== undefined) node.step = String(spec.step);
+  node.value = spec.value;
   if (spec.placeholder) node.placeholder = spec.placeholder;
   for (const [key, value] of Object.entries(spec.dataset ?? {})) node.dataset[key] = value;
   node.addEventListener("input", () => spec.onInput(node.value));
