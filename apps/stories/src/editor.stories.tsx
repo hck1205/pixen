@@ -19,6 +19,10 @@ import {
   seedWatermark,
 } from "./fixtures.js";
 import { ElementEditor, Row, SeededEditor, Stage, useBlob, useSampleImage } from "./harness.js";
+import { availableLocales } from "@pixen/web";
+
+/** Every locale the package registers, for the locale story's knob. */
+const LOCALE_OPTIONS = availableLocales();
 import { hostButton, hostPrimaryButton } from "./styles.js";
 
 /** What each redaction mode actually promises, in the words the docs use. */
@@ -91,6 +95,29 @@ Playground.argTypes = {
   quality: { control: { type: "range", min: 0.3, max: 1, step: 0.01 } },
   height: { control: { type: "range", min: 280, max: 900, step: 20 } },
 };
+
+/**
+ * Every locale Pixen ships, including one that reads right to left.
+ *
+ * The chrome is laid out in logical properties, so mirroring is `dir` and
+ * nothing else — which is exactly what this story is here to prove.
+ */
+export const Locales: Story<{ locale: string }> = ({ locale }) => {
+  const image = useSampleImage();
+  return (
+    <Row>
+      <Stage height={420} title={locale} note="Chosen with the knob.">
+        <PixenImageEditor key={locale} src={image} locale={locale} style={{ height: "100%" }} />
+      </Stage>
+      <Stage height={420} title="ar" note="Right to left: the rail and the chrome mirror.">
+        <PixenImageEditor src={image} locale="ar" style={{ height: "100%" }} />
+      </Stage>
+    </Row>
+  );
+};
+
+Locales.args = { locale: "ja" };
+Locales.argTypes = { locale: { options: LOCALE_OPTIONS, control: { type: "select" } } };
 
 /** Both themes together: the fastest way to catch a hard-coded colour. */
 export const Themes: Story = () => {

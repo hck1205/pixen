@@ -30,8 +30,8 @@ unit tests and a browser suite driving the real bundle.
 - [ ] Worker-based decode and encode behind the existing API
 - [x] Story browser covering every UI state, for visual review
 - [ ] Visual regression suite with golden images over the stories
-- [ ] Localisation beyond `en` / `ko`, RTL layout check
-- [ ] Accessibility pass: focus order, roles, announcements, reduced motion
+- [x] Localisation: nine locales, and an RTL layout that mirrors
+- [x] Accessibility: roles, names, pressed state, announcements, reduced motion
 - [ ] Documentation site and hosted playground
 - [ ] Licensing and distribution
 

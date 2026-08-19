@@ -873,6 +873,37 @@ test("a sticker lands in the middle of the crop, selected and ready to resize", 
   expect(placed.tool).toBe("select");
 });
 
+test("a right-to-left locale mirrors the chrome without reversing the numbers", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    element.setAttribute("locale", "ar");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const shadow = element.shadowRoot!;
+    const host = element.getBoundingClientRect();
+    const rail = shadow.querySelector(".rail")!.getBoundingClientRect();
+    const readouts = [...shadow.querySelectorAll<HTMLElement>(".inspector .readout")];
+
+    return {
+      dir: element.getAttribute("dir"),
+      // The rail belongs on the side the reader starts from.
+      railIsOnTheRight: rail.left - host.left > host.right - rail.right,
+      exportLabel: shadow.querySelector('[part="actions"] button.primary')?.textContent?.trim() ?? "",
+      readoutDirs: readouts.map((node) => node.dir),
+      readoutTexts: readouts.map((node) => node.textContent?.trim() ?? ""),
+    };
+  });
+
+  expect(measure.dir).toBe("rtl");
+  expect(measure.railIsOnTheRight).toBe(true);
+  // The chrome is translated, not just mirrored.
+  expect(measure.exportLabel).toContain("تصدير");
+  // `1600 × 1067` reordered by the bidi algorithm reads `1067 × 1600` — not a
+  // formatting quibble but the wrong number.
+  expect(measure.readoutDirs.every((dir) => dir === "ltr")).toBe(true);
+  expect(measure.readoutTexts).toContain("1600 × 1067");
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

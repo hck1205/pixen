@@ -160,6 +160,23 @@ editor.addWatermark({
 });
 ```
 
+## Languages
+
+Nine locales ship — `en`, `ko`, `ja`, `zh`, `es`, `fr`, `de`, `pt`, `ar` — and a
+host can register its own:
+
+```js
+import { registerLocale, availableLocales } from "@pixen/web";
+
+registerLocale("nl", { crop: "Bijsnijden" });   // completed from English
+availableLocales();                              // ["ar", "de", "en", ...]
+```
+
+`ar` reads right to left, and the editor mirrors for it: the chrome is laid out
+in logical properties, so the direction is the whole of the change. Numeric
+readouts stay left to right, because `1600 × 1067` reordered is the wrong
+number. A `dir` you set yourself always wins.
+
 ## Stickers
 
 Pixen ships no artwork of its own — what a sticker is belongs to the product

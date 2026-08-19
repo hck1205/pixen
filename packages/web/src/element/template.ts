@@ -10,8 +10,8 @@ import { styles } from "../theme/index.js";
 export function template(): string {
   return `<style>${styles}</style>
 <div class="root" part="root">
-  <canvas part="canvas"></canvas>
-  <textarea class="text-input" part="text-input" spellcheck="false" hidden rows="1"></textarea>
+  <canvas part="canvas" role="img"></canvas>
+  <textarea class="text-input" part="text-input" spellcheck="false" dir="auto" hidden rows="1"></textarea>
   <div class="layer">
     <div class="top">
       <slot name="actions"><div class="cluster actions" part="actions" role="toolbar"></div></slot>
@@ -20,7 +20,7 @@ export function template(): string {
       <slot name="tools"><div class="cluster rail" part="tool-rail" role="toolbar"></div></slot>
     </div>
     <div class="bottom">
-      <slot name="inspector"><div class="cluster inspector" part="inspector"></div></slot>
+      <slot name="inspector"><div class="cluster inspector" part="inspector" role="group"></div></slot>
     </div>
   </div>
   <div class="empty" part="empty"></div>

@@ -64,4 +64,5 @@ export const en: PixenStrings = {
   frameRounded: "Rounded",
   frameWidth: "Frame width",
   frameColour: "Frame colour",
+  canvas: "Image",
 };

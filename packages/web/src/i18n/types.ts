@@ -61,4 +61,5 @@ export interface PixenStrings {
   frameRounded: string;
   frameWidth: string;
   frameColour: string;
+  canvas: string;
 }

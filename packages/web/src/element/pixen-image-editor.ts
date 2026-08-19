@@ -11,7 +11,7 @@ import {
   type ImagePolicy,
   type PresetName,
 } from "@pixen/core";
-import { resolveStrings, type PixenStrings } from "../i18n/index.js";
+import { directionFor, resolveStrings, type PixenStrings } from "../i18n/index.js";
 import {
   DEFAULT_STYLE,
   normaliseStickers,
@@ -104,6 +104,8 @@ export class PixenImageEditorElement extends ElementBase {
   #strings: PixenStrings = resolveStrings("en");
   #panel: PanelId = "tool";
   #busy = false;
+  /** True when the host set `dir` itself, which then outranks the locale. */
+  #explicitDirection = false;
   #pendingSrc: string | null = null;
   #loadToken = 0;
   /** Readout nodes are updated in place so a drag does not rebuild the chrome. */
@@ -134,6 +136,8 @@ export class PixenImageEditorElement extends ElementBase {
 
     if (!this.hasAttribute("tabindex")) this.setAttribute("tabindex", "0");
     if (!this.hasAttribute("theme")) this.setAttribute("theme", "dark");
+    this.#explicitDirection = this.hasAttribute("dir");
+    this.#applyDirection(this.getAttribute("locale"));
 
     this.#viewport = new Viewport(this.#canvas, this.editor, {
       onChange: () => this.#syncUI(),
@@ -220,6 +224,7 @@ export class PixenImageEditorElement extends ElementBase {
         return;
       case "locale":
         this.#strings = resolveStrings(value);
+        this.#applyDirection(value);
         this.#renderChrome();
         this.#syncUI();
         return;
@@ -470,6 +475,12 @@ export class PixenImageEditorElement extends ElementBase {
 
     this.#emptyHost.hidden = ready;
     this.#canvas.style.visibility = ready ? "visible" : "hidden";
+    // The canvas is the picture, so it is named as one; a canvas with no
+    // accessible name is announced as nothing at all.
+    this.#canvas.setAttribute(
+      "aria-label",
+      ready ? `${this.#strings.canvas}, ${sizeLabel(this.editor.outputSize)}` : this.#strings.emptyTitle,
+    );
 
     refreshRail(this.#railHost, context);
     refreshActions(this.#actionsHost, context);
@@ -521,6 +532,18 @@ export class PixenImageEditorElement extends ElementBase {
       .filter((node) => node.offsetParent !== null || node.getClientRects().length > 0)
       .map((node) => node.getBoundingClientRect());
     return { host, chrome };
+  }
+
+  /**
+   * Mirrors the layout for a right-to-left locale.
+   *
+   * Only when the host has not said otherwise: a page that has already chosen a
+   * direction knows better than a language tag does. The chrome is laid out in
+   * logical properties, so `dir` is the whole of the mirroring.
+   */
+  #applyDirection(locale: string | null): void {
+    if (this.#explicitDirection) return;
+    this.setAttribute("dir", directionFor(locale));
   }
 
   // --- stickers ------------------------------------------------------------

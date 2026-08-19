@@ -63,4 +63,5 @@ export const ko: PixenStrings = {
   frameRounded: "둥근 모서리",
   frameWidth: "테두리 굵기",
   frameColour: "테두리 색",
+  canvas: "이미지",
 };

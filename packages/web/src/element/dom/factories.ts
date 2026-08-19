@@ -26,6 +26,9 @@ export function button(spec: ButtonSpec): HTMLButtonElement {
   node.setAttribute("aria-label", spec.label);
   if (spec.keyShortcuts) node.setAttribute("aria-keyshortcuts", spec.keyShortcuts);
   if (spec.className) node.className = spec.className;
+  // `active` is a toggle state, so it is announced as well as painted: the CSS
+  // reads the attribute, and a screen reader reads it too.
+  if (spec.active !== undefined) node.setAttribute("aria-pressed", String(spec.active));
   if (spec.active) node.classList.add("active");
   if (spec.icon) node.appendChild(fragmentFromHTML(icons[spec.icon]));
   if (spec.text) node.appendChild(document.createTextNode(spec.text));
@@ -82,12 +85,24 @@ export function element(tag: string, options: { text?: string; className?: strin
   return node;
 }
 
-/** Muted text: a hint about the active tool, or a numeric readout. */
+/**
+ * Muted text: a hint about the active tool, or a numeric readout.
+ *
+ * A numeric readout is written left to right whatever the interface is: in a
+ * right-to-left locale the bidirectional algorithm otherwise reorders
+ * `1600 × 1067` into `1067 × 1600`, which is not a formatting quibble but the
+ * wrong number.
+ */
 export function readout(text: string): HTMLElement {
-  return element("span", { text, className: "readout" });
+  const node = element("span", { text, className: "readout" });
+  node.dir = "ltr";
+  return node;
 }
 
-export const hint = readout;
+/** A sentence, which follows the interface's own direction. */
+export function hint(text: string): HTMLElement {
+  return element("span", { text, className: "readout" });
+}
 
 export function divider(): HTMLElement {
   return element("span", { className: "divider" });
