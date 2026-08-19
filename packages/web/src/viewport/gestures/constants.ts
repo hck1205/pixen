@@ -5,6 +5,10 @@
  * different feel changes the behaviour rather than the constant.
  */
 export const HANDLE_HIT_RADIUS = 14;
+/** Layer handles sit inside a smaller radius, so they beat the layer body to a grab. */
+export const LAYER_HANDLE_HIT_RADIUS = 12;
+/** Smallest a layer may be dragged to, as a fraction of the image. */
+export const MIN_LAYER_SIZE_RATIO = 0.01;
 /** A shape smaller than this fraction of the image is treated as a stray tap. */
 export const DEGENERATE_RATIO = 0.004;
 /** Free-draw samples closer than this fraction of the image are dropped. */

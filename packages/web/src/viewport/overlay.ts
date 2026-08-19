@@ -49,15 +49,6 @@ export function cornerSegments(rect: Rect, arm = CORNER_ARM): Segment[] {
 }
 
 /** Grows a rect on every side, for a selection outline drawn around content. */
-export function inflate(rect: Rect, padding: number): Rect {
-  return {
-    x: rect.x - padding,
-    y: rect.y - padding,
-    width: rect.width + padding * 2,
-    height: rect.height + padding * 2,
-  };
-}
-
 /** Maps a stage-space rect into device pixels through the view transform. */
 export function projectRect(
   rect: Rect,

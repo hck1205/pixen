@@ -1,5 +1,16 @@
-import { CROP_HANDLES, layerBounds, type CropHandle, type EditorLayer, type Point, type Rect } from "@pixen/core";
-import { HANDLE_HIT_RADIUS, LAYER_HIT_TOLERANCE_RATIO } from "./constants.js";
+import {
+  applyToPoint,
+  CROP_HANDLES,
+  LAYER_HANDLES,
+  layerBounds,
+  layerHandlePosition,
+  type CropHandle,
+  type EditorLayer,
+  type LayerHandle,
+  type Point,
+  type Rect,
+} from "@pixen/core";
+import { HANDLE_HIT_RADIUS, LAYER_HANDLE_HIT_RADIUS, LAYER_HIT_TOLERANCE_RATIO } from "./constants.js";
 import { screenToImage, stageToScreen } from "./coordinates.js";
 import type { GestureContext } from "./types.js";
 
@@ -34,7 +45,7 @@ export function isInsideCrop(crop: Rect, stagePoint: Point): boolean {
 
 /** Topmost selectable layer whose padded bounding box contains the point. */
 export function hitLayer(context: GestureContext, imagePoint: Point): EditorLayer | null {
-  const tolerance = context.imageLongestEdge * 0.01;
+  const tolerance = context.imageLongestEdge * LAYER_HIT_TOLERANCE_RATIO;
   for (let i = context.layers.length - 1; i >= 0; i -= 1) {
     const layer = context.layers[i]!;
     if (!layer.visible || layer.locked) continue;
@@ -49,6 +60,34 @@ export function hitLayer(context: GestureContext, imagePoint: Point): EditorLaye
     }
   }
   return null;
+}
+
+/** The layer the handles belong to: the selection, when it is still present. */
+export function selectedLayer(context: GestureContext): EditorLayer | null {
+  if (!context.selectedId) return null;
+  return context.layers.find((layer) => layer.id === context.selectedId && !layer.locked) ?? null;
+}
+
+/**
+ * The nearest handle of the selected layer, in screen space.
+ *
+ * Handles win over the layer body, and the body wins over the handles of a
+ * layer beneath it — otherwise a small selection could never be resized.
+ */
+export function hitLayerHandle(context: GestureContext, point: Point): LayerHandle | null {
+  const layer = selectedLayer(context);
+  if (!layer) return null;
+
+  let best: { handle: LayerHandle; distance: number } | null = null;
+  for (const handle of LAYER_HANDLES) {
+    const image = layerHandlePosition(layer, handle);
+    const screen = stageToScreen(context, applyToPoint(context.stageFromImage, image));
+    const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
+    if (distance <= LAYER_HANDLE_HIT_RADIUS && (!best || distance < best.distance)) {
+      best = { handle, distance };
+    }
+  }
+  return best?.handle ?? null;
 }
 
 export function cursorForHandle(handle: CropHandle): string {
@@ -74,6 +113,9 @@ export function cursorFor(context: GestureContext, point: Point): string {
     return handle ? cursorForHandle(handle) : "grab";
   }
   if (context.tool === "select") {
+    const handle = hitLayerHandle(context, point);
+    if (handle === "rotate") return "grab";
+    if (handle) return cursorForHandle(handle);
     return hitLayer(context, screenToImage(context, point)) ? "move" : "default";
   }
   return "crosshair";

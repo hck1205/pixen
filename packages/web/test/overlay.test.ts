@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cornerSegments, gridSegments, inflate, projectRect, CORNER_ARM } from "../src/viewport/overlay.js";
+import { cornerSegments, gridSegments, projectRect, CORNER_ARM } from "../src/viewport/overlay.js";
 
 const rect = { x: 0, y: 0, width: 300, height: 150 };
 
@@ -52,21 +52,6 @@ describe("cornerSegments", () => {
   it("accepts a scaled arm length for high-density displays", () => {
     const scaled = cornerSegments(rect, 44);
     expect(scaled[0]!.from.x).toBe(44);
-  });
-});
-
-describe("inflate", () => {
-  it("grows a rect on every side", () => {
-    expect(inflate({ x: 10, y: 10, width: 100, height: 50 }, 5)).toEqual({
-      x: 5,
-      y: 5,
-      width: 110,
-      height: 60,
-    });
-  });
-
-  it("shrinks with a negative padding", () => {
-    expect(inflate({ x: 0, y: 0, width: 10, height: 10 }, -1)).toEqual({ x: 1, y: 1, width: 8, height: 8 });
   });
 });
 

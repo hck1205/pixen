@@ -160,6 +160,28 @@ editor.addWatermark({
 });
 ```
 
+## Adjustments and presets
+
+Nine adjustments — exposure, brightness, contrast, saturation, hue, grayscale,
+sepia, invert and vignette — plus nine presets that are nothing more than named
+sets of those values:
+
+```js
+editor.setAdjustments({ exposure: 0.4, saturation: -0.2, vignette: 0.5 });
+
+// A preset writes the same fields, so it undoes as one step and stays editable.
+import { ADJUSTMENT_PRESETS, presetAdjustments } from "@pixen/core";
+editor.setAdjustments(presetAdjustments(ADJUSTMENT_PRESETS[1]));
+```
+
+## Selecting and transforming a layer
+
+The select tool puts eight resize handles and a rotate grip on the selected
+layer, whatever kind it is — a shape, a stroke, text, a sticker or a watermark.
+Holding shift locks the layer's own aspect ratio while resizing, and snaps
+rotation to 15°. The inspector carries the same two values as sliders, for when
+an exact angle matters more than a drag.
+
 ## Policies
 
 A policy is a named set of output rules — the thing most teams actually want

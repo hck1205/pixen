@@ -1,5 +1,5 @@
 import { PixenError } from "../errors/index.js";
-import { SCHEMA_VERSION } from "./types.js";
+import { DEFAULT_ADJUSTMENTS, SCHEMA_VERSION } from "./types.js";
 
 export type DocumentMigration = (document: Record<string, unknown>) => Record<string, unknown>;
 
@@ -23,6 +23,22 @@ function migrateV1ToV2(document: Record<string, unknown>): Record<string, unknow
   return document;
 }
 
+/**
+ * v2 -> v3 widened `adjustments` from three values to nine.
+ *
+ * The new ones default to neutral, so a v2 document looks exactly as it did;
+ * filling them in here rather than at read time means one shape reaches the
+ * renderer, whatever version the document arrived as.
+ */
+function migrateV2ToV3(document: Record<string, unknown>): Record<string, unknown> {
+  const stored = document.adjustments;
+  const adjustments = typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {};
+  return {
+    ...document,
+    adjustments: { ...DEFAULT_ADJUSTMENTS, ...adjustments },
+  };
+}
+
 export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
   if (migrations.has(fromVersion)) {
     throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
@@ -32,6 +48,7 @@ export function registerMigration(fromVersion: number, migration: DocumentMigrat
 
 /** Upgrades a raw document to the current schema version, or explains why it can't. */
 migrations.set(1, migrateV1ToV2);
+migrations.set(2, migrateV2ToV3);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {

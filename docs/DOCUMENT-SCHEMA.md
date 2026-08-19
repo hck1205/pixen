@@ -6,12 +6,13 @@ migratable from v1.
 
 ```jsonc
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "source": { "resourceId": "res_1a2b", "width": 4000, "height": 3000, "name": "beach.jpg", "mimeType": "image/jpeg" },
   "transform": { "rotation": 0, "flipX": false, "flipY": false },   // radians, clockwise
   "crop": { "x": 0, "y": 0, "width": 4000, "height": 3000 },        // stage space, or null
   "aspectRatio": 1.7777777777777777,                                 // locked ratio, or null
-  "adjustments": { "brightness": 0, "contrast": 0, "saturation": 0 },// -1 .. 1
+  "adjustments": { "exposure": 0, "brightness": 0, "contrast": 0, "saturation": 0,
+                   "hue": 0, "grayscale": 0, "sepia": 0, "invert": 0, "vignette": 0 },
   "layers": [],                                                      // image space
   "output": { "width": null, "height": null, "format": null, "quality": 0.85, "background": null },
   "meta": {}                                                         // host data, round-tripped untouched
@@ -51,6 +52,37 @@ the same bitmap placed twice is decoded once. A layer whose resource is missing
 renders as nothing rather than as an error — a saved document can outlive the
 sticker it referenced.
 
+## Adjustments
+
+Nine values, every one of them neutral at `0`.
+
+| Field | Range | Meaning |
+| --- | --- | --- |
+| `exposure` | -2 .. 2 | Photographic stops: one stop is a doubling, so it multiplies where `brightness` shifts |
+| `brightness` | -1 .. 1 | Linear lift |
+| `contrast` | -1 .. 1 | Around mid grey |
+| `saturation` | -1 .. 1 | -1 is fully desaturated |
+| `hue` | -180 .. 180 | Degrees of rotation |
+| `grayscale` | 0 .. 1 | Amount |
+| `sepia` | 0 .. 1 | Amount |
+| `invert` | 0 .. 1 | Amount |
+| `vignette` | 0 .. 1 | Corner fall-off |
+
+The first eight become one CSS filter chain that the browser applies to the
+preview and the export through the same code path; where `ctx.filter` is
+missing, a pixel pass reproduces the same chain in the same order (filters do
+not commute, so the order is part of the contract). The vignette is drawn as a
+radial gradient instead, because no filter function shades by position.
+
+That boundary is deliberate: an adjustment the platform cannot express as a
+filter — a gamma curve, a white-balance shift — would need a pass over every
+pixel on every frame, which a slider drag on a large image cannot afford. Those
+wait for a renderer that can do them on the GPU.
+
+Presets are not a separate concept. Applying one writes these same fields, so it
+is one undo step, serialises as ordinary adjustments, and can be nudged
+afterwards rather than being a mode to leave.
+
 ## Versioning
 
 `migrateDocument` walks a raw document from its stored version to the current
@@ -59,7 +91,7 @@ one, applying each registered step in order:
 ```js
 import { registerMigration } from "@pixen/core";
 
-registerMigration(2, (document) => ({ ...document, /* v2 -> v3 changes */ }));
+registerMigration(3, (document) => ({ ...document, /* v3 -> v4 changes */ }));
 ```
 
 Shipped so far:
@@ -67,6 +99,7 @@ Shipped so far:
 | Step | What changed |
 | --- | --- |
 | v1 → v2 | Added the `image` and `redact` layer types. Nothing in a v1 document changes, but the version moves so that a v1 build refuses a v2 document rather than dropping a redaction it cannot render |
+| v2 → v3 | Widened `adjustments` from three values to nine. The new ones are filled in neutral, so a v2 document looks exactly as it did |
 
 - A document from a **newer** build fails with `UNSUPPORTED_SCHEMA_VERSION`
   rather than being partially understood.

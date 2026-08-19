@@ -9,7 +9,7 @@ import {
 } from "react";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Editor } from "@pixen/core";
-import type { PixenImageEditorElement } from "@pixen/web";
+import type { PixenImageEditorElement, ToolId } from "@pixen/web";
 import "@pixen/web";
 import { createSampleImage, type SampleOptions } from "./fixtures.js";
 import { note, panelTitle, statRow } from "./styles.js";
@@ -137,6 +137,8 @@ export interface SeededEditorProps {
   image: Blob | null;
   /** Runs once the image is loaded, with the engine behind the element. */
   seed: (editor: Editor) => void;
+  /** Tool to switch to after seeding, for stories about a particular tool. */
+  tool?: ToolId;
   height?: string;
 }
 
@@ -146,7 +148,7 @@ export interface SeededEditorProps {
  * Several stories differ only in what they seed, so the wiring — ref, load
  * callback, null guard — lives here rather than being repeated in each of them.
  */
-export function SeededEditor({ image, seed, height = "100%" }: SeededEditorProps) {
+export function SeededEditor({ image, seed, tool, height = "100%" }: SeededEditorProps) {
   const handle = useRef<PixenImageEditorHandle>(null);
   return (
     <PixenImageEditor
@@ -155,6 +157,7 @@ export function SeededEditor({ image, seed, height = "100%" }: SeededEditorProps
       onLoad={() => {
         const editor = handle.current?.editor;
         if (editor) seed(editor);
+        if (tool) handle.current?.setTool(tool);
       }}
       style={{ height }}
     />

@@ -1,7 +1,7 @@
 import type { Point, Rect } from "../geometry/types.js";
 import { DEFAULT_QUALITY } from "./defaults.js";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 
@@ -128,11 +128,30 @@ export interface DocumentTransform {
   flipY: boolean;
 }
 
-export interface Adjustments {
-  brightness: number;
-  contrast: number;
-  saturation: number;
-}
+/**
+ * Every colour adjustment the document can carry, in the order they are applied
+ * and shown.
+ *
+ * One list is the whole vocabulary: the type, the defaults, the validator, the
+ * filter string, the pixel fallback and the inspector all read it, so a new
+ * adjustment is added in one place rather than in six that must agree.
+ */
+export const ADJUSTMENT_KEYS = [
+  "exposure",
+  "brightness",
+  "contrast",
+  "saturation",
+  "hue",
+  "grayscale",
+  "sepia",
+  "invert",
+  "vignette",
+] as const;
+
+export type AdjustmentKey = (typeof ADJUSTMENT_KEYS)[number];
+
+/** Every key is a number; what each range means lives in `model/adjustments.ts`. */
+export type Adjustments = Record<AdjustmentKey, number>;
 
 export interface OutputSettings {
   /** Resize target in output pixels; null keeps the cropped size. */
@@ -159,11 +178,9 @@ export interface EditorDocument {
   meta: Record<string, unknown>;
 }
 
-export const DEFAULT_ADJUSTMENTS: Readonly<Adjustments> = Object.freeze({
-  brightness: 0,
-  contrast: 0,
-  saturation: 0,
-});
+export const DEFAULT_ADJUSTMENTS: Readonly<Adjustments> = Object.freeze(
+  Object.fromEntries(ADJUSTMENT_KEYS.map((key) => [key, 0])) as Adjustments,
+);
 
 export const DEFAULT_OUTPUT: Readonly<OutputSettings> = Object.freeze({
   width: null,

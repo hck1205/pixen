@@ -1,8 +1,17 @@
-import { createPathLayer, createTextLayer, last, type Intent } from "@pixen/core";
+import {
+  createPathLayer,
+  createTextLayer,
+  last,
+  layerBounds,
+  ROTATION_SNAP,
+  type EditorLayer,
+  type Intent,
+  type LayerHandle,
+} from "@pixen/core";
 import { fontSizeFor, strokeFor } from "../../tools/index.js";
-import { PATH_SAMPLE_RATIO } from "./constants.js";
+import { MIN_LAYER_SIZE_RATIO, PATH_SAMPLE_RATIO } from "./constants.js";
 import { screenToImage, screenToStage } from "./coordinates.js";
-import { hitCropHandle, hitLayer, isInsideCrop } from "./hit-testing.js";
+import { hitCropHandle, hitLayer, hitLayerHandle, isInsideCrop } from "./hit-testing.js";
 import { constrainToAxis, frameFrom, isDegenerate, shapeLayerFor, SHAPE_TOOLS } from "./shapes.js";
 import type {
   GestureContext,
@@ -23,11 +32,23 @@ export const IDLE: GestureState = { kind: "idle" };
 
 const intent = (value: Intent): GestureEffect => ({ kind: "intent", intent: value });
 
+/** A shift-drag locks the ratio the layer already has, rather than a square. */
+function aspectRatioOf(layer: EditorLayer | undefined, handle: LayerHandle): number | null {
+  if (!layer || handle === "rotate") return null;
+  const bounds = layerBounds(layer);
+  return bounds.height === 0 ? null : bounds.width / bounds.height;
+}
+
 /**
  * Pointer down. A middle button or a held shift always pans the view, whatever
  * tool is active — the one gesture that never edits the document.
  */
 export function beginGesture(sample: PointerSample, context: GestureContext): GestureOutcome {
+  // Grabbing a handle outranks the pan shortcut, so shift can mean "lock the
+  // ratio" on the very drag that started it rather than being swallowed here.
+  const grabbed = context.tool === "select" ? beginLayerTransform(sample, context) : null;
+  if (grabbed) return grabbed;
+
   if (sample.button === 1 || sample.shiftKey === true) {
     return { state: { kind: "view-pan", last: sample.point }, effects: [] };
   }
@@ -57,6 +78,21 @@ function beginCrop(sample: PointerSample, context: GestureContext): GestureOutco
     };
   }
   return { state: { kind: "view-pan", last: sample.point }, effects: [] };
+}
+
+/** A handle belongs to the layer already wearing it, whatever lies underneath. */
+function beginLayerTransform(sample: PointerSample, context: GestureContext): GestureOutcome | null {
+  const handle = hitLayerHandle(context, sample.point);
+  if (!handle || !context.selectedId) return null;
+  return {
+    state: { kind: "layer-transform", id: context.selectedId, handle },
+    effects: [
+      intent({
+        kind: "begin-transaction",
+        label: handle === "rotate" ? "Rotate annotation" : "Resize annotation",
+      }),
+    ],
+  };
 }
 
 function beginSelect(sample: PointerSample, context: GestureContext): GestureOutcome {
@@ -160,6 +196,29 @@ export function moveGesture(
         state: { ...state, last: sample.point },
         effects: [
           intent({ kind: "move-layer", id: state.id, delta: { x: to.x - from.x, y: to.y - from.y } }),
+        ],
+      };
+    }
+
+    case "layer-transform": {
+      const layer = context.layers.find((candidate) => candidate.id === state.id);
+      // Shift means "keep it honest" in both directions: a square corner drag,
+      // and a rotation that lands on a multiple of 15 degrees.
+      const modified = sample.shiftKey === true;
+      const aspectRatio =
+        modified && state.handle !== "rotate" ? aspectRatioOf(layer, state.handle) : null;
+      return {
+        state,
+        effects: [
+          intent({
+            kind: "drag-layer-handle",
+            id: state.id,
+            handle: state.handle,
+            pointer: screenToImage(context, sample.point),
+            minSize: context.imageLongestEdge * MIN_LAYER_SIZE_RATIO,
+            ...(aspectRatio === null ? {} : { aspectRatio }),
+            ...(modified && state.handle === "rotate" ? { snap: ROTATION_SNAP } : {}),
+          }),
         ],
       };
     }

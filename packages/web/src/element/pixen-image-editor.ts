@@ -12,7 +12,7 @@ import {
 } from "@pixen/core";
 import { resolveStrings, type PixenStrings } from "../i18n/index.js";
 import { DEFAULT_STYLE, normaliseTools, type AnnotationStyle, type ToolDefinition, type ToolId } from "../tools/index.js";
-import { Viewport } from "../viewport/index.js";
+import { Viewport, type EdgeBox } from "../viewport/index.js";
 import {
   buildActions,
   buildEmptyState,
@@ -122,6 +122,7 @@ export class PixenImageEditorElement extends ElementBase {
       onChange: () => this.#syncUI(),
       onViewChange: () => this.#updateReadouts(),
       onTextCreated: (id) => this.#focusTextField(id),
+      measureChrome: () => this.#measureChrome(),
     });
     this.#viewport.style = this.#annotationStyle;
 
@@ -464,6 +465,21 @@ export class PixenImageEditorElement extends ElementBase {
   /** Announces changes to assistive technology without moving focus. */
   #announce(message: string): void {
     if (this.#statusHost) this.#statusHost.textContent = message;
+  }
+
+  /**
+   * The chrome's current rectangles, for fitting the image around them.
+   *
+   * Read from the live DOM rather than assumed: the inspector's height depends
+   * on which panel is open and how many rows it wrapped onto.
+   */
+  #measureChrome(): { host: EdgeBox; chrome: EdgeBox[] } | null {
+    const root = this.#root;
+    const host = this.#canvas.getBoundingClientRect();
+    const chrome = [...root.querySelectorAll<HTMLElement>(".cluster")]
+      .filter((node) => node.offsetParent !== null || node.getClientRects().length > 0)
+      .map((node) => node.getBoundingClientRect());
+    return { host, chrome };
   }
 
   #focusTextField(layerId: string): void {

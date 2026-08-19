@@ -10,7 +10,10 @@ import { clampInside, constrainRect, transformBounds } from "../geometry/rect.js
 import { imageToStage } from "../geometry/spaces.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { effectiveCrop, stageRect } from "../model/document.js";
+import { clampAdjustments } from "../model/adjustments.js";
 import { layerBounds, translateLayer } from "../model/layers.js";
+import { resizeLayer, rotateLayer, type LayerHandle } from "../model/transform.js";
+import { DEFAULT_ADJUSTMENTS } from "../model/types.js";
 import type {
   Adjustments,
   DocumentTransform,
@@ -122,7 +125,9 @@ export function setAspectRatio(document: EditorDocument, aspectRatio: number | n
 }
 
 export function setAdjustments(document: EditorDocument, adjustments: Partial<Adjustments>): EditorDocument {
-  return { ...document, adjustments: { ...document.adjustments, ...adjustments } };
+  // Clamped on the way in: a host value outside the range would otherwise reach
+  // the filter string and the exported pixels.
+  return { ...document, adjustments: clampAdjustments({ ...document.adjustments, ...adjustments }) };
 }
 
 export function setOutput(document: EditorDocument, output: Partial<OutputSettings>): EditorDocument {
@@ -145,6 +150,30 @@ export function updateLayer(
     return typeof patch === "function" ? patch(layer) : ({ ...layer, ...patch } as EditorLayer);
   });
   return { ...document, layers };
+}
+
+/**
+ * Applies a pointer drag on one of a layer's own handles.
+ *
+ * Resize and rotate arrive through the same door because they are the same
+ * gesture to the user — grab a handle, drag — and the handle itself decides
+ * which one it is.
+ */
+export function dragLayerHandle(
+  document: EditorDocument,
+  id: string,
+  handle: LayerHandle,
+  pointer: Point,
+  options: { minSize?: number; aspectRatio?: number | null; snap?: number } = {},
+): EditorDocument {
+  return updateLayer(document, id, (layer) =>
+    handle === "rotate"
+      ? rotateLayer(layer, pointer, options.snap === undefined ? {} : { snap: options.snap })
+      : resizeLayer(layer, handle, pointer, {
+          ...(options.minSize === undefined ? {} : { minSize: options.minSize }),
+          ...(options.aspectRatio === undefined ? {} : { aspectRatio: options.aspectRatio }),
+        }),
+  );
 }
 
 export function removeLayer(document: EditorDocument, id: string): EditorDocument {
@@ -185,7 +214,7 @@ export function resetEdits(document: EditorDocument): EditorDocument {
     transform: { rotation: 0, flipX: false, flipY: false },
     crop: null,
     aspectRatio: null,
-    adjustments: { brightness: 0, contrast: 0, saturation: 0 },
+    adjustments: { ...DEFAULT_ADJUSTMENTS },
     layers: [],
     output: { ...document.output, width: null, height: null },
   };

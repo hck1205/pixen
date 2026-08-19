@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_ADJUSTMENTS,
   createDocument,
   formatIssues,
   isErr,
@@ -93,7 +94,7 @@ describe("validateDocument", () => {
   it("fills in everything an older host omitted", () => {
     const result = validateDocument(minimal);
     if (!isOk(result)) throw new Error(formatIssues(result.error));
-    expect(result.value.adjustments).toEqual({ brightness: 0, contrast: 0, saturation: 0 });
+    expect(result.value.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
     expect(result.value.layers).toEqual([]);
     expect(result.value.output.quality).toBe(0.85);
     expect(result.value.crop).toBeNull();

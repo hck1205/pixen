@@ -1,37 +1,87 @@
+import {
+  ADJUSTMENT_KEYS,
+  ADJUSTMENT_PRESETS,
+  ADJUSTMENT_RANGES,
+  DEFAULT_ADJUSTMENTS,
+  matchingPreset,
+  presetAdjustments,
+  type AdjustmentKey,
+  type AdjustmentPreset,
+} from "@pixen/core";
 import { button, divider, field, input } from "../../dom/index.js";
-import { ADJUSTMENT_RANGE, NEUTRAL_ADJUSTMENTS } from "../../constants.js";
+import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
 
-type AdjustmentKey = "brightness" | "contrast" | "saturation";
+/**
+ * The label for each adjustment.
+ *
+ * Written out rather than derived from the key so the strings stay greppable
+ * and a translator sees every one of them; the `satisfies` keeps it exhaustive
+ * as the vocabulary grows.
+ */
+const LABEL_KEYS = {
+  exposure: "exposure",
+  brightness: "brightness",
+  contrast: "contrast",
+  saturation: "saturation",
+  hue: "hue",
+  grayscale: "grayscale",
+  sepia: "sepia",
+  invert: "invert",
+  vignette: "vignette",
+} as const satisfies Record<AdjustmentKey, keyof PixenStrings>;
 
-/** Colour adjustment, one slider per channel. */
+/** Colour adjustment: the preset row, then one slider per adjustment. */
 export function buildAdjustmentControls(context: ChromeContext): Node[] {
   const { strings, editor } = context;
   const values = editor.document.adjustments;
+  const active = matchingPreset(values);
 
-  const slider = (label: string, key: AdjustmentKey): Node =>
-    field(
+  const applyPreset = (preset: AdjustmentPreset): void => {
+    // A preset writes the same fields a slider does, so it is one undo step and
+    // stays editable afterwards rather than being a mode to leave.
+    editor.setAdjustments(presetAdjustments(preset));
+  };
+
+  const presets = ADJUSTMENT_PRESETS.map((preset) =>
+    button({
+      label: preset.label,
+      text: preset.label,
+      className: "text",
+      active: active?.id === preset.id,
+      onClick: () => applyPreset(preset),
+    }),
+  );
+
+  const slider = (key: AdjustmentKey): Node => {
+    const label = strings[LABEL_KEYS[key]];
+    const range = ADJUSTMENT_RANGES[key];
+    return field(
       label,
       input({
         type: "range",
-        ...ADJUSTMENT_RANGE,
+        min: range.min,
+        max: range.max,
+        step: range.step,
         value: String(values[key]),
+        dataset: { field: key },
         onInput: (next) => editor.setAdjustments({ [key]: Number(next) }),
         // A slider drag is one gesture, so it collapses into one undo step.
         onPointerDown: () => editor.beginTransaction(label),
         onPointerUp: () => editor.commitTransaction(),
       }),
     );
+  };
 
   return [
-    slider(strings.brightness, "brightness"),
-    slider(strings.contrast, "contrast"),
-    slider(strings.saturation, "saturation"),
+    ...presets,
+    divider(),
+    ...ADJUSTMENT_KEYS.map(slider),
     divider(),
     button({
       icon: "reset",
       label: strings.reset,
-      onClick: () => editor.setAdjustments({ ...NEUTRAL_ADJUSTMENTS }),
+      onClick: () => editor.setAdjustments({ ...DEFAULT_ADJUSTMENTS }),
     }),
   ];
 }

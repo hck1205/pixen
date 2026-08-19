@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  adjustmentsFromFilter,
   applyToPoint,
   ARROW_HEAD_RATIO,
   arrowHeadCommands,
@@ -332,16 +331,29 @@ describe("buildSceneOps", () => {
   });
 });
 
-describe("adjustmentsFromFilter", () => {
-  it("round-trips the filter string the scene produced", () => {
-    const adjustments = { brightness: 0.2, contrast: -0.5, saturation: 1 };
-    const recovered = adjustmentsFromFilter(cssFilter(adjustments));
-    expect(recovered.brightness).toBeCloseTo(0.2);
-    expect(recovered.contrast).toBeCloseTo(-0.5);
-    expect(recovered.saturation).toBeCloseTo(1);
+describe("the pixel fallback", () => {
+  it("carries the document's own values, not values re-read from a string", () => {
+    // The filter string is lossy — the chain can emit two brightness() calls —
+    // so the scene hands the renderer the numbers it started from.
+    const adjusted = commands.setAdjustments(document(), { exposure: 1, sepia: 0.4 });
+    const ops = buildSceneOps(createScene(adjusted, { source }), { contextFilter: false });
+    const pixels = ops.find((op) => op.op === "adjust-pixels");
+    expect(pixels).toMatchObject({ adjustments: { exposure: 1, sepia: 0.4 } });
   });
 
-  it("reads an empty filter as no adjustment", () => {
-    expect(adjustmentsFromFilter("")).toEqual({ brightness: 0, contrast: 0, saturation: 0 });
+  it("draws a vignette over the image and under the annotations", () => {
+    const withLayer = commands.addLayer(
+      commands.setAdjustments(document(), { vignette: 0.5 }),
+      createRectLayer({ x: 0, y: 0, width: 50, height: 50 }),
+    );
+    const ops = buildSceneOps(createScene(withLayer, { source }));
+    const order = kinds(ops);
+    expect(order.indexOf("vignette")).toBeGreaterThan(order.indexOf("image"));
+    expect(order.indexOf("vignette")).toBeLessThan(order.lastIndexOf("path"));
+  });
+
+  it("leaves the vignette out when it is neutral", () => {
+    const ops = buildSceneOps(createScene(document(), { source }));
+    expect(kinds(ops)).not.toContain("vignette");
   });
 });

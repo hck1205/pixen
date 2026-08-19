@@ -291,6 +291,123 @@ test("blur and pixelate redactions really change the exported pixels", async ({ 
   expect(measure.solid).toBeLessThan(0.05);
 });
 
+/** Image-space point -> page coordinates, through the element's own mapping. */
+async function imageToClient(page: Page, point: { x: number; y: number }) {
+  return page.evaluate((imagePoint) => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: { document: { source: { width: number; height: number } } };
+    };
+    const canvas = element.shadowRoot!.querySelector("canvas")!;
+    const bounds = canvas.getBoundingClientRect();
+    // With no rotation or flip the stage is the image, so the two spaces agree.
+    const screen = element.viewport!.stageToScreen(imagePoint);
+    return { x: bounds.left + screen.x, y: bounds.top + screen.y };
+  }, point);
+}
+
+/** Adds a rect layer, selects it, and returns its id and frame. */
+async function seedSelectedRect(page: Page) {
+  return page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      tool: string;
+      editor: {
+        document: { source: { width: number; height: number }; layers: Array<{ id: string }> };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+        select(id: string): void;
+      };
+    };
+    const { width, height } = element.editor.document.source;
+    const frame = { x: width * 0.2, y: height * 0.2, width: width * 0.3, height: height * 0.3 };
+    const layer = {
+      id: "rect_under_test",
+      type: "rect" as const,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      frame,
+      stroke: { color: "#ff0000", width: 8 },
+      fill: null,
+      cornerRadius: 0,
+    };
+    element.editor.addLayer(layer, { select: false });
+    element.editor.select(layer.id);
+    element.tool = "select";
+    return { id: layer.id, frame };
+  });
+}
+
+/** The layer under test, as the document now holds it. */
+async function layerState(page: Page, id: string) {
+  return page.evaluate((layerId) => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const layer = (element.editor.document.layers as Array<Record<string, unknown>>).find(
+      (candidate) => candidate.id === layerId,
+    );
+    return layer as unknown as { frame: { x: number; y: number; width: number; height: number }; rotation: number };
+  }, id);
+}
+
+test("dragging a corner handle resizes the selected layer in one undo step", async ({ page }) => {
+  const seeded = await seedSelectedRect(page);
+  const before = await state(page);
+
+  const corner = await imageToClient(page, {
+    x: seeded.frame.x + seeded.frame.width,
+    y: seeded.frame.y + seeded.frame.height,
+  });
+  const target = await imageToClient(page, {
+    x: seeded.frame.x + seeded.frame.width * 1.5,
+    y: seeded.frame.y + seeded.frame.height * 1.5,
+  });
+
+  await page.mouse.move(corner.x, corner.y);
+  await page.mouse.down();
+  await page.mouse.move(target.x, target.y, { steps: 12 });
+  await page.mouse.up();
+
+  const after = await layerState(page, seeded.id);
+  expect(after.frame.width).toBeGreaterThan(seeded.frame.width * 1.3);
+  // The opposite corner is pinned, so the layer grew rather than moved.
+  expect(after.frame.x).toBeCloseTo(seeded.frame.x, 0);
+  expect(after.frame.y).toBeCloseTo(seeded.frame.y, 0);
+  // A whole drag is one step, however many pointer moves it took.
+  expect((await state(page)).history.depth).toBe(before.history.depth + 1);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  expect((await layerState(page, seeded.id)).frame.width).toBeCloseTo(seeded.frame.width, 0);
+});
+
+test("dragging the rotate grip turns the selected layer", async ({ page }) => {
+  const seeded = await seedSelectedRect(page);
+
+  const grip = await page.evaluate((layerId) => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const layer = (element.editor.document.layers as Array<{ id: string }>).find(
+      (candidate) => candidate.id === layerId,
+    )!;
+    // The page bundles the engine, so the handle geometry comes from it rather
+    // than being re-derived here and allowed to drift.
+    return (window as unknown as { pixen: { layerHandlePosition(l: unknown, h: string): { x: number; y: number } } })
+      .pixen.layerHandlePosition(layer, "rotate");
+  }, seeded.id);
+
+  const from = await imageToClient(page, grip);
+  const centre = {
+    x: seeded.frame.x + seeded.frame.width / 2,
+    y: seeded.frame.y + seeded.frame.height / 2,
+  };
+  // A quarter turn: grab the grip above the layer and carry it to the right.
+  const to = await imageToClient(page, { x: centre.x + seeded.frame.width, y: centre.y });
+
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 12 });
+  await page.mouse.up();
+
+  expect((await layerState(page, seeded.id)).rotation).toBeCloseTo(Math.PI / 2, 1);
+});
+
 test("a watermark reaches both the preview canvas and the exported file", async ({ page }) => {
   const measure = await page.evaluate(async () => {
     const element = document.querySelector("pixen-image-editor") as HTMLElement & {
@@ -440,6 +557,46 @@ test("fitting keeps the whole image clear of the floating chrome", async ({ page
     };
   });
 
+  expect(clear.imageTop).toBeGreaterThan(0);
+  expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
+});
+
+test("the image stays clear of the chrome with the adjust panel open", async ({ page }) => {
+  // The adjust panel is the tallest one — nine sliders and nine presets — and it
+  // is the one that would push the inspector over the image if the fit ignored
+  // how tall the chrome actually is.
+  const clear = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { stageSize: { width: number; height: number } };
+      viewport: { stageToScreen(p: { x: number; y: number }): { x: number; y: number } } | null;
+      zoomToFit(): void;
+    };
+    const shadow = element.shadowRoot!;
+    const adjust = shadow.querySelector<HTMLButtonElement>('button[data-panel="adjust"]')!;
+    adjust.click();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    element.zoomToFit();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const stage = element.editor.stageSize;
+    const bottomRight = element.viewport!.stageToScreen({ x: stage.width, y: stage.height });
+    const canvas = shadow.querySelector("canvas")!.getBoundingClientRect();
+    const inspector = shadow.querySelector(".inspector")!.getBoundingClientRect();
+    const host = element.getBoundingClientRect();
+
+    return {
+      imageTop: element.viewport!.stageToScreen({ x: 0, y: 0 }).y,
+      imageBottom: bottomRight.y,
+      inspectorTop: inspector.top - canvas.top,
+      // The panel must stay inside the host however many rows it wrapped to.
+      inspectorOverflow: inspector.bottom - host.bottom,
+      sliders: shadow.querySelectorAll('.inspector input[type="range"]').length,
+    };
+  });
+
+  // Every adjustment is reachable rather than squashed off the end of a row.
+  expect(clear.sliders).toBe(9);
+  expect(clear.inspectorOverflow).toBeLessThanOrEqual(1);
   expect(clear.imageTop).toBeGreaterThan(0);
   expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
 });

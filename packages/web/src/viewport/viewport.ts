@@ -3,13 +3,13 @@ import {
   compose,
   createId,
   createScene,
+  CROP_HANDLES,
   Editor,
   invert,
-  layerBounds,
+  layerHandlePosition,
   renderScene,
   scaling,
   stageToView,
-  transformBounds,
   type Matrix,
   type Point,
   type Rect,
@@ -37,11 +37,12 @@ import { projectRect } from "./overlay.js";
 import {
   drawCropFrame,
   drawCropScrim,
-  drawSelectionOutline,
+  drawLayerSelection,
   readOverlayPalette,
+  SELECTION_CORNERS,
 } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
-import { clampZoom, fitView, MAX_ZOOM, MIN_ZOOM } from "./view.js";
+import { clampZoom, fitView, insetsFor, insetsFromChrome, MAX_ZOOM, MIN_ZOOM, type EdgeBox } from "./view.js";
 
 export interface ViewportCallbacks {
   /** Fired when the chrome has to be rebuilt: tool, selection, gesture end. */
@@ -50,6 +51,14 @@ export interface ViewportCallbacks {
   onViewChange?: () => void;
   /** Fired after a text layer is created, so the host can focus its editor. */
   onTextCreated?: (layerId: string) => void;
+  /**
+   * The chrome as it currently measures, for fitting.
+   *
+   * Supplied by whoever owns the chrome, because the viewport owns only the
+   * canvas — and because a panel that has wrapped onto three rows is a fact
+   * about the DOM, not something a constant can know.
+   */
+  measureChrome?: () => { host: EdgeBox; chrome: EdgeBox[] } | null;
 }
 
 /**
@@ -141,7 +150,10 @@ export class Viewport {
   /** Frames the whole stage inside the area the floating chrome leaves free. */
   fit(): void {
     if (!this.#editor.ready) return;
-    const fitted = fitView(this.#editor.stageSize, this.#cssSize());
+    const size = this.#cssSize();
+    const measured = this.#callbacks.measureChrome?.();
+    const insets = measured ? insetsFromChrome(measured.host, measured.chrome) : insetsFor(size);
+    const fitted = fitView(this.#editor.stageSize, size, insets);
     this.#zoom = fitted.zoom;
     this.#pan = fitted.pan;
     this.#autoFit = true;
@@ -194,6 +206,7 @@ export class Viewport {
       crop: this.#editor.cropRect,
       stage: this.#editor.stageRect,
       layers: document.layers,
+      selectedId: this.#editor.selectedLayer?.id ?? null,
       viewMatrix: this.#viewMatrix(),
       stageFromImage: invert(this.#imageFromStage()),
       imageLongestEdge: Math.max(document.source.width, document.source.height),
@@ -288,10 +301,20 @@ export class Viewport {
     const selected = this.#editor.selectedLayer;
     if (!selected) return;
 
-    // Layer bounds are image space; the outline is drawn in device pixels.
+    // Handles are image space; everything drawn here is device pixels.
     const stageFromImage = invert(this.#imageFromStage());
-    const bounds = transformBounds(stageFromImage, layerBounds(selected));
-    drawSelectionOutline(context, { rect: this.#toScreenRect(bounds, dpr), colour: palette.selection, dpr });
+    const project = (point: Point): Point => {
+      const screen = this.stageToScreen(applyToPoint(stageFromImage, point));
+      return { x: screen.x * dpr, y: screen.y * dpr };
+    };
+
+    drawLayerSelection(context, {
+      quad: SELECTION_CORNERS.map((handle) => project(layerHandlePosition(selected, handle))),
+      handles: selected.locked ? [] : CROP_HANDLES.map((handle) => project(layerHandlePosition(selected, handle))),
+      rotate: selected.locked ? null : project(layerHandlePosition(selected, "rotate")),
+      colour: palette.selection,
+      dpr,
+    });
   }
 
   /** stage rect -> device pixels, through the current view transform. */

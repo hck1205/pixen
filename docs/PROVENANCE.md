@@ -30,6 +30,7 @@ was supplied to an AI tool as input at any point.
 | `geometry/rect.ts` | Rectangle algebra, aspect fitting, rotated bounds | First principles; rotated bounding box is `w·|cos| + h·|sin|` |
 | `geometry/spaces.ts` | The image / stage / output / view coordinate model | Original design for this project |
 | `geometry/crop.ts` | Handle-drag resize with edge anchoring and ratio locking | First principles: pin the opposite edge, solve the free axis from the locked ratio |
+| `model/transform.ts` | Resizing and rotating a layer about its own centre | First principles: take the pointer into the layer's unrotated frame, pin the opposite corner, then correct for the drift rotation puts in the centre |
 | `model/*` | `EditorDocument` schema, layers, migrations | Original design for this project |
 | `model/validate.ts` | Composable validators accumulating every issue | Ordinary parser-combinator technique; the shapes validated are our own schema |
 | `fp/*` | `Result`, `pipe`, immutable array helpers | Standard functional idioms, written here in a few dozen lines rather than taken from a library |
@@ -42,7 +43,9 @@ was supplied to an AI tool as input at any point.
 | `image/decode.ts` | Decode from blob/URL/bitmap, EXIF normalisation | MDN/WHATWG: `createImageBitmap`, `fetch`, `HTMLImageElement` |
 | `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
 | `render/scene.ts` | Document → draw list projection | Original design for this project |
-| `render/adjustments.ts` | Brightness / contrast / saturation, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix in that specification |
+| `render/presets.ts` | Nine named looks | Values chosen here by eye against this project's own sample image |
+| `render/canvas2d.ts` vignette | Corner fall-off | A radial gradient fill; first principles |
+| `render/adjustments.ts` | The adjustment chain, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix, the `sepia` colour matrix, and the luminance-preserving `hue-rotate` matrix, all written out from that specification |
 | `render/ops.ts` | Scene to draw-operation list: paths, arrow heads, text layout | Greedy line breaking; quadratic midpoint smoothing for free-draw; arrow heads from trigonometry |
 | `render/canvas2d.ts` | Executes a draw-operation list | Canvas2D API. Redaction: `ctx.filter = blur(...)` is the W3C **Filter Effects Module Level 1** `blur()` function as exposed on the canvas context; pixelation is a downscale-then-upscale with `imageSmoothingEnabled = false`, which is what nearest-neighbour resampling means |
 | `export/watermark.ts` | Placing a watermark image in one of nine positions | First principles: a fraction of the longest edge, inset by a margin |

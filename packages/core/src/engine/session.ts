@@ -5,6 +5,7 @@ import type { Point, Rect } from "../geometry/types.js";
 import type { ResizeIntent } from "../image/resize.js";
 import { resolveSize } from "../image/resize.js";
 import { cloneDocument, effectiveCrop } from "../model/document.js";
+import type { LayerHandle } from "../model/transform.js";
 import type {
   Adjustments,
   EditorDocument,
@@ -61,6 +62,15 @@ export type Intent =
   | { kind: "add-layer"; layer: EditorLayer; index?: number; select?: boolean }
   | { kind: "update-layer"; id: string; patch: Partial<EditorLayer> }
   | { kind: "move-layer"; id: string; delta: Point }
+  | {
+      kind: "drag-layer-handle";
+      id: string;
+      handle: LayerHandle;
+      pointer: Point;
+      minSize?: number;
+      aspectRatio?: number | null;
+      snap?: number;
+    }
   | { kind: "reorder-layer"; id: string; index: number }
   | { kind: "remove-layer"; id: string }
   | { kind: "select"; id: string | null }
@@ -189,6 +199,17 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
         reason: "layer-move",
         label: "Move annotation",
         transform: (d) => commands.moveLayerBy(d, intent.id, intent.delta),
+      };
+    case "drag-layer-handle":
+      return {
+        reason: "layer-transform",
+        label: intent.handle === "rotate" ? "Rotate annotation" : "Resize annotation",
+        transform: (d) =>
+          commands.dragLayerHandle(d, intent.id, intent.handle, intent.pointer, {
+            ...(intent.minSize === undefined ? {} : { minSize: intent.minSize }),
+            ...(intent.aspectRatio === undefined ? {} : { aspectRatio: intent.aspectRatio }),
+            ...(intent.snap === undefined ? {} : { snap: intent.snap }),
+          }),
       };
     case "reorder-layer":
       return {

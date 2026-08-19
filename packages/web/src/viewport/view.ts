@@ -32,9 +32,62 @@ export function isCompactViewport(viewport: Size): boolean {
   return viewport.width <= COMPACT_MAX_WIDTH || viewport.height <= COMPACT_MAX_HEIGHT;
 }
 
-/** The insets the chrome will actually occupy at this size. */
+/** The insets the chrome is assumed to occupy when it cannot be measured. */
 export function insetsFor(viewport: Size): ViewInsets {
   return isCompactViewport(viewport) ? COMPACT_INSETS : CHROME_INSETS;
+}
+
+/** A rectangle as the DOM reports it, so a measurement can be passed in as data. */
+export interface EdgeBox {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** Breathing room left between the image and the chrome it is fitted around. */
+const CHROME_MARGIN = 12;
+
+/**
+ * The insets a measured chrome actually occupies.
+ *
+ * The constants above are a guess, and a guess stops being true the moment a
+ * panel wraps onto a second row — which the adjust panel does. Each piece of
+ * chrome is charged to the edge it is docked nearest, so a taller inspector
+ * simply reserves more of the bottom.
+ */
+export function insetsFromChrome(
+  host: EdgeBox,
+  chrome: readonly (EdgeBox | null | undefined)[],
+  margin = CHROME_MARGIN,
+): ViewInsets {
+  const insets: ViewInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+  for (const rect of chrome) {
+    if (!rect || rect.right <= rect.left || rect.bottom <= rect.top) continue;
+
+    const distance: ViewInsets = {
+      left: rect.left - host.left,
+      right: host.right - rect.right,
+      top: rect.top - host.top,
+      bottom: host.bottom - rect.bottom,
+    };
+    const edges = ["left", "right", "top", "bottom"] as const;
+    const edge = edges.reduce((closest, key) => (distance[key] < distance[closest] ? key : closest));
+
+    const depth =
+      edge === "left"
+        ? rect.right - host.left
+        : edge === "right"
+          ? host.right - rect.left
+          : edge === "top"
+            ? rect.bottom - host.top
+            : host.bottom - rect.top;
+
+    insets[edge] = Math.max(insets[edge], depth + margin);
+  }
+
+  return insets;
 }
 
 export const MIN_ZOOM = 0.02;

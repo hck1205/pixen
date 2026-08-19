@@ -45,4 +45,13 @@ export const en: PixenStrings = {
   redactBlur: "Blur",
   redactPixelate: "Pixelate",
   redactStrength: "Strength",
+  opacity: "Opacity",
+  rotation: "Rotation",
+  exposure: "Exposure",
+  hue: "Hue",
+  grayscale: "Grayscale",
+  sepia: "Sepia",
+  invert: "Invert",
+  vignette: "Vignette",
+  presets: "Presets",
 };

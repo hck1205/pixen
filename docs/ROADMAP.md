@@ -20,7 +20,7 @@ unit tests and a browser suite driving the real bundle.
 - [x] Document serialise / restore
 - [x] Web component + React wrapper
 - [ ] Free-angle straightening UI (the engine already accepts any rotation)
-- [ ] Layer selection handles for resize and rotate
+- [x] Layer selection handles for resize and rotate
 - [ ] Text editing directly on the canvas rather than in the inspector
 
 ## Phase 2 — commercial V1
@@ -37,7 +37,10 @@ unit tests and a browser suite driving the real bundle.
 
 ## Phase 3 — Pro
 
-- [ ] Filters and presets beyond brightness / contrast / saturation
+- [x] Filters and presets beyond brightness / contrast / saturation
+      (exposure, hue, grayscale, sepia, invert, vignette, nine presets)
+- [ ] Adjustments needing a per-pixel pass — gamma, white balance — which wait
+      for a GPU renderer
 - [x] Blur and pixelate redaction modes
 - [x] Image watermarks: corner, edge, centre or tiled, with opacity
 - [ ] Text watermarks (a text layer plus the same placement maths)

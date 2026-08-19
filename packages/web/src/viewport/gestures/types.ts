@@ -1,4 +1,4 @@
-import type { CropHandle, EditorLayer, Intent, Matrix, Point, Rect } from "@pixen/core";
+import type { CropHandle, EditorLayer, Intent, LayerHandle, Matrix, Point, Rect } from "@pixen/core";
 import type { AnnotationStyle, ToolId } from "../../tools/index.js";
 
 /**
@@ -16,6 +16,7 @@ export type GestureState =
   | { kind: "crop-move"; last: Point }
   | { kind: "crop-resize"; handle: CropHandle }
   | { kind: "layer-move"; id: string; last: Point }
+  | { kind: "layer-transform"; id: string; handle: LayerHandle }
   | { kind: "draw-shape"; id: string; origin: Point; tool: ShapeTool }
   | { kind: "draw-path"; id: string; points: Point[] };
 
@@ -34,6 +35,8 @@ export interface GestureContext {
   crop: Rect;
   stage: Rect;
   layers: readonly EditorLayer[];
+  /** The layer wearing the handles, if any. */
+  selectedId?: string | null;
   /** stage space -> CSS pixels. */
   viewMatrix: Matrix;
   /** image space -> stage space. */
