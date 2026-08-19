@@ -21,7 +21,7 @@ unit tests and a browser suite driving the real bundle.
 - [x] Web component + React wrapper
 - [x] Free-angle straightening UI, with an auto-fitting crop
 - [x] Layer selection handles for resize and rotate
-- [ ] Text editing directly on the canvas rather than in the inspector
+- [x] Text editing directly on the canvas rather than in the inspector
 
 ## Phase 2 — commercial V1
 
@@ -48,6 +48,7 @@ unit tests and a browser suite driving the real bundle.
 - [x] Vue wrapper (`@pixen/vue`)
 - [ ] Svelte and Angular wrappers (both usable today through the element; see
       [FRAMEWORKS.md](FRAMEWORKS.md))
+- [x] Sticker tool over host-supplied artwork
 - [ ] Public plugin API with a documented extension surface
 
 ## Phase 4 — differentiation

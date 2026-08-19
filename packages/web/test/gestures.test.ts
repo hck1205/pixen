@@ -224,9 +224,16 @@ describe("beginGesture", () => {
   it("creates a text layer and hands over to the select tool", () => {
     const outcome = beginGesture(at(120, 140), context({ tool: "text" }));
     expect(outcome.state).toBe(IDLE);
-    expect(kinds(outcome.effects)).toEqual(["intent:add-layer", "select-tool", "focus-text"]);
+    // The transaction opens here and is closed by whoever owns the editor, so
+    // creating a text layer and typing into it is one undo step.
+    expect(kinds(outcome.effects)).toEqual([
+      "intent:begin-transaction",
+      "intent:add-layer",
+      "select-tool",
+      "focus-text",
+    ]);
 
-    const [added] = intents(outcome.effects);
+    const [, added] = intents(outcome.effects);
     expect(added).toMatchObject({ kind: "add-layer", layer: { type: "text", position: { x: 120, y: 140 } } });
   });
 

@@ -5,6 +5,7 @@ import { buildCropControls } from "./crop.js";
 import { buildFrameControls } from "./frame.js";
 import { buildLayerControls } from "./layer.js";
 import { buildRedactionControls } from "./redaction.js";
+import { buildStickerControls } from "./sticker.js";
 import { inspectorSectionFor } from "./sections.js";
 import { buildStyleControls } from "./style.js";
 import { buildViewControls } from "./view.js";
@@ -51,6 +52,8 @@ function buildContextualControls(context: ChromeContext): Node[] {
       return [hint(strings.select)];
     case "text-hint":
       return [hint(strings.textPlaceholder), ...buildStyleControls(context, { includeWidth: false })];
+    case "sticker":
+      return buildStickerControls(context);
     case "redaction":
       return buildRedactionControls(context, selected?.type === "redact" ? selected : null);
     case "style":

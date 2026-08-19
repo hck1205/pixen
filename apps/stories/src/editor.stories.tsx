@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ADJUSTMENT_KEYS,
   ADJUSTMENT_PRESETS,
@@ -11,7 +11,13 @@ import {
 } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Story, StoryDefault } from "@ladle/react";
-import { createTransparentSample, seedAnnotations, seedRedaction, seedWatermark } from "./fixtures.js";
+import {
+  createStickers,
+  createTransparentSample,
+  seedAnnotations,
+  seedRedaction,
+  seedWatermark,
+} from "./fixtures.js";
 import { ElementEditor, Row, SeededEditor, Stage, useBlob, useSampleImage } from "./harness.js";
 import { hostButton, hostPrimaryButton } from "./styles.js";
 
@@ -266,6 +272,35 @@ Watermark.argTypes = {
   position: { options: WATERMARK_POSITIONS, control: { type: "select" } },
   scale: { control: { type: "range", min: 0.05, max: 0.6, step: 0.01 } },
   opacity: { control: { type: "range", min: 0.1, max: 1, step: 0.05 } },
+};
+
+/**
+ * The sticker tool, with a host-supplied set.
+ *
+ * Pixen ships no artwork of its own; these three are drawn by the story. Click
+ * one and it lands in the middle of the crop, selected, so its handles are
+ * already on it.
+ */
+export const Stickers: Story = () => {
+  const image = useSampleImage();
+  const [stickers, setStickers] = useState<Array<{ id: string; src: Blob; label: string }> | null>(null);
+  const editor = useRef<PixenImageEditorHandle>(null);
+
+  useEffect(() => {
+    void createStickers().then(setStickers);
+  }, []);
+
+  return (
+    <Stage title="Stickers" note="`stickers` is a host property — a URL, a blob, or an object with a label.">
+      <PixenImageEditor
+        ref={editor}
+        src={image}
+        {...(stickers ? { stickers } : {})}
+        onLoad={() => editor.current?.setTool("sticker")}
+        style={{ height: "100%" }}
+      />
+    </Stage>
+  );
 };
 
 /** Straightening: a small free rotation that never leaves a blank corner. */

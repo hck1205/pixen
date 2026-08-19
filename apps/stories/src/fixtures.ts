@@ -176,3 +176,66 @@ export async function seedWatermark(
   const resource = await editor.resources.load(await createWatermarkMark());
   editor.addWatermark({ ...options, resourceId: resource.id, size: WATERMARK_SIZE });
 }
+
+/**
+ * Stickers for the sticker story.
+ *
+ * Drawn here rather than shipped by Pixen: what a sticker *is* belongs to the
+ * product using it, and a bundled set would be artwork this project would have
+ * to own and license.
+ */
+export async function createStickers(): Promise<Array<{ id: string; src: Blob; label: string }>> {
+  const shapes: Array<[string, (context: CanvasRenderingContext2D, size: number) => void]> = [
+    [
+      "Star",
+      (context, size) => {
+        context.fillStyle = "#f2a007";
+        context.beginPath();
+        for (let point = 0; point < 10; point += 1) {
+          const radius = point % 2 === 0 ? size * 0.46 : size * 0.19;
+          const angle = (point / 10) * Math.PI * 2 - Math.PI / 2;
+          context.lineTo(size / 2 + Math.cos(angle) * radius, size / 2 + Math.sin(angle) * radius);
+        }
+        context.closePath();
+        context.fill();
+      },
+    ],
+    [
+      "Ring",
+      (context, size) => {
+        context.strokeStyle = "#2fb673";
+        context.lineWidth = size * 0.14;
+        context.beginPath();
+        context.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2);
+        context.stroke();
+      },
+    ],
+    [
+      "Bolt",
+      (context, size) => {
+        context.fillStyle = "#8b5cf0";
+        context.beginPath();
+        context.moveTo(size * 0.58, size * 0.06);
+        context.lineTo(size * 0.24, size * 0.56);
+        context.lineTo(size * 0.46, size * 0.56);
+        context.lineTo(size * 0.4, size * 0.94);
+        context.lineTo(size * 0.78, size * 0.42);
+        context.lineTo(size * 0.54, size * 0.42);
+        context.closePath();
+        context.fill();
+      },
+    ],
+  ];
+
+  const size = 256;
+  return await Promise.all(
+    shapes.map(async ([label, draw]) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      draw(canvas.getContext("2d")!, size);
+      const src = await new Promise<Blob>((resolve) => canvas.toBlob((blob) => resolve(blob!), "image/png"));
+      return { id: label, src, label };
+    }),
+  );
+}

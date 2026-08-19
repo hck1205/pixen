@@ -55,6 +55,8 @@ export const en: PixenStrings = {
   vignette: "Vignette",
   presets: "Presets",
   straighten: "Straighten",
+  sticker: "Sticker",
+  stickerHint: "No stickers configured",
   frame: "Frame",
   frameNone: "None",
   frameSolid: "Solid",

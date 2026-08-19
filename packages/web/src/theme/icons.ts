@@ -13,6 +13,8 @@ export const icons = {
   arrow: wrap('<path d="M5 19L19 5"/><path d="M11 5h8v8"/>'),
   draw: wrap('<path d="M4 19c3-1 4-7 7-7s2 4 4 4 3-3 5-8"/>'),
   text: wrap('<path d="M6 6h12"/><path d="M12 6v13"/><path d="M9 19h6"/>'),
+  // A page with its corner turned back: a thing you peel and place.
+  sticker: wrap('<path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6l8-8V6a2 2 0 0 0-2-2h-4"/><path d="M12 20v-6a2 2 0 0 1 2-2h6"/>'),
   redact: wrap('<rect x="4" y="9" width="16" height="6" rx="1"/><path d="M8 5v2M16 17v2"/>'),
   rotateLeft: wrap('<path d="M4 9h7a6 6 0 110 12H7"/><path d="M4 9l3-3M4 9l3 3"/>'),
   rotateRight: wrap('<path d="M20 9h-7a6 6 0 100 12h4"/><path d="M20 9l-3-3M20 9l-3 3"/>'),

@@ -63,6 +63,7 @@ export const TOOL_META: Readonly<Record<ToolId, ToolMeta>> = {
   arrow: { icon: "arrow", key: "arrow", shortcut: "a" },
   draw: { icon: "draw", key: "draw", shortcut: "d" },
   text: { icon: "text", key: "text", shortcut: "t" },
+  sticker: { icon: "sticker", key: "sticker", shortcut: "s" },
   redact: { icon: "redact", key: "redact", shortcut: "x" },
 };
 

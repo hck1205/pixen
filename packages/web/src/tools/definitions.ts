@@ -9,6 +9,7 @@ export const DEFAULT_TOOLS: ToolDefinition[] = [
   { id: "arrow" },
   { id: "draw" },
   { id: "text" },
+  { id: "sticker" },
   { id: "redact" },
 ];
 

@@ -57,6 +57,8 @@ was supplied to an AI tool as input at any point.
 | `web/theme/icons.ts` | Icon set | Drawn for this project as single-weight stroked primitives on a 24×24 grid |
 | `web/theme/styles.ts` | Theme tokens and layout | Written for this project |
 | `web/i18n/*` | English and Korean strings | Written for this project |
+| `web/viewport/text-box.ts` | Placing a real input over a text layer | First principles: the same origin and line height the renderer uses |
+| `web/tools/stickers.ts` | Normalising host-supplied sticker definitions | Original design for this project. Pixen ships no sticker artwork |
 | `react/index.tsx` | Props → properties, events → callbacks | React documentation on custom elements and `useImperativeHandle` |
 
 ## What functional similarity does and does not mean

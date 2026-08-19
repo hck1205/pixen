@@ -54,6 +54,8 @@ export const ko: PixenStrings = {
   vignette: "비네트",
   presets: "프리셋",
   straighten: "수평 보정",
+  sticker: "스티커",
+  stickerHint: "설정된 스티커가 없습니다",
   frame: "테두리",
   frameNone: "없음",
   frameSolid: "실선",

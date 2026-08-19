@@ -720,6 +720,159 @@ test("a taller panel re-fits the image instead of hiding it", async ({ page }) =
   expect(measure.afterPanel.image).toBeLessThanOrEqual(measure.afterPanel.inspector + 1);
 });
 
+test("text is typed on the canvas, where it appears", async ({ page }) => {
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).tool = "text";
+  });
+
+  const stage = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement).editor.stageSize,
+  );
+  const at = await stageToClient(page, { x: stage.width * 0.25, y: stage.height * 0.35 });
+  await page.mouse.click(at.x, at.y);
+
+  // Clicking with the text tool creates a layer and opens its editor on the
+  // canvas, so the very next keystroke is the text.
+  const editor = page.locator("pixen-image-editor").locator("textarea.text-input");
+  await expect(editor).toBeVisible();
+  await expect(editor).toBeFocused();
+
+  await page.keyboard.type("hello");
+  const whileEditing = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const layer = element.editor.document.layers[0] as unknown as { text: string; visible: boolean };
+    return { text: layer.text, visible: layer.visible };
+  });
+  expect(whileEditing.text).toBe("hello");
+  // Exactly one copy of the text on screen: the layer is hidden behind its editor.
+  expect(whileEditing.visible).toBe(false);
+
+  await page.keyboard.press("Escape");
+  await expect(editor).toBeHidden();
+
+  const after = await state(page);
+  expect(after.document.layers).toHaveLength(1);
+  expect((after.document.layers[0] as { text: string; visible: boolean }).visible).toBe(true);
+  // The whole edit is one step, however many keystrokes it took.
+  expect(after.history.depth).toBe(1);
+});
+
+test("an empty text layer is dropped rather than left as litter", async ({ page }) => {
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).tool = "text";
+  });
+  const stage = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement).editor.stageSize,
+  );
+  const at = await stageToClient(page, { x: stage.width * 0.4, y: stage.height * 0.4 });
+  await page.mouse.click(at.x, at.y);
+  await page.locator("pixen-image-editor").locator("textarea.text-input").waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+
+  const after = await state(page);
+  expect(after.document.layers).toHaveLength(0);
+  expect(after.history.depth).toBe(0);
+});
+
+test("double-clicking existing text reopens it for editing", async ({ page }) => {
+  const seeded = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+      };
+      tool: string;
+    };
+    const { width, height } = element.editor.document.source;
+    const layer = {
+      id: "text_under_test",
+      type: "text" as const,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      position: { x: width * 0.2, y: height * 0.3 },
+      text: "edit me",
+      fontSize: Math.round(height * 0.08),
+      fontFamily: "system-ui, sans-serif",
+      color: "#ffffff",
+      align: "left" as const,
+      backgroundColor: null,
+      maxWidth: null,
+    };
+    element.editor.addLayer(layer, { select: false });
+    element.tool = "select";
+    return { position: layer.position, fontSize: layer.fontSize };
+  });
+
+  const at = await imageToClient(page, {
+    x: seeded.position.x + seeded.fontSize,
+    y: seeded.position.y + seeded.fontSize / 2,
+  });
+  await page.mouse.dblclick(at.x, at.y);
+
+  const editor = page.locator("pixen-image-editor").locator("textarea.text-input");
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveValue("edit me");
+});
+
+test("a sticker lands in the middle of the crop, selected and ready to resize", async ({ page }) => {
+  const placed = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      stickers: unknown;
+      tool: string;
+      editor: {
+        document: { source: { width: number; height: number }; layers: Array<Record<string, unknown>> };
+        selectedLayer: { id: string; type: string } | null;
+        setCropRect(rect: { x: number; y: number; width: number; height: number } | null): void;
+      };
+    };
+
+    const mark = new OffscreenCanvas(120, 60);
+    const context = mark.getContext("2d")!;
+    context.fillStyle = "#00ff00";
+    context.fillRect(0, 0, 120, 60);
+    element.stickers = [{ id: "green", src: await mark.convertToBlob({ type: "image/png" }), label: "Green" }];
+
+    // Crop to a corner first: a sticker belongs in the middle of what is
+    // visible, which after a crop is not the middle of the image.
+    const { width, height } = element.editor.document.source;
+    const crop = { x: width * 0.5, y: height * 0.5, width: width * 0.4, height: height * 0.4 };
+    element.editor.setCropRect(crop);
+    element.tool = "sticker";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const shadow = element.shadowRoot!;
+    const buttons = [...shadow.querySelectorAll<HTMLButtonElement>(".inspector button")];
+    const sticker = buttons.find((candidate) => candidate.textContent?.includes("Green"));
+    sticker?.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const layer = element.editor.document.layers.at(-1) as
+      | { type: string; frame: { x: number; y: number; width: number; height: number } }
+      | undefined;
+    return {
+      offered: buttons.length,
+      layer,
+      crop,
+      selected: element.editor.selectedLayer?.id,
+      layerId: (layer as unknown as { id: string } | undefined)?.id,
+      tool: element.tool,
+    };
+  });
+
+  expect(placed.offered).toBeGreaterThan(0);
+  expect(placed.layer?.type).toBe("image");
+  // Centred on the crop, not on the image.
+  expect(placed.layer!.frame.x + placed.layer!.frame.width / 2).toBeCloseTo(placed.crop.x + placed.crop.width / 2, 0);
+  expect(placed.layer!.frame.y + placed.layer!.frame.height / 2).toBeCloseTo(placed.crop.y + placed.crop.height / 2, 0);
+  // Keeps the bitmap's 2:1 shape.
+  expect(placed.layer!.frame.width / placed.layer!.frame.height).toBeCloseTo(2, 1);
+  // Selected, with the select tool active, so the handles are already on it.
+  expect(placed.selected).toBe(placed.layerId);
+  expect(placed.tool).toBe("select");
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

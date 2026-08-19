@@ -40,21 +40,27 @@ export const DEFAULT_WATERMARK_SCALE = 0.18;
 export const DEFAULT_WATERMARK_MARGIN = 0.03;
 export const DEFAULT_WATERMARK_OPACITY = 0.6;
 
-/** Where a mark of `size` sits inside `image`, in image space. */
+/**
+ * Where a mark of `size` sits inside `region`, in the region's own space.
+ *
+ * Takes a rect rather than a size because the region is not always the whole
+ * image: a sticker lands in the middle of what is *cropped*, which is the part
+ * the person can see.
+ */
 export function placeWithin(
-  image: Size,
+  region: Rect,
   size: Size,
   position: Exclude<WatermarkPosition, "tile">,
   margin: number,
 ): Rect {
-  const inset = margin * Math.max(image.width, image.height);
+  const inset = margin * Math.max(region.width, region.height);
 
-  const left = inset;
-  const centreX = (image.width - size.width) / 2;
-  const right = image.width - size.width - inset;
-  const top = inset;
-  const centreY = (image.height - size.height) / 2;
-  const bottom = image.height - size.height - inset;
+  const left = region.x + inset;
+  const centreX = region.x + (region.width - size.width) / 2;
+  const right = region.x + region.width - size.width - inset;
+  const top = region.y + inset;
+  const centreY = region.y + (region.height - size.height) / 2;
+  const bottom = region.y + region.height - size.height - inset;
 
   return {
     x: position.includes("left") ? left : position.includes("right") ? right : centreX,
@@ -62,6 +68,11 @@ export function placeWithin(
     width: size.width,
     height: size.height,
   };
+}
+
+/** A region rect for the whole of an image, which is what a watermark uses. */
+function wholeOf(image: Size): Rect {
+  return { x: 0, y: 0, width: image.width, height: image.height };
 }
 
 /** Where the mark sits, in image space. Tiling covers the whole image. */
@@ -72,7 +83,7 @@ export function watermarkFrame(image: Size, options: WatermarkOptions): Rect {
   const width = Math.max(1, (options.scale ?? DEFAULT_WATERMARK_SCALE) * Math.max(image.width, image.height));
   const ratio = options.size.height / Math.max(1, options.size.width);
   return placeWithin(
-    image,
+    wholeOf(image),
     { width, height: Math.max(1, width * ratio) },
     position,
     options.margin ?? DEFAULT_WATERMARK_MARGIN,
@@ -109,6 +120,18 @@ export interface TextWatermarkOptions {
   backgroundColor?: string | null;
 }
 
+/**
+ * A sticker: a bitmap dropped in the middle of what the person can see, at a
+ * size they can immediately grab a handle on.
+ */
+const DEFAULT_STICKER_SCALE = 0.3;
+
+export function stickerFrame(region: Rect, size: Size, scale = DEFAULT_STICKER_SCALE): Rect {
+  const width = Math.max(1, scale * Math.max(region.width, region.height));
+  const ratio = size.height / Math.max(1, size.width);
+  return placeWithin(region, { width, height: Math.max(1, width * ratio) }, "centre", 0);
+}
+
 /** Text is measured in type size, so it needs a smaller default than a logo. */
 export const DEFAULT_TEXT_WATERMARK_SCALE = 0.045;
 
@@ -127,7 +150,7 @@ export function createTextWatermarkLayer(image: Size, options: TextWatermarkOpti
   // so placing by it keeps the margin the caller asked for.
   const bounds = layerBounds(draft);
   const frame = placeWithin(
-    image,
+    wholeOf(image),
     { width: bounds.width, height: bounds.height },
     (options.position ?? DEFAULT_WATERMARK_POSITION) as Exclude<WatermarkPosition, "tile">,
     options.margin ?? DEFAULT_WATERMARK_MARGIN,

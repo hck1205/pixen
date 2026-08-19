@@ -15,11 +15,14 @@ import {
   migrateDocument,
   placeWithin,
   SCHEMA_VERSION,
+  stickerFrame,
   validators,
 } from "@pixen/core";
 
 const source = { width: 1000, height: 500 } as unknown as CanvasImageSource;
 const image = { width: 1000, height: 500 };
+/** `placeWithin` takes a region, since a sticker lands in the crop rather than the image. */
+const whole = { x: 0, y: 0, width: 1000, height: 500 };
 
 function document() {
   return createDocument({ resourceId: "res_1", width: 1000, height: 500 });
@@ -34,8 +37,8 @@ describe("placeWithin", () => {
 
   it("insets a corner by the margin, measured on the longest edge", () => {
     // Margin is 0.05 of the longest edge (1000), so 50px in from each side.
-    expect(placeWithin(image, size, "top-left", 0.05)).toEqual({ x: 50, y: 50, width: 100, height: 50 });
-    expect(placeWithin(image, size, "bottom-right", 0.05)).toEqual({
+    expect(placeWithin(whole, size, "top-left", 0.05)).toEqual({ x: 50, y: 50, width: 100, height: 50 });
+    expect(placeWithin(whole, size, "bottom-right", 0.05)).toEqual({
       x: 1000 - 100 - 50,
       y: 500 - 50 - 50,
       width: 100,
@@ -44,14 +47,36 @@ describe("placeWithin", () => {
   });
 
   it("centres on the axis a position does not name", () => {
-    expect(placeWithin(image, size, "top", 0.05).x).toBeCloseTo((1000 - 100) / 2);
-    expect(placeWithin(image, size, "left", 0.05).y).toBeCloseTo((500 - 50) / 2);
+    expect(placeWithin(whole, size, "top", 0.05).x).toBeCloseTo((1000 - 100) / 2);
+    expect(placeWithin(whole, size, "left", 0.05).y).toBeCloseTo((500 - 50) / 2);
   });
 
   it("puts centre in the middle on both axes", () => {
-    const frame = placeWithin(image, size, "centre", 0.05);
+    const frame = placeWithin(whole, size, "centre", 0.05);
     expect(frame.x).toBeCloseTo(450);
     expect(frame.y).toBeCloseTo(225);
+  });
+});
+
+describe("stickerFrame", () => {
+  it("centres in the region it is given, not in the image", () => {
+    // A sticker lands in the middle of what the person can see, which after a
+    // crop is not the middle of the image.
+    const crop = { x: 400, y: 100, width: 200, height: 200 };
+    const frame = stickerFrame(crop, { width: 100, height: 100 }, 0.5);
+    expect(frame.width).toBeCloseTo(100);
+    expect(frame.x + frame.width / 2).toBeCloseTo(500);
+    expect(frame.y + frame.height / 2).toBeCloseTo(200);
+  });
+
+  it("keeps the bitmap's aspect ratio", () => {
+    const frame = stickerFrame(whole, { width: 200, height: 50 }, 0.4);
+    expect(frame.width / frame.height).toBeCloseTo(4);
+  });
+
+  it("sizes from the region's longest edge, so a tall crop gets a sane sticker", () => {
+    const wide = stickerFrame({ x: 0, y: 0, width: 1000, height: 100 }, { width: 10, height: 10 }, 0.3);
+    expect(wide.width).toBeCloseTo(300);
   });
 });
 

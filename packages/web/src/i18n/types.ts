@@ -52,6 +52,8 @@ export interface PixenStrings {
   vignette: string;
   presets: string;
   straighten: string;
+  sticker: string;
+  stickerHint: string;
   frame: string;
   frameNone: string;
   frameSolid: string;

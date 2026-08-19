@@ -19,9 +19,14 @@ import { exportDocument, type ExportOptions, type ExportResult } from "../export
 import {
   createTextWatermarkLayer,
   createWatermarkLayer,
+  stickerFrame,
   type TextWatermarkOptions,
   type WatermarkOptions,
 } from "../export/watermark.js";
+import { invert } from "../geometry/matrix.js";
+import { transformBounds } from "../geometry/rect.js";
+import { imageToStage } from "../geometry/spaces.js";
+import { createImageLayer } from "../model/layers.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
 import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
 import {
@@ -486,6 +491,24 @@ export class Editor {
    */
   addWatermark(options: WatermarkOptions): this {
     return this.addLayer(createWatermarkLayer(this.document.source, options), { select: false });
+  }
+
+  /**
+   * Places a bitmap in the middle of what is currently cropped.
+   *
+   * Selected on arrival, because the next thing anyone does with a sticker is
+   * move or resize it, and its handles are how.
+   */
+  addSticker(options: { resourceId: string; size: Size; scale?: number; name?: string }): this {
+    const region = transformBounds(
+      invert(imageToStage(this.document.source, this.document.transform)),
+      effectiveCrop(this.document),
+    );
+    const frame = stickerFrame(region, options.size, options.scale);
+    return this.addLayer(
+      createImageLayer(options.resourceId, frame, { name: options.name ?? "sticker" }),
+      { select: true },
+    );
   }
 
   /** Sets or clears the border drawn over the finished picture. */

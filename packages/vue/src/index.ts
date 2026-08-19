@@ -17,6 +17,7 @@ import {
   type AspectRatioOption,
   type PixenElementProperties,
   type PixenImageEditorElement,
+  type StickerDefinition,
   type ToolDefinition,
   type ToolId,
 } from "@pixen/web";
@@ -55,6 +56,7 @@ export const PixenImageEditor = defineComponent({
     document: { type: [Object, String] as PropType<EditorDocument | string | null>, default: null },
     tools: { type: Array as PropType<(ToolId | ToolDefinition)[] | null>, default: null },
     aspectRatios: { type: Array as PropType<(number | null | AspectRatioOption)[] | null>, default: null },
+    stickers: { type: Array as PropType<(string | Blob | StickerDefinition)[] | null>, default: null },
     policy: { type: [Object, String] as PropType<ImagePolicy | PresetName | null>, default: null },
     theme: { type: String as PropType<"dark" | "light">, default: "dark" },
     locale: { type: String, default: undefined },
@@ -101,7 +103,7 @@ export const PixenImageEditor = defineComponent({
         },
       );
     };
-    (["tools", "aspectRatios", "policy", "document", "src"] as const).forEach(bind);
+    (["tools", "aspectRatios", "stickers", "policy", "document", "src"] as const).forEach(bind);
 
     onBeforeUnmount(() => {
       detach?.();
@@ -144,5 +146,5 @@ export const PixenImageEditor = defineComponent({
 });
 
 export default PixenImageEditor;
-export type { AspectRatioOption, ToolDefinition, ToolId } from "@pixen/web";
+export type { AspectRatioOption, StickerDefinition, ToolDefinition, ToolId } from "@pixen/web";
 export type { EditorDocument, ExportResult, HistorySummary, ImagePolicy, PresetName } from "@pixen/core";

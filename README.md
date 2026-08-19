@@ -160,6 +160,32 @@ editor.addWatermark({
 });
 ```
 
+## Stickers
+
+Pixen ships no artwork of its own — what a sticker is belongs to the product
+using it. Pass your own and Pixen places them:
+
+```html
+<pixen-image-editor id="editor"></pixen-image-editor>
+<script type="module">
+  editor.stickers = [
+    "/stickers/party-hat.svg",
+    { id: "logo", src: logoBlob, label: "Logo" },
+  ];
+</script>
+```
+
+A click drops one in the middle of the visible crop, selected, so its resize and
+rotate handles are already on it. The same artwork placed ten times is decoded
+once.
+
+## Text
+
+Text is edited on the canvas, where it appears: click with the text tool, or
+double-click existing text — or press Enter with it selected, for anyone not
+using a pointer. Creating and typing collapse into one undo step, and a layer
+left empty is dropped rather than kept as litter.
+
 ## Straightening, frames and credit lines
 
 ```js

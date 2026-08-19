@@ -15,6 +15,7 @@ export type KeyboardAction =
   | { kind: "redo" }
   | { kind: "delete-selection" }
   | { kind: "clear-selection" }
+  | { kind: "edit-text" }
   | { kind: "zoom-to-fit" }
   | { kind: "nudge"; direction: Point; fast: boolean }
   | { kind: "select-tool"; tool: ToolId };
@@ -37,6 +38,8 @@ export interface KeyboardContext {
   tools: readonly ToolDefinition[];
   hasSelection: boolean;
   ready: boolean;
+  /** True when the selection is a text layer, which Enter opens for editing. */
+  textSelected?: boolean;
 }
 
 export const ARROW_VECTORS: Readonly<Record<string, Point>> = {
@@ -63,6 +66,12 @@ export function resolveKeyboardAction(stroke: KeyStroke, context: KeyboardContex
   if (DELETE_KEYS.includes(key)) {
     // Without a selection, backspace should still navigate or delete text.
     return context.hasSelection ? { action: { kind: "delete-selection" }, preventDefault: true } : null;
+  }
+
+  // Enter opens the selected text for editing, so the on-canvas editor is
+  // reachable without a pointer.
+  if (key === "Enter" && context.textSelected === true) {
+    return { action: { kind: "edit-text" }, preventDefault: true };
   }
 
   if (key === "Escape") return { action: { kind: "clear-selection" }, preventDefault: false };

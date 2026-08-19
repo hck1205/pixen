@@ -11,6 +11,7 @@ export function template(): string {
   return `<style>${styles}</style>
 <div class="root" part="root">
   <canvas part="canvas"></canvas>
+  <textarea class="text-input" part="text-input" spellcheck="false" hidden rows="1"></textarea>
   <div class="layer">
     <div class="top">
       <slot name="actions"><div class="cluster actions" part="actions" role="toolbar"></div></slot>
@@ -41,4 +42,5 @@ export const SELECTORS = {
   busy: ".busy",
   status: ".status",
   fileInput: "input[type=file]",
+  textInput: ".text-input",
 } as const;
