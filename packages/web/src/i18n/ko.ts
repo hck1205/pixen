@@ -40,4 +40,8 @@ export const ko: PixenStrings = {
   toolbarOptions: "옵션",
   zoomLevel: "확대",
   adjustments: "색 보정",
+  redactSolid: "단색",
+  redactBlur: "흐리게",
+  redactPixelate: "모자이크",
+  redactStrength: "강도",
 };

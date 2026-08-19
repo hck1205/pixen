@@ -19,18 +19,31 @@
 
 ## Redaction
 
-The redaction tool draws an opaque mask into the document, and export rasterises
-the document before encoding — so the covered pixels are **absent from the
-exported file**, not merely hidden behind an overlay. The browser suite asserts
-this by reading the exported PNG back.
+Redaction rasterises into the exported pixels, not into an overlay: whatever a
+mode does, it does it to the file. The browser suite proves it by exporting a
+PNG, reading it back, and measuring the detail left in the region.
 
-Two honest limits, stated because overclaiming here is how people get hurt:
+The three modes do **not** make the same promise:
 
+| Mode | What it does | Safe for sensitive data |
+| --- | --- | --- |
+| `solid` (default) | Paints over the region. The original pixels are gone from the export | Yes |
+| `pixelate` | Averages the region into blocks | No — obfuscation only |
+| `blur` | Blurs the region | No — obfuscation only |
+
+`solid` is the default because it is the only one that removes information.
+Blurred and pixelated text can sometimes be recovered, especially when the
+attacker knows the font, the wording, or the block size; treat both as visual
+tidying, not as protection.
+
+Two implementation notes that matter for the guarantee:
+
+- `blur` and `pixelate` read the canvas back. A cross-origin source without CORS
+  taints the canvas, and an engine without canvas filters cannot blur — **both
+  fall back to the solid fill**, because a redaction that quietly does nothing is
+  the one outcome that must never happen.
 - The original file the user picked is untouched. If your application uploads
   both, redaction has bought you nothing.
-- Blur and pixelate modes are not shipped yet. When they are, they will be
-  documented as obfuscation, not removal — blurred text can sometimes be
-  recovered, and only the solid mask is safe for sensitive data.
 
 ## Privacy
 

@@ -41,4 +41,8 @@ export const en: PixenStrings = {
   toolbarOptions: "Options",
   zoomLevel: "Zoom",
   adjustments: "Adjustments",
+  redactSolid: "Solid",
+  redactBlur: "Blur",
+  redactPixelate: "Pixelate",
+  redactStrength: "Strength",
 };

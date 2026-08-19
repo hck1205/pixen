@@ -43,10 +43,21 @@ export function buildStyleControls(context: ChromeContext, options: { includeWid
  * recolours its fill, and everything else recolours its stroke.
  */
 export function recolourPatch(layer: EditorLayer, colour: string): Partial<EditorLayer> {
-  if (layer.type === "text") return { color: colour } as Partial<EditorLayer>;
-  if (layer.type === "line" || layer.type === "path") {
-    return { stroke: { ...layer.stroke, color: colour } } as Partial<EditorLayer>;
+  switch (layer.type) {
+    case "text":
+      return { color: colour } as Partial<EditorLayer>;
+    case "line":
+    case "path":
+      return { stroke: { ...layer.stroke, color: colour } } as Partial<EditorLayer>;
+    case "redact":
+      // The colour of a redaction is its solid fill, and its fallback.
+      return { colour } as Partial<EditorLayer>;
+    case "image":
+      // A bitmap has no colour of its own.
+      return {};
+    case "rect":
+    case "ellipse":
+      if (layer.fill) return { fill: colour } as Partial<EditorLayer>;
+      return layer.stroke ? ({ stroke: { ...layer.stroke, color: colour } } as Partial<EditorLayer>) : {};
   }
-  if (layer.fill) return { fill: colour } as Partial<EditorLayer>;
-  return layer.stroke ? ({ stroke: { ...layer.stroke, color: colour } } as Partial<EditorLayer>) : {};
 }

@@ -233,11 +233,16 @@ describe("beginGesture", () => {
     expect(kinds(outcome.effects)).toEqual(["intent:begin-transaction", "intent:add-layer"]);
   });
 
-  it("draws a redaction as an opaque fill with no stroke", () => {
-    const outcome = beginGesture(at(0, 0), context({ tool: "redact" }));
+  it("draws a redaction, in the mode the style remembers", () => {
+    const outcome = beginGesture(
+      at(0, 0),
+      context({ tool: "redact", style: { ...DEFAULT_STYLE, redactionMode: "pixelate" } }),
+    );
     const [, added] = intents(outcome.effects);
-    expect(added).toMatchObject({ kind: "add-layer", layer: { type: "rect", stroke: null } });
-    expect((added as { layer: { fill: string } }).layer.fill).toBeTruthy();
+    expect(added).toMatchObject({
+      kind: "add-layer",
+      layer: { type: "redact", mode: "pixelate", strength: DEFAULT_STYLE.redactionStrength },
+    });
   });
 
   it("starts a free-draw path at the pointer", () => {

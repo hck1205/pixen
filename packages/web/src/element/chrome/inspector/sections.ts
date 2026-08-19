@@ -12,19 +12,28 @@ export type InspectorSection =
   | "adjustments"
   | "crop"
   | "layer"
+  | "redaction"
   | "select-hint"
   | "text-hint"
-  | "redact-hint"
   | "style";
 
 export interface InspectorConditions {
   panel: PanelId;
   tool: ToolId;
   hasSelection: boolean;
+  /** True when the selected layer is a redaction, which has its own controls. */
+  redactionSelected?: boolean;
 }
 
-export function inspectorSectionFor({ panel, tool, hasSelection }: InspectorConditions): InspectorSection {
+export function inspectorSectionFor({
+  panel,
+  tool,
+  hasSelection,
+  redactionSelected = false,
+}: InspectorConditions): InspectorSection {
   if (panel === "adjust") return "adjustments";
+  // A selected redaction is edited wherever it was selected from.
+  if (redactionSelected) return "redaction";
 
   switch (tool) {
     case "crop":
@@ -34,7 +43,7 @@ export function inspectorSectionFor({ panel, tool, hasSelection }: InspectorCond
     case "text":
       return "text-hint";
     case "redact":
-      return "redact-hint";
+      return "redaction";
     default:
       return "style";
   }

@@ -14,6 +14,7 @@ import type {
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
 import { exportDocument, type ExportOptions, type ExportResult } from "../export/pipeline.js";
+import { createWatermarkLayer, type WatermarkOptions } from "../export/watermark.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
 import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
 import {
@@ -457,6 +458,14 @@ export class Editor {
 
   removeLayer(id: string): this {
     return this.dispatch({ kind: "remove-layer", id });
+  }
+
+  /**
+   * Places a registered bitmap as a watermark. The bitmap must already be in
+   * the resource manager — `resources.load()` puts it there.
+   */
+  addWatermark(options: WatermarkOptions): this {
+    return this.addLayer(createWatermarkLayer(this.document.source, options), { select: false });
   }
 
   select(id: string | null): this {

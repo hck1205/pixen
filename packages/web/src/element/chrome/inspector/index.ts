@@ -3,11 +3,13 @@ import type { ChromeBuild, ChromeContext } from "../context.js";
 import { buildAdjustmentControls } from "./adjustments.js";
 import { buildCropControls } from "./crop.js";
 import { buildLayerControls } from "./layer.js";
+import { buildRedactionControls } from "./redaction.js";
 import { inspectorSectionFor } from "./sections.js";
 import { buildStyleControls } from "./style.js";
 import { buildViewControls } from "./view.js";
 
 export * from "./sections.js";
+export { buildRedactionControls } from "./redaction.js";
 export { recolourPatch } from "./style.js";
 
 /**
@@ -32,6 +34,7 @@ function buildContextualControls(context: ChromeContext): Node[] {
     panel: context.panel,
     tool: context.tool,
     hasSelection: selected !== null,
+    redactionSelected: selected?.type === "redact",
   });
 
   switch (section) {
@@ -45,8 +48,8 @@ function buildContextualControls(context: ChromeContext): Node[] {
       return [hint(strings.select)];
     case "text-hint":
       return [hint(strings.textPlaceholder), ...buildStyleControls(context, { includeWidth: false })];
-    case "redact-hint":
-      return [hint(strings.redact), ...buildStyleControls(context, { includeWidth: false })];
+    case "redaction":
+      return buildRedactionControls(context, selected?.type === "redact" ? selected : null);
     case "style":
       return buildStyleControls(context, { includeWidth: true });
   }

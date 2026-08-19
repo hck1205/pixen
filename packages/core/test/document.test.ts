@@ -7,6 +7,7 @@ import {
   isPristine,
   migrateDocument,
   outputSize,
+  SCHEMA_VERSION,
   PixenError,
   registerMigration,
   stageSize,
@@ -96,23 +97,31 @@ describe("serialisation", () => {
 });
 
 describe("migrations", () => {
-  it("runs registered steps in order", () => {
-    // Simulates a future v1 -> v2 step without touching the shipped schema.
-    const calls: number[] = [];
-    registerMigration(1, (document) => {
-      calls.push(1);
-      return { ...document, migrated: true };
+  it("carries a v1 document forward to the current version", () => {
+    const migrated = migrateDocument({
+      schemaVersion: 1,
+      source: { resourceId: "res_1", width: 10, height: 10 },
     });
-    try {
-      const migrated = migrateDocument({ schemaVersion: 1, source: {} });
-      expect(calls).toEqual([]); // current version is 1, so nothing runs yet
-      expect(migrated.schemaVersion).toBe(1);
-    } finally {
-      // keep the registry clean for other tests in the file
-    }
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
-  it("refuses a second migration for the same version", () => {
-    expect(() => registerMigration(1, (d) => d)).toThrowError(/already registered/);
+  it("leaves a v1 document's own fields untouched", () => {
+    const migrated = migrateDocument({
+      schemaVersion: 1,
+      source: { resourceId: "res_1", width: 10, height: 10 },
+      crop: { x: 1, y: 2, width: 3, height: 4 },
+      meta: { keep: true },
+    });
+    expect(migrated.crop).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+    expect(migrated.meta).toEqual({ keep: true });
+  });
+
+  it("accepts a document already at the current version", () => {
+    const migrated = migrateDocument({ schemaVersion: SCHEMA_VERSION, source: {} });
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
+  });
+
+  it("refuses a second migration for a version that already has one", () => {
+    expect(() => registerMigration(1, (document) => document)).toThrowError(/already registered/);
   });
 });

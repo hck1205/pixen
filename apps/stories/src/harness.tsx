@@ -7,6 +7,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
+import type { Editor } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
 import "@pixen/web";
 import { createSampleImage, type SampleOptions } from "./fixtures.js";
@@ -128,6 +130,36 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+
+// --- seeded editor ---------------------------------------------------------
+
+export interface SeededEditorProps {
+  image: Blob | null;
+  /** Runs once the image is loaded, with the engine behind the element. */
+  seed: (editor: Editor) => void;
+  height?: string;
+}
+
+/**
+ * An editor that puts layers into the document as soon as it has an image.
+ *
+ * Several stories differ only in what they seed, so the wiring — ref, load
+ * callback, null guard — lives here rather than being repeated in each of them.
+ */
+export function SeededEditor({ image, seed, height = "100%" }: SeededEditorProps) {
+  const handle = useRef<PixenImageEditorHandle>(null);
+  return (
+    <PixenImageEditor
+      ref={handle}
+      src={image}
+      onLoad={() => {
+        const editor = handle.current?.editor;
+        if (editor) seed(editor);
+      }}
+      style={{ height }}
+    />
+  );
+}
 
 // --- raw custom element ----------------------------------------------------
 

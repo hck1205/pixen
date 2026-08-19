@@ -16,6 +16,8 @@ export interface SceneImageNode {
 
 export interface SceneLayerNode {
   layer: EditorLayer;
+  /** The bitmap an image layer draws, resolved from the resource manager. */
+  resource?: CanvasImageSource;
   /** image space -> target pixels */
   matrix: Matrix;
   /** Target pixels per image pixel, for stroke widths and font sizes. */
@@ -41,6 +43,11 @@ export interface SceneInput {
   source: CanvasImageSource;
   /** Pixels of `source` per image pixel. 1 for the full-resolution bitmap. */
   sourceScale?: number;
+  /**
+   * Resolves an image layer's bitmap. Layers reference resources by id, and only
+   * the caller knows which manager holds them.
+   */
+  resolveResource?: (resourceId: string) => CanvasImageSource | null;
 }
 
 export interface SceneOptions {
@@ -98,7 +105,12 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     },
     layers: document.layers
       .filter((layer) => layer.visible && layer.opacity > 0)
-      .map((layer) => ({ layer, matrix: imageToTarget, scale: layerScale })),
+      .map((layer) => {
+        const resource = layer.type === "image" ? input.resolveResource?.(layer.resourceId) : null;
+        // An image layer whose bitmap is missing renders as nothing rather than
+        // as an error: a document can outlive the sticker it referenced.
+        return { layer, matrix: imageToTarget, scale: layerScale, ...(resource ? { resource } : {}) };
+      }),
     scale,
   };
 }

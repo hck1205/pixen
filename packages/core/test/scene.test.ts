@@ -3,6 +3,7 @@ import {
   applyToPoint,
   applyAdjustmentsToImageData,
   createDocument,
+  createImageLayer,
   createRectLayer,
   createScene,
   cssFilter,
@@ -56,6 +57,25 @@ describe("createScene", () => {
     let doc = commands.addLayer(document(), createRectLayer({ x: 0, y: 0, width: 10, height: 10 }));
     doc = commands.addLayer(doc, createRectLayer({ x: 0, y: 0, width: 10, height: 10 }, { visible: false }));
     expect(createScene(doc, { source }).layers).toHaveLength(1);
+  });
+
+  it("resolves the bitmap an image layer refers to", () => {
+    const bitmap = { width: 64, height: 64 } as unknown as CanvasImageSource;
+    const layer = createImageLayer("res_mark", { x: 0, y: 0, width: 100, height: 100 });
+    const doc = commands.addLayer(document(), layer);
+
+    const resolved = createScene(doc, { source, resolveResource: () => bitmap });
+    expect(resolved.layers[0]!.resource).toBe(bitmap);
+  });
+
+  it("leaves an image layer without pixels when its resource is gone", () => {
+    const layer = createImageLayer("res_missing", { x: 0, y: 0, width: 100, height: 100 });
+    const doc = commands.addLayer(document(), layer);
+
+    // A document can outlive the sticker it referenced; the renderer draws
+    // nothing rather than failing mid-frame.
+    expect(createScene(doc, { source, resolveResource: () => null }).layers[0]!.resource).toBeUndefined();
+    expect(createScene(doc, { source }).layers[0]!.resource).toBeUndefined();
   });
 
   it("passes layer coordinates through the same matrix as the image", () => {

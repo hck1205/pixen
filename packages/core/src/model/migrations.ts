@@ -12,6 +12,17 @@ export type DocumentMigration = (document: Record<string, unknown>) => Record<st
  */
 export const migrations = new Map<number, DocumentMigration>();
 
+/**
+ * v1 -> v2 added the `image` and `redact` layer types.
+ *
+ * Nothing in a v1 document changes, but the version still moves: a v1 build
+ * reading a v2 document would reject the new layers, and failing loudly beats
+ * dropping a redaction on the floor.
+ */
+function migrateV1ToV2(document: Record<string, unknown>): Record<string, unknown> {
+  return document;
+}
+
 export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
   if (migrations.has(fromVersion)) {
     throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
@@ -20,6 +31,8 @@ export function registerMigration(fromVersion: number, migration: DocumentMigrat
 }
 
 /** Upgrades a raw document to the current schema version, or explains why it can't. */
+migrations.set(1, migrateV1ToV2);
+
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new PixenError("INVALID_DOCUMENT", "Document must be an object");

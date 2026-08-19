@@ -86,7 +86,7 @@ export async function exportDocument(
     surface = createSurface(target.width, target.height, supportsTransparency(format));
     const scene = createScene(
       { ...document, output: { ...document.output, background } },
-      { source: resource.source, sourceScale: 1 },
+      { source: resource.source, sourceScale: 1, resolveResource: resources.resolve },
       { region: "crop", target },
     );
     renderScene(surface.context, scene);
@@ -143,7 +143,11 @@ export function renderDocumentToCanvas(
   assertDrawableSize(target, "render target");
 
   const surface = createSurface(target.width, target.height);
-  const scene = createScene(document, { source: resource.source, sourceScale: 1 }, { region, target });
+  const scene = createScene(
+    document,
+    { source: resource.source, sourceScale: 1, resolveResource: resources.resolve },
+    { region, target },
+  );
   renderScene(surface.context, scene);
   return surface;
 }

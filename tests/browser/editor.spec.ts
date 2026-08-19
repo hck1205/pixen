@@ -196,6 +196,172 @@ test("a redaction covers the pixels it was drawn over in the exported file", asy
   expect(Math.max(...pixel.corner)).toBeGreaterThan(40);
 });
 
+test("blur and pixelate redactions really change the exported pixels", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+        removeLayer(id: string): void;
+      };
+      export(options?: Record<string, unknown>): Promise<{ blob: Blob }>;
+    };
+
+    /**
+     * Local contrast: the mean step between horizontally adjacent pixels.
+     *
+     * Variance would be dominated by the sky gradient, which a blur does not
+     * touch. Detail lives in the steps between neighbours, and that is exactly
+     * what blurring and pixelating destroy.
+     */
+    const detailOf = async (blob: Blob, region: { x: number; y: number; w: number; h: number }) => {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const context = canvas.getContext("2d")!;
+      context.drawImage(bitmap, 0, 0);
+      const { data } = context.getImageData(
+        Math.round(bitmap.width * region.x),
+        Math.round(bitmap.height * region.y),
+        Math.round(bitmap.width * region.w),
+        Math.round(bitmap.height * region.h),
+      );
+
+      const width = Math.round(bitmap.width * region.w);
+      const height = Math.round(bitmap.height * region.h);
+      const luma = (index: number) =>
+        0.213 * data[index]! + 0.715 * data[index + 1]! + 0.072 * data[index + 2]!;
+
+      let total = 0;
+      let count = 0;
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width - 1; x += 1) {
+          const index = (y * width + x) * 4;
+          total += Math.abs(luma(index + 4) - luma(index));
+          count += 1;
+        }
+      }
+      return count === 0 ? 0 : total / count;
+    };
+
+    // The sample prints identifiers across the upper-left; that is the detail
+    // a redaction has to destroy.
+    const region = { x: 0.06, y: 0.12, w: 0.34, h: 0.2 };
+    const { width, height } = element.editor.document.source;
+    const frame = {
+      x: width * region.x,
+      y: height * region.y,
+      width: width * region.w,
+      height: height * region.h,
+    };
+
+    const plain = await detailOf((await element.export({ format: "image/png" })).blob, region);
+
+    const results: Record<string, number> = {};
+    for (const mode of ["blur", "pixelate", "solid"] as const) {
+      const layer = { ...makeRedaction(frame), mode };
+      element.editor.addLayer(layer, { select: false });
+      results[mode] = await detailOf((await element.export({ format: "image/png" })).blob, region);
+      element.editor.removeLayer(layer.id);
+    }
+
+    function makeRedaction(box: typeof frame) {
+      return {
+        id: `redact_${Math.random().toString(36).slice(2)}`,
+        type: "redact" as const,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        rotation: 0,
+        frame: box,
+        mode: "solid" as const,
+        strength: 0.03,
+        colour: "#12161c",
+      };
+    }
+
+    return { plain, ...results };
+  });
+
+  // The region starts with real detail: the identifiers printed on the sample.
+  expect(measure.plain).toBeGreaterThan(1);
+  // Every mode has to destroy it.
+  expect(measure.blur).toBeLessThan(measure.plain / 3);
+  expect(measure.pixelate).toBeLessThan(measure.plain / 3);
+  // A solid fill leaves nothing at all.
+  expect(measure.solid).toBeLessThan(0.05);
+});
+
+test("a watermark reaches both the preview canvas and the exported file", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        resources: { load(input: Blob): Promise<{ id: string }> };
+        addWatermark(options: Record<string, unknown>): void;
+      };
+      shadowRoot: ShadowRoot;
+      export(options?: Record<string, unknown>): Promise<{ blob: Blob }>;
+    };
+
+    /** A flat red square, so the watermark is unmistakable in a sampled pixel. */
+    const MARK_SIZE = { width: 64, height: 64 };
+    const mark = new OffscreenCanvas(MARK_SIZE.width, MARK_SIZE.height);
+    const markContext = mark.getContext("2d")!;
+    markContext.fillStyle = "#ff0000";
+    markContext.fillRect(0, 0, MARK_SIZE.width, MARK_SIZE.height);
+
+    /** The colour at a fraction of the way across an exported image. */
+    const sample = async (blob: Blob, at: { x: number; y: number }) => {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const context = canvas.getContext("2d")!;
+      context.drawImage(bitmap, 0, 0);
+      const { data } = context.getImageData(
+        Math.round(bitmap.width * at.x),
+        Math.round(bitmap.height * at.y),
+        1,
+        1,
+      );
+      return [data[0]!, data[1]!, data[2]!] as [number, number, number];
+    };
+
+    // Where a square mark at 30% of the longest edge, inset by the default 3%
+    // margin, puts its own centre in the bottom-right corner.
+    const { width, height } = element.editor.document.source;
+    const longest = Math.max(width, height);
+    const scale = 0.3;
+    const margin = 0.03;
+    const centre = {
+      x: (width - longest * (margin + scale / 2)) / width,
+      y: (height - longest * (margin + scale / 2)) / height,
+    };
+
+    const before = await sample((await element.export({ format: "image/png" })).blob, centre);
+
+    const resource = await element.editor.resources.load(await mark.convertToBlob({ type: "image/png" }));
+    element.editor.addWatermark({ resourceId: resource.id, size: MARK_SIZE, scale, opacity: 1 });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    const after = await sample((await element.export({ format: "image/png" })).blob, centre);
+
+    // The preview is a separate render path from the export, and image layers
+    // were once missing from both; assert the on-screen canvas too.
+    const canvas = element.shadowRoot.querySelector("canvas")!;
+    const { data } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
+    let previewRed = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i]! > 200 && data[i + 1]! < 80 && data[i + 2]! < 80) previewRed += 1;
+    }
+
+    return { before, after, previewRed };
+  });
+
+  expect(measure.before[0] - measure.before[2]).toBeLessThan(100);
+  expect(measure.after[0]).toBeGreaterThan(200);
+  expect(measure.after[1]).toBeLessThan(80);
+  expect(measure.previewRed).toBeGreaterThan(100);
+});
+
 test("the chrome stays inside the host at any size", async ({ page }) => {
   const measure = async (width: number, height: number) =>
     page.evaluate(

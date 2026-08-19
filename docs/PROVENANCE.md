@@ -4,7 +4,7 @@ Pixen is an independent implementation. This file records, module by module,
 what each non-obvious piece of the codebase is derived from, so the claim can be
 checked rather than taken on faith.
 
-Last audited: 2026-08-18 · scope: every git-tracked file in this repository.
+Last audited: 2026-08-19 · scope: every git-tracked file in this repository.
 
 ## Method
 
@@ -44,13 +44,15 @@ was supplied to an AI tool as input at any point.
 | `render/scene.ts` | Document → draw list projection | Original design for this project |
 | `render/adjustments.ts` | Brightness / contrast / saturation, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix in that specification |
 | `render/ops.ts` | Scene to draw-operation list: paths, arrow heads, text layout | Greedy line breaking; quadratic midpoint smoothing for free-draw; arrow heads from trigonometry |
-| `render/canvas2d.ts` | Executes a draw-operation list | Canvas2D API |
+| `render/canvas2d.ts` | Executes a draw-operation list | Canvas2D API. Redaction: `ctx.filter = blur(...)` is the W3C **Filter Effects Module Level 1** `blur()` function as exposed on the canvas context; pixelation is a downscale-then-upscale with `imageSmoothingEnabled = false`, which is what nearest-neighbour resampling means |
+| `export/watermark.ts` | Placing a watermark image in one of nine positions | First principles: a fraction of the longest edge, inset by a margin |
 | `export/*` | Full-resolution export, headless processing, policies | Original design for this project |
-| `web/gestures.ts` | Pointer gestures as a state machine | Original design for this project |
-| `web/overlay.ts` | Crop chrome geometry | Rule-of-thirds guides and corner brackets, laid out here |
-| `web/element.ts`, `web/viewport.ts` | Custom element, viewport, event plumbing | Web Components, Pointer Events and Resize Observer as specified by WHATWG/W3C. Layout, interaction model and chrome are original |
-| `web/icons.ts` | Icon set | Drawn for this project as single-weight stroked primitives on a 24×24 grid |
-| `web/styles.ts` | Theme tokens and layout | Written for this project |
+| `web/viewport/gestures/*` | Pointer gestures as a state machine | Original design for this project |
+| `web/viewport/overlay.ts` | Crop chrome geometry | Rule-of-thirds guides and corner brackets, laid out here |
+| `web/element/*`, `web/viewport/*` | Custom element, viewport, event plumbing | Web Components, Pointer Events and Resize Observer as specified by WHATWG/W3C. Layout, interaction model and chrome are original |
+| `web/theme/icons.ts` | Icon set | Drawn for this project as single-weight stroked primitives on a 24×24 grid |
+| `web/theme/styles.ts` | Theme tokens and layout | Written for this project |
+| `web/i18n/*` | English and Korean strings | Written for this project |
 | `react/index.tsx` | Props → properties, events → callbacks | React documentation on custom elements and `useImperativeHandle` |
 
 ## What functional similarity does and does not mean
