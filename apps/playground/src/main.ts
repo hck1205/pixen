@@ -1,6 +1,16 @@
 import "@pixen/web";
+import { layerHandlePosition } from "@pixen/core";
 import type { ExportResult, ImageFormat } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
+
+/**
+ * A small window hook for the browser suite.
+ *
+ * The tests drive the built playground, and geometry they assert against has to
+ * come from the engine itself — re-deriving a handle position in the test would
+ * only prove the test agrees with itself.
+ */
+(window as unknown as { pixen: Record<string, unknown> }).pixen = { layerHandlePosition };
 
 const editor = document.querySelector<PixenImageEditorElement>("#editor")!;
 const preset = document.querySelector<HTMLSelectElement>("#preset")!;

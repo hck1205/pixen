@@ -20,7 +20,7 @@ unit tests and a browser suite driving the real bundle.
 - [x] Document serialise / restore
 - [x] Web component + React wrapper
 - [ ] Free-angle straightening UI (the engine already accepts any rotation)
-- [ ] Layer selection handles for resize and rotate
+- [x] Layer selection handles for resize and rotate
 - [ ] Text editing directly on the canvas rather than in the inspector
 
 ## Phase 2 — commercial V1

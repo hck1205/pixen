@@ -82,6 +82,10 @@ export interface SliderRange {
 /** Stroke width, as a fraction of the image's longest edge. */
 export const STROKE_WIDTH_RANGE: SliderRange = { min: 0.001, max: 0.02, step: 0.001 };
 
+/** Layer opacity, and rotation in degrees — the inspector's two layer sliders. */
+export const OPACITY_RANGE: SliderRange = { min: 0, max: 1, step: 0.05 };
+export const ROTATION_RANGE: SliderRange = { min: -180, max: 180, step: 1 };
+
 /** Brightness, contrast and saturation all share one range. */
 export const ADJUSTMENT_RANGE: SliderRange = { min: -1, max: 1, step: 0.01 };
 

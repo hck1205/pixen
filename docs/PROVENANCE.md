@@ -30,6 +30,7 @@ was supplied to an AI tool as input at any point.
 | `geometry/rect.ts` | Rectangle algebra, aspect fitting, rotated bounds | First principles; rotated bounding box is `w·|cos| + h·|sin|` |
 | `geometry/spaces.ts` | The image / stage / output / view coordinate model | Original design for this project |
 | `geometry/crop.ts` | Handle-drag resize with edge anchoring and ratio locking | First principles: pin the opposite edge, solve the free axis from the locked ratio |
+| `model/transform.ts` | Resizing and rotating a layer about its own centre | First principles: take the pointer into the layer's unrotated frame, pin the opposite corner, then correct for the drift rotation puts in the centre |
 | `model/*` | `EditorDocument` schema, layers, migrations | Original design for this project |
 | `model/validate.ts` | Composable validators accumulating every issue | Ordinary parser-combinator technique; the shapes validated are our own schema |
 | `fp/*` | `Result`, `pipe`, immutable array helpers | Standard functional idioms, written here in a few dozen lines rather than taken from a library |

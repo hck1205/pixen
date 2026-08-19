@@ -200,6 +200,37 @@ export const RedactionModes: Story = () => {
   );
 };
 
+/**
+ * The select tool's handles: eight to resize, one to rotate.
+ *
+ * Shift locks the layer's own ratio while resizing, and snaps rotation to 15°.
+ */
+export const LayerHandles: Story<{ rotation: number }> = ({ rotation }) => {
+  const image = useSampleImage();
+  return (
+    <Stage
+      title="Layer handles"
+      note="Click the sticker to select it, then drag a corner to resize or the grip above it to rotate."
+    >
+      <SeededEditor
+        key={rotation}
+        image={image}
+        tool="select"
+        seed={(instance) => void seedWatermark(instance, { position: "centre", scale: 0.4, opacity: 1 }).then(() => {
+          const layer = instance.document.layers.at(-1);
+          if (layer) {
+            if (rotation) instance.updateLayer(layer.id, { rotation: (rotation * Math.PI) / 180 });
+            instance.select(layer.id);
+          }
+        })}
+      />
+    </Stage>
+  );
+};
+
+LayerHandles.args = { rotation: 0 };
+LayerHandles.argTypes = { rotation: { control: { type: "range", min: -180, max: 180, step: 5 } } };
+
 /** A watermark is an image layer, so it undoes, serialises and exports as one. */
 export const Watermark: Story<{ position: WatermarkPosition; scale: number; opacity: number }> = ({
   position,
