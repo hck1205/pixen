@@ -141,10 +141,18 @@ export class Editor {
     return outputSize(this.document);
   }
 
+  /**
+   * The selected layer, or null.
+   *
+   * Total, unlike `document` and `session`: "nothing is selected" and "nothing
+   * is loaded" are the same answer to every caller, and making them differ cost
+   * five copies of `editor.ready ? editor.selectedLayer : null` in the UI.
+   */
   get selectedLayer(): EditorLayer | null {
-    const id = this.session.selection;
+    if (!this.#session) return null;
+    const id = this.#session.selection;
     if (!id) return null;
-    return findLayer(this.document.layers, id);
+    return findLayer(this.#session.document.layers, id);
   }
 
   on<K extends keyof EditorEvents>(event: K, listener: (payload: EditorEvents[K]) => void): Unsubscribe {

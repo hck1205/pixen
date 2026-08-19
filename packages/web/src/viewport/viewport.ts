@@ -34,6 +34,9 @@ import {
   type GestureState,
   type PinchState,
 } from "./gestures/index.js";
+// Straight from the module rather than the barrel: these are the gesture's own
+// tuning, and the barrel deliberately keeps tuning out of the package's API.
+import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/constants.js";
 import { projectRect } from "./overlay.js";
 import {
   drawCropFrame,
@@ -89,7 +92,7 @@ export class Viewport {
   #autoFit = true;
   #tool: ToolId = "crop";
   #style: AnnotationStyle = { ...DEFAULT_STYLE };
-  #minCropSize = 24;
+  #minCropSize = DEFAULT_MIN_CROP_SIZE;
 
   #gesture: GestureState = IDLE;
   #pointers = new Map<number, Point>();
@@ -152,7 +155,7 @@ export class Viewport {
   }
 
   set minCropSize(value: number) {
-    this.#minCropSize = Math.max(4, value);
+    this.#minCropSize = Math.max(ABSOLUTE_MIN_CROP_SIZE, value);
   }
 
   /** Frames the whole stage inside the area the floating chrome leaves free. */

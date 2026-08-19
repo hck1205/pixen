@@ -9,6 +9,7 @@ import { TEXT_PLATE_COLOUR, type AnnotationStyle } from "../../../tools/index.js
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
 import { styleControlsFor, type StyleControl, type StyleSubject } from "./style-controls.js";
+import { styleWriter } from "./style-writer.js";
 
 /**
  * How the next annotation will look — and, when one is selected, how that one
@@ -23,13 +24,6 @@ export function buildStyleControls(context: ChromeContext, subject: StyleSubject
   return controls.flatMap((control) => buildControl(context, control));
 }
 
-/** Sends a style change to the palette and, when one is selected, to the layer. */
-function apply(context: ChromeContext, patch: Partial<AnnotationStyle>, layerPatch?: Partial<EditorLayer>): void {
-  context.actions.setAnnotationStyle(patch);
-  const selected = context.editor.ready ? context.editor.selectedLayer : null;
-  if (selected && layerPatch) context.editor.updateLayer(selected.id, layerPatch);
-}
-
 const ALIGNMENTS: ReadonlyArray<{ value: TextLayer["align"]; key: keyof PixenStrings }> = [
   { value: "left", key: "alignLeft" },
   { value: "center", key: "alignCenter" },
@@ -38,7 +32,8 @@ const ALIGNMENTS: ReadonlyArray<{ value: TextLayer["align"]; key: keyof PixenStr
 
 function buildControl(context: ChromeContext, control: StyleControl): Node[] {
   const { strings, annotationStyle: style, editor } = context;
-  const selected = editor.ready ? editor.selectedLayer : null;
+  const selected = editor.selectedLayer;
+  const apply = styleWriter(context, selected);
 
   switch (control) {
     case "colour":
@@ -67,7 +62,7 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             // a fill would take rather than pretending to be empty.
             value: style.fill ?? style.colour,
             dataset: { field: "fill" },
-            onInput: (value) => apply(context, { fill: value }, { fill: value } as Partial<EditorLayer>),
+            onInput: (value) => apply({ fill: value }, { fill: value }),
           }),
         ),
         button({
@@ -75,7 +70,7 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
           text: strings.fillNone,
           className: "text",
           active: style.fill === null,
-          onClick: () => apply(context, { fill: null }, { fill: null } as Partial<EditorLayer>),
+          onClick: () => apply({ fill: null }, { fill: null }),
         }),
       ];
 
@@ -154,7 +149,7 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
           className: "text",
           active: style.textAlign === alignment.value,
           onClick: () =>
-            apply(context, { textAlign: alignment.value }, { align: alignment.value } as Partial<EditorLayer>),
+            apply({ textAlign: alignment.value }, { align: alignment.value }),
         }),
       );
 
@@ -167,9 +162,9 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
           active: style.textPlate,
           onClick: () => {
             const next = !style.textPlate;
-            apply(context, { textPlate: next }, {
+            apply({ textPlate: next }, {
               backgroundColor: next ? TEXT_PLATE_COLOUR : null,
-            } as Partial<EditorLayer>);
+            });
           },
         }),
       ];
@@ -182,7 +177,7 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
           className: "text",
           active: style.arrowStart,
           onClick: () =>
-            apply(context, { arrowStart: !style.arrowStart }, { arrowStart: !style.arrowStart } as Partial<EditorLayer>),
+            apply({ arrowStart: !style.arrowStart }, { arrowStart: !style.arrowStart }),
         }),
         button({
           label: strings.arrowEnd,
@@ -190,7 +185,7 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
           className: "text",
           active: style.arrowEnd,
           onClick: () =>
-            apply(context, { arrowEnd: !style.arrowEnd }, { arrowEnd: !style.arrowEnd } as Partial<EditorLayer>),
+            apply({ arrowEnd: !style.arrowEnd }, { arrowEnd: !style.arrowEnd }),
         }),
       ];
   }
@@ -206,19 +201,19 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 export function recolourPatch(layer: EditorLayer, colour: string): Partial<EditorLayer> {
   switch (layer.type) {
     case "text":
-      return { color: colour } as Partial<EditorLayer>;
+      return { color: colour };
     case "line":
     case "path":
-      return { stroke: { ...layer.stroke, color: colour } } as Partial<EditorLayer>;
+      return { stroke: { ...layer.stroke, color: colour } };
     case "redact":
       // The colour of a redaction is its solid fill, and its fallback.
-      return { colour } as Partial<EditorLayer>;
+      return { colour };
     case "image":
       // A bitmap has no colour of its own.
       return {};
     case "rect":
     case "ellipse":
-      if (layer.stroke) return { stroke: { ...layer.stroke, color: colour } } as Partial<EditorLayer>;
-      return layer.fill ? ({ fill: colour } as Partial<EditorLayer>) : {};
+      if (layer.stroke) return { stroke: { ...layer.stroke, color: colour } };
+      return layer.fill ? { fill: colour } : {};
   }
 }

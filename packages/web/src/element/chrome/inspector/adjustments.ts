@@ -8,7 +8,8 @@ import {
   type AdjustmentKey,
   type AdjustmentPreset,
 } from "@pixen/core";
-import { button, divider, field, input } from "../../dom/index.js";
+import { button, divider } from "../../dom/index.js";
+import { transactedSlider } from "./slider.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
 
@@ -53,25 +54,14 @@ export function buildAdjustmentControls(context: ChromeContext): Node[] {
     }),
   );
 
-  const slider = (key: AdjustmentKey): Node => {
-    const label = strings[LABEL_KEYS[key]];
-    const range = ADJUSTMENT_RANGES[key];
-    return field(
-      label,
-      input({
-        type: "range",
-        min: range.min,
-        max: range.max,
-        step: range.step,
-        value: String(values[key]),
-        dataset: { field: key },
-        onInput: (next) => editor.setAdjustments({ [key]: Number(next) }),
-        // A slider drag is one gesture, so it collapses into one undo step.
-        onPointerDown: () => editor.beginTransaction(label),
-        onPointerUp: () => editor.commitTransaction(),
-      }),
-    );
-  };
+  const slider = (key: AdjustmentKey): Node =>
+    transactedSlider(editor, {
+      label: strings[LABEL_KEYS[key]],
+      field: key,
+      range: ADJUSTMENT_RANGES[key],
+      value: values[key],
+      onInput: (next) => editor.setAdjustments({ [key]: next }),
+    });
 
   return [
     ...presets,

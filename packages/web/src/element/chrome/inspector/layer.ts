@@ -1,10 +1,8 @@
-import { normaliseAngle, type EditorLayer } from "@pixen/core";
+import { normaliseAngle, toDegrees, toRadians, type EditorLayer } from "@pixen/core";
 import { button, divider, field, input } from "../../dom/index.js";
 import { OPACITY_RANGE, ROTATION_RANGE } from "../../constants.js";
 import type { ChromeContext } from "../context.js";
 import { buildStyleControls } from "./style.js";
-
-const DEGREES_PER_RADIAN = 180 / Math.PI;
 
 /**
  * The selected layer's own controls.
@@ -43,10 +41,10 @@ export function buildLayerControls(context: ChromeContext, layer: EditorLayer): 
       input({
         type: "range",
         ...ROTATION_RANGE,
-        value: String(Math.round(layer.rotation * DEGREES_PER_RADIAN)),
+        value: String(Math.round(toDegrees(layer.rotation))),
         dataset: { field: "rotation" },
         onInput: (value) =>
-          editor.updateLayer(layer.id, { rotation: normaliseAngle(Number(value) / DEGREES_PER_RADIAN) }),
+          editor.updateLayer(layer.id, { rotation: normaliseAngle(toRadians(Number(value))) }),
       }),
     ),
     divider(),

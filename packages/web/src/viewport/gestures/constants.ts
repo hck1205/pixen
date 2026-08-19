@@ -18,3 +18,8 @@ export const LAYER_HIT_TOLERANCE_RATIO = 0.01;
 /** Wheel zoom sensitivity; a trackpad pinch arrives as ctrl + wheel. */
 export const WHEEL_ZOOM_INTENSITY = 0.0022;
 export const PINCH_ZOOM_INTENSITY = 0.01;
+
+/** Smallest crop a drag may produce, in image pixels, unless a host says otherwise. */
+export const DEFAULT_MIN_CROP_SIZE = 24;
+/** The floor a host cannot go below: a crop smaller than this cannot be grabbed. */
+export const ABSOLUTE_MIN_CROP_SIZE = 4;

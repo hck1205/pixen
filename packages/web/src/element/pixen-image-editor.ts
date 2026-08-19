@@ -33,8 +33,9 @@ import {
   type Readouts,
 } from "./chrome/index.js";
 import { isTypingTarget } from "./dom/index.js";
-import { imageFromClipboard, imageFromFiles, carriesFiles } from "./input/transfer.js";
-import { nudgeDistance, resolveKeyboardAction } from "./input/keyboard.js";
+import { ImageIntake } from "./input/image-intake.js";
+import { resolveKeyboardAction } from "./input/keyboard.js";
+import { runKeyboardAction, type ActionPorts } from "./input/run-action.js";
 import { isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
 import { normaliseAspectRatios } from "./ratios.js";
 import {
@@ -94,6 +95,7 @@ export class PixenImageEditorElement extends ElementBase {
   #fileInput!: HTMLInputElement;
   #textInput!: HTMLTextAreaElement;
   #textEditing!: CanvasTextEditor;
+  #intake!: ImageIntake;
 
   #tools: ToolDefinition[] = normaliseTools(null);
   #stickers: StickerDefinition[] = [];
@@ -185,11 +187,14 @@ export class PixenImageEditorElement extends ElementBase {
     // which also suppresses the browser's focus-on-click. Restore it, or the
     // keyboard shortcuts stop working the moment someone touches the canvas.
     this.addEventListener("pointerdown", this.#onPointerDownFocus, true);
-    this.addEventListener("dragover", this.#onDragOver);
-    this.addEventListener("dragleave", this.#onDragLeave);
-    this.addEventListener("drop", this.#onDrop);
-    this.addEventListener("paste", this.#onPaste);
-    this.#fileInput.addEventListener("change", this.#onFilePicked);
+
+    this.#intake = new ImageIntake({
+      host: this,
+      dropHost: this.#dropHost,
+      fileInput: this.#fileInput,
+      open: (file) => void this.load(file),
+    });
+    this.#unsubscribe.push(this.#intake.attach());
 
     this.#renderChrome();
     this.#syncUI();
@@ -209,10 +214,6 @@ export class PixenImageEditorElement extends ElementBase {
     // Tear down listeners either way; bitmaps are released only on destroy().
     this.removeEventListener("keydown", this.#onKeyDown);
     this.removeEventListener("pointerdown", this.#onPointerDownFocus, true);
-    this.removeEventListener("dragover", this.#onDragOver);
-    this.removeEventListener("dragleave", this.#onDragLeave);
-    this.removeEventListener("drop", this.#onDrop);
-    this.removeEventListener("paste", this.#onPaste);
     this.#plugins.dispose();
     this.#viewport?.destroy();
     this.#viewport = null;
@@ -477,7 +478,7 @@ export class PixenImageEditorElement extends ElementBase {
     export: () => void this.export().catch(() => undefined),
     zoomBy: (factor) => this.#viewport?.zoomBy(factor),
     zoomToFit: () => this.zoomToFit(),
-    chooseFile: () => this.#fileInput.click(),
+    chooseFile: () => this.#intake.choose(),
     placeSticker: (sticker) => {
       void this.#stickerPlacer.place(sticker).then(() => this.#actions.selectTool("select"));
     },
@@ -637,7 +638,7 @@ export class PixenImageEditorElement extends ElementBase {
   #onKeyDown = (event: KeyboardEvent): void => {
     if (isTypingTarget(event.target)) return;
 
-    const selected = this.editor.ready ? this.editor.selectedLayer : null;
+    const selected = this.editor.selectedLayer;
     const command = resolveKeyboardAction(event, {
       tools: this.#tools,
       hasSelection: selected !== null,
@@ -646,74 +647,22 @@ export class PixenImageEditorElement extends ElementBase {
     });
     if (!command) return;
     if (command.preventDefault) event.preventDefault();
-
-    const action = command.action;
-    switch (action.kind) {
-      case "undo":
-        this.undo();
-        break;
-      case "redo":
-        this.redo();
-        break;
-      case "delete-selection":
-        if (selected) this.editor.removeLayer(selected.id);
-        break;
-      case "edit-text": {
-        const selected = this.editor.selectedLayer;
-        if (selected?.type === "text") {
-          this.editor.beginTransaction(this.#strings.text);
-          this.#textEditing.open(selected.id);
-        }
-        break;
-      }
-      case "clear-selection":
-        this.editor.select(null);
-        break;
-      case "zoom-to-fit":
-        this.zoomToFit();
-        break;
-      case "nudge": {
-        if (!selected) break;
-        const step = nudgeDistance(this.editor.document.source.width, action.fast);
-        this.editor.moveLayer(selected.id, { x: action.direction.x * step, y: action.direction.y * step });
-        break;
-      }
-      case "select-tool":
-        this.#actions.selectTool(action.tool);
-        break;
-    }
+    runKeyboardAction(command.action, this.#actionPorts);
   };
 
-  #onDragOver = (event: DragEvent): void => {
-    if (!carriesFiles(event.dataTransfer?.types)) return;
-    event.preventDefault();
-    this.#dropHost.hidden = false;
-  };
-
-  #onDragLeave = (event: DragEvent): void => {
-    if (event.relatedTarget && this.contains(event.relatedTarget as Node)) return;
-    this.#dropHost.hidden = true;
-  };
-
-  #onDrop = (event: DragEvent): void => {
-    this.#dropHost.hidden = true;
-    const file = imageFromFiles(event.dataTransfer?.files);
-    if (!file) return;
-    event.preventDefault();
-    void this.load(file);
-  };
-
-  #onPaste = (event: ClipboardEvent): void => {
-    const file = imageFromClipboard(event.clipboardData?.items);
-    if (!file) return;
-    event.preventDefault();
-    void this.load(file);
-  };
-
-  #onFilePicked = (): void => {
-    const file = imageFromFiles(this.#fileInput.files);
-    if (file) void this.load(file);
-    this.#fileInput.value = "";
+  /** What a keyboard action is allowed to reach. */
+  readonly #actionPorts: ActionPorts = {
+    editor: this.editor,
+    undo: () => void this.undo(),
+    redo: () => void this.redo(),
+    zoomToFit: () => this.zoomToFit(),
+    selectTool: (tool) => this.#actions.selectTool(tool),
+    editText: (layer) => {
+      // The transaction is opened by whoever opens the editor, so creating and
+      // typing collapse into one undo step.
+      this.editor.beginTransaction(this.#strings.text);
+      this.#textEditing.open(layer.id);
+    },
   };
 
   #emit(type: string, detail: unknown): void {

@@ -209,6 +209,21 @@ export function rotateLayer(
   return { ...layer, rotation: normaliseAngle(snap > 0 ? Math.round(angle / snap) * snap : angle) };
 }
 
+/**
+ * Radians and degrees.
+ *
+ * The document stores radians because the maths does; a person reading a slider
+ * thinks in degrees. Both sides of that translation live here rather than as a
+ * `180 / Math.PI` in each inspector section that needed one.
+ */
+export function toDegrees(radians: number): number {
+  return (radians * 180) / Math.PI;
+}
+
+export function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
 /** Folds an angle into (-π, π], so a saved rotation never grows without bound. */
 export function normaliseAngle(radians: number): number {
   const turn = Math.PI * 2;

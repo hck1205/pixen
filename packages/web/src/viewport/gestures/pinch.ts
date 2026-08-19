@@ -21,6 +21,6 @@ export function pinchStep(previous: PinchState, current: PinchState): { factor: 
 
 /** Wheel and trackpad zoom. Trackpad pinch arrives as ctrl + wheel. */
 export function wheelZoomFactor(deltaY: number, ctrlKey: boolean): number {
-  const intensity = ctrlKey ? 0.01 : 0.0022;
+  const intensity = ctrlKey ? PINCH_ZOOM_INTENSITY : WHEEL_ZOOM_INTENSITY;
   return Math.exp(-deltaY * intensity);
 }
