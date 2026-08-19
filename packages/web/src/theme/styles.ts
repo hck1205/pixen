@@ -199,13 +199,23 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); }
 
 .inspector {
   display: flex;
+  /* Wraps rather than squashing: the adjust panel carries a dozen controls, and
+     a single row shrank them until the labels overlapped. */
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
   max-inline-size: min(760px, 100%);
-  overflow-x: auto;
+  /* Bounded so a tall panel scrolls inside the chrome instead of growing it
+     past the host, which is what the browser suite checks. */
+  max-block-size: min(38vh, 260px);
+  overflow-y: auto;
   scrollbar-width: thin;
 }
+
+/* Controls keep their own width; the row wraps around them. */
+.inspector > * { flex: 0 0 auto; }
 
 .inspector:empty { display: none; }
 

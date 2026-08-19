@@ -561,6 +561,46 @@ test("fitting keeps the whole image clear of the floating chrome", async ({ page
   expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
 });
 
+test("the image stays clear of the chrome with the adjust panel open", async ({ page }) => {
+  // The adjust panel is the tallest one — nine sliders and nine presets — and it
+  // is the one that would push the inspector over the image if the fit ignored
+  // how tall the chrome actually is.
+  const clear = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { stageSize: { width: number; height: number } };
+      viewport: { stageToScreen(p: { x: number; y: number }): { x: number; y: number } } | null;
+      zoomToFit(): void;
+    };
+    const shadow = element.shadowRoot!;
+    const adjust = shadow.querySelector<HTMLButtonElement>('button[data-panel="adjust"]')!;
+    adjust.click();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    element.zoomToFit();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const stage = element.editor.stageSize;
+    const bottomRight = element.viewport!.stageToScreen({ x: stage.width, y: stage.height });
+    const canvas = shadow.querySelector("canvas")!.getBoundingClientRect();
+    const inspector = shadow.querySelector(".inspector")!.getBoundingClientRect();
+    const host = element.getBoundingClientRect();
+
+    return {
+      imageTop: element.viewport!.stageToScreen({ x: 0, y: 0 }).y,
+      imageBottom: bottomRight.y,
+      inspectorTop: inspector.top - canvas.top,
+      // The panel must stay inside the host however many rows it wrapped to.
+      inspectorOverflow: inspector.bottom - host.bottom,
+      sliders: shadow.querySelectorAll('.inspector input[type="range"]').length,
+    };
+  });
+
+  // Every adjustment is reachable rather than squashed off the end of a row.
+  expect(clear.sliders).toBe(9);
+  expect(clear.inspectorOverflow).toBeLessThanOrEqual(1);
+  expect(clear.imageTop).toBeGreaterThan(0);
+  expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

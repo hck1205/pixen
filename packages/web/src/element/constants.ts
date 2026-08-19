@@ -86,11 +86,6 @@ export const STROKE_WIDTH_RANGE: SliderRange = { min: 0.001, max: 0.02, step: 0.
 export const OPACITY_RANGE: SliderRange = { min: 0, max: 1, step: 0.05 };
 export const ROTATION_RANGE: SliderRange = { min: -180, max: 180, step: 1 };
 
-/** Brightness, contrast and saturation all share one range. */
-export const ADJUSTMENT_RANGE: SliderRange = { min: -1, max: 1, step: 0.01 };
-
-export const NEUTRAL_ADJUSTMENTS = { brightness: 0, contrast: 0, saturation: 0 } as const;
-
 /** Shortcut hints shown on the action buttons. */
 export const UNDO_KEY_SHORTCUTS = "Control+Z Meta+Z";
 export const REDO_KEY_SHORTCUTS = "Control+Shift+Z Meta+Shift+Z";

@@ -1,6 +1,7 @@
 import { PixenError } from "../errors/index.js";
 import { collectAll, err, isErr, ok, type Result } from "../fp/result.js";
 import type { Point, Rect } from "../geometry/types.js";
+import { ADJUSTMENT_RANGES } from "./adjustments.js";
 import { REDACTION_COLOUR } from "./palette.js";
 import {
   DEFAULT_CORNER_RADIUS,
@@ -17,7 +18,15 @@ import {
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_COLOUR,
 } from "./defaults.js";
-import { REDACTION_MODES, type EditorDocument, type EditorLayer, type ImageFormat, type Stroke } from "./types.js";
+import {
+  ADJUSTMENT_KEYS,
+  REDACTION_MODES,
+  type AdjustmentKey,
+  type EditorDocument,
+  type EditorLayer,
+  type ImageFormat,
+  type Stroke,
+} from "./types.js";
 
 export interface ValidationIssue {
   /** JSON path into the document, e.g. `$.layers[2].frame.width`. */
@@ -143,6 +152,17 @@ export const stroke: Validator<Stroke> = (value, path) => {
     width: field("width", finiteNumber),
     dash: field("dash", optional(arrayOf(finiteNumber))) as never,
   });
+};
+
+/**
+ * One validator per adjustment, built from the list rather than written out, so
+ * an adjustment added to the vocabulary is validated without a second edit.
+ * Missing values default to neutral: an older document simply had fewer.
+ */
+const adjustmentFields = Object.fromEntries(
+  ADJUSTMENT_KEYS.map((key) => [key, field(key, withDefault(finiteNumber, ADJUSTMENT_RANGES[key].neutral))]),
+) as {
+  [K in AdjustmentKey]: (source: Record<string, unknown>, path: string) => Result<number, ValidationIssue[]>;
 };
 
 // --- layers ----------------------------------------------------------------
@@ -275,11 +295,7 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
     crop: field("crop", nullable(rect)),
     aspectRatio: field("aspectRatio", nullable(finiteNumber)),
     adjustments: () =>
-      shape<EditorDocument["adjustments"]>(nested("adjustments"), "$.adjustments", {
-        brightness: field("brightness", withDefault(finiteNumber, 0)),
-        contrast: field("contrast", withDefault(finiteNumber, 0)),
-        saturation: field("saturation", withDefault(finiteNumber, 0)),
-      }),
+      shape<EditorDocument["adjustments"]>(nested("adjustments"), "$.adjustments", adjustmentFields),
     layers: field("layers", withDefault(arrayOf(layer), [])),
     output: () =>
       shape<EditorDocument["output"]>(nested("output"), "$.output", {

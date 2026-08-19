@@ -4,6 +4,7 @@ import {
   clampZoom,
   COMPACT_INSETS,
   COMPACT_MAX_HEIGHT,
+  insetsFromChrome,
   COMPACT_MAX_WIDTH,
   fitView,
   insetsFor,
@@ -105,5 +106,47 @@ describe("fitView", () => {
     expect(huge.zoom).toBeLessThanOrEqual(MAX_ZOOM);
     const tiny = fitView({ width: 100000, height: 100000 }, { width: 300, height: 300 });
     expect(tiny.zoom).toBeGreaterThanOrEqual(MIN_ZOOM);
+  });
+});
+
+describe("insetsFromChrome", () => {
+  const host = { left: 0, top: 0, right: 1000, bottom: 600 };
+
+  it("charges a bottom-docked panel to the bottom", () => {
+    const inspector = { left: 200, top: 520, right: 800, bottom: 580 };
+    const insets = insetsFromChrome(host, [inspector], 10);
+    expect(insets.bottom).toBe(90);
+    expect(insets.top).toBe(0);
+    expect(insets.left).toBe(0);
+  });
+
+  it("reserves more as a panel wraps onto more rows", () => {
+    const oneRow = insetsFromChrome(host, [{ left: 200, top: 520, right: 800, bottom: 580 }], 10);
+    const threeRows = insetsFromChrome(host, [{ left: 200, top: 400, right: 800, bottom: 580 }], 10);
+    expect(threeRows.bottom).toBeGreaterThan(oneRow.bottom);
+  });
+
+  it("charges a left rail to the left and a top cluster to the top", () => {
+    const rail = { left: 10, top: 200, right: 60, bottom: 400 };
+    const actions = { left: 700, top: 12, right: 980, bottom: 60 };
+    const insets = insetsFromChrome(host, [rail, actions], 10);
+    expect(insets.left).toBe(70);
+    expect(insets.top).toBe(70);
+  });
+
+  it("keeps the deepest intrusion when two pieces share an edge", () => {
+    const shallow = { left: 0, top: 540, right: 300, bottom: 580 };
+    const deep = { left: 400, top: 460, right: 900, bottom: 580 };
+    expect(insetsFromChrome(host, [shallow, deep], 0).bottom).toBe(140);
+  });
+
+  it("ignores chrome that is not showing", () => {
+    const hidden = { left: 0, top: 0, right: 0, bottom: 0 };
+    expect(insetsFromChrome(host, [hidden, null, undefined])).toEqual({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    });
   });
 });

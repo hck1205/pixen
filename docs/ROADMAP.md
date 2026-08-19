@@ -37,7 +37,10 @@ unit tests and a browser suite driving the real bundle.
 
 ## Phase 3 — Pro
 
-- [ ] Filters and presets beyond brightness / contrast / saturation
+- [x] Filters and presets beyond brightness / contrast / saturation
+      (exposure, hue, grayscale, sepia, invert, vignette, nine presets)
+- [ ] Adjustments needing a per-pixel pass — gamma, white balance — which wait
+      for a GPU renderer
 - [x] Blur and pixelate redaction modes
 - [x] Image watermarks: corner, edge, centre or tiled, with opacity
 - [ ] Text watermarks (a text layer plus the same placement maths)

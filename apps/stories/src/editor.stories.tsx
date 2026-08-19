@@ -1,5 +1,13 @@
 import { useRef, useState } from "react";
-import { REDACTION_MODES, type RedactionMode, type WatermarkPosition } from "@pixen/core";
+import {
+  ADJUSTMENT_KEYS,
+  ADJUSTMENT_PRESETS,
+  ADJUSTMENT_RANGES,
+  presetAdjustments,
+  REDACTION_MODES,
+  type RedactionMode,
+  type WatermarkPosition,
+} from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Story, StoryDefault } from "@ladle/react";
 import { createTransparentSample, seedAnnotations, seedRedaction, seedWatermark } from "./fixtures.js";
@@ -260,36 +268,74 @@ Watermark.argTypes = {
 };
 
 /** Colour adjustment, driven from the story so the sliders can be compared. */
-export const Adjustments: Story<{ brightness: number; contrast: number; saturation: number }> = ({
-  brightness,
-  contrast,
-  saturation,
-}) => {
+export const Adjustments: Story<{
+  exposure: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  hue: number;
+  grayscale: number;
+  sepia: number;
+  invert: number;
+  vignette: number;
+}> = (values) => {
   const image = useSampleImage();
   const editor = useRef<PixenImageEditorHandle>(null);
 
-  const apply = () => {
-    editor.current?.editor?.setAdjustments({ brightness, contrast, saturation });
-  };
+  const apply = () => editor.current?.editor?.setAdjustments(values);
 
   return (
     <Stage
       title="Adjustments"
       note="Applied through the same command the inspector uses; the preview and the export share one code path."
     >
-      <PixenImageEditor ref={editor} src={image} onLoad={apply} onChange={undefined} style={{ height: "100%" }} />
+      <PixenImageEditor ref={editor} src={image} onLoad={apply} style={{ height: "100%" }} />
       <button type="button" onClick={apply} style={{ marginTop: 8 }}>
-        Apply {brightness} / {contrast} / {saturation}
+        Apply
       </button>
     </Stage>
   );
 };
 
-Adjustments.args = { brightness: 0.15, contrast: 0.25, saturation: -0.4 };
-Adjustments.argTypes = {
-  brightness: { control: { type: "range", min: -1, max: 1, step: 0.05 } },
-  contrast: { control: { type: "range", min: -1, max: 1, step: 0.05 } },
-  saturation: { control: { type: "range", min: -1, max: 1, step: 0.05 } },
+Adjustments.args = {
+  exposure: 0,
+  brightness: 0.15,
+  contrast: 0.25,
+  saturation: -0.4,
+  hue: 0,
+  grayscale: 0,
+  sepia: 0,
+  invert: 0,
+  vignette: 0,
+};
+
+Adjustments.argTypes = Object.fromEntries(
+  ADJUSTMENT_KEYS.map((key) => [
+    key,
+    { control: { type: "range", ...ADJUSTMENT_RANGES[key] } },
+  ]),
+);
+
+/**
+ * Every preset on one page.
+ *
+ * A preset writes ordinary adjustment values, so what this really shows is nine
+ * documents that differ only in numbers — and any of them can be nudged after.
+ */
+export const Presets: Story = () => {
+  const image = useSampleImage();
+  return (
+    <Row columns={3}>
+      {ADJUSTMENT_PRESETS.map((preset) => (
+        <Stage key={preset.id} height={300} title={preset.label}>
+          <SeededEditor
+            image={image}
+            seed={(instance) => instance.setAdjustments(presetAdjustments(preset))}
+          />
+        </Stage>
+      ))}
+    </Row>
+  );
 };
 
 /** Aspect ratio sets, including a host-supplied list with custom labels. */

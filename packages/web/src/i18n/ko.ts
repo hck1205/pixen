@@ -46,4 +46,11 @@ export const ko: PixenStrings = {
   redactStrength: "강도",
   opacity: "불투명도",
   rotation: "회전",
+  exposure: "노출",
+  hue: "색조",
+  grayscale: "흑백",
+  sepia: "세피아",
+  invert: "반전",
+  vignette: "비네트",
+  presets: "프리셋",
 };

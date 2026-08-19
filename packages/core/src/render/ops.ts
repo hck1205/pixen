@@ -71,6 +71,13 @@ export type DrawOp =
     }
   | { op: "clear"; width: number; height: number }
   | { op: "fill-viewport"; color: string; width: number; height: number }
+  | {
+      /** A soft darkening towards the corners, drawn over the image. */
+      op: "vignette";
+      rect: Rect;
+      /** 0 leaves the image alone; 1 is the strongest fall-off offered. */
+      strength: number;
+    }
   | { op: "filter"; value: string }
   | { op: "transform"; matrix: Matrix }
   | { op: "alpha"; value: number }
@@ -406,15 +413,6 @@ function layerBodyOps(node: SceneLayerNode, measure: TextMeasurer, imageLongestE
 
 // --- scene -----------------------------------------------------------------
 
-/** Recovers adjustment values from a scene's filter string for the pixel path. */
-export function adjustmentsFromFilter(filter: string): Adjustments {
-  const read = (name: string): number => {
-    const match = new RegExp(`${name}\\(([-0-9.]+)\\)`).exec(filter);
-    return match?.[1] ? Number(match[1]) - 1 : 0;
-  };
-  return { brightness: read("brightness"), contrast: read("contrast"), saturation: read("saturate") };
-}
-
 /**
  * The whole frame as a list of operations, in draw order.
  *
@@ -450,9 +448,19 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   if (!useFilter && scene.filter !== "") {
     ops.push({
       op: "adjust-pixels",
-      adjustments: adjustmentsFromFilter(scene.filter),
+      adjustments: scene.adjustments,
       width: scene.target.width,
       height: scene.target.height,
+    });
+  }
+
+  if (scene.adjustments.vignette > 0) {
+    // Over the image and under the annotations: the vignette is part of the
+    // picture, and an arrow drawn on top should not be dimmed by it.
+    ops.push({
+      op: "vignette",
+      rect: { x: 0, y: 0, width: scene.target.width, height: scene.target.height },
+      strength: scene.adjustments.vignette,
     });
   }
 

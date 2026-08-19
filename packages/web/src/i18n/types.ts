@@ -44,4 +44,11 @@ export interface PixenStrings {
   redactStrength: string;
   opacity: string;
   rotation: string;
+  exposure: string;
+  hue: string;
+  grayscale: string;
+  sepia: string;
+  invert: string;
+  vignette: string;
+  presets: string;
 }

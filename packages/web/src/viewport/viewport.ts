@@ -42,7 +42,7 @@ import {
   SELECTION_CORNERS,
 } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
-import { clampZoom, fitView, MAX_ZOOM, MIN_ZOOM } from "./view.js";
+import { clampZoom, fitView, insetsFor, insetsFromChrome, MAX_ZOOM, MIN_ZOOM, type EdgeBox } from "./view.js";
 
 export interface ViewportCallbacks {
   /** Fired when the chrome has to be rebuilt: tool, selection, gesture end. */
@@ -51,6 +51,14 @@ export interface ViewportCallbacks {
   onViewChange?: () => void;
   /** Fired after a text layer is created, so the host can focus its editor. */
   onTextCreated?: (layerId: string) => void;
+  /**
+   * The chrome as it currently measures, for fitting.
+   *
+   * Supplied by whoever owns the chrome, because the viewport owns only the
+   * canvas — and because a panel that has wrapped onto three rows is a fact
+   * about the DOM, not something a constant can know.
+   */
+  measureChrome?: () => { host: EdgeBox; chrome: EdgeBox[] } | null;
 }
 
 /**
@@ -142,7 +150,10 @@ export class Viewport {
   /** Frames the whole stage inside the area the floating chrome leaves free. */
   fit(): void {
     if (!this.#editor.ready) return;
-    const fitted = fitView(this.#editor.stageSize, this.#cssSize());
+    const size = this.#cssSize();
+    const measured = this.#callbacks.measureChrome?.();
+    const insets = measured ? insetsFromChrome(measured.host, measured.chrome) : insetsFor(size);
+    const fitted = fitView(this.#editor.stageSize, size, insets);
     this.#zoom = fitted.zoom;
     this.#pan = fitted.pan;
     this.#autoFit = true;

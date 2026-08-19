@@ -2,7 +2,8 @@ import { applyToPoint, toArray } from "../geometry/matrix.js";
 import { IDENTITY } from "../geometry/matrix.js";
 import type { Matrix, Rect } from "../geometry/types.js";
 import { createSurface, releaseSurface, type Canvas2D } from "../image/canvas.js";
-import { applyAdjustmentsToImageData, hasAdjustments, supportsContextFilter } from "./adjustments.js";
+import { hasAdjustments } from "../model/adjustments.js";
+import { applyAdjustmentsToImageData, supportsContextFilter } from "./adjustments.js";
 import { buildSceneOps, type BuildOptions, type DrawOp, type PathCommand, type TextMeasurer } from "./ops.js";
 import type { Scene } from "./scene.js";
 
@@ -62,6 +63,9 @@ export function executeOps(context: Canvas2D, ops: readonly DrawOp[]): void {
       case "fill-viewport":
         context.fillStyle = op.color;
         context.fillRect(0, 0, op.width, op.height);
+        break;
+      case "vignette":
+        drawVignette(context, op);
         break;
       case "filter":
         context.filter = op.value;
@@ -325,6 +329,42 @@ function drawText(context: Canvas2D, op: Extract<DrawOp, { op: "text" }>): void 
   op.lines.forEach((line, index) => {
     context.fillText(line, op.origin.x, op.origin.y + index * op.lineHeight);
   });
+}
+
+/**
+ * How far in from the corner the darkening starts, and how dark it gets at the
+ * very edge at full strength.
+ */
+const VIGNETTE_INNER_STOP = 0.45;
+const VIGNETTE_MAX_ALPHA = 0.85;
+
+/**
+ * A radial fall-off towards the corners.
+ *
+ * Drawn rather than filtered: CSS filters have nothing that shades by position,
+ * and a gradient fill costs one paint instead of a pass over every pixel.
+ */
+function drawVignette(context: Canvas2D, op: Extract<DrawOp, { op: "vignette" }>): void {
+  const { rect, strength } = op;
+  if (strength <= 0 || rect.width <= 0 || rect.height <= 0) return;
+
+  const centreX = rect.x + rect.width / 2;
+  const centreY = rect.y + rect.height / 2;
+  // The gradient is circular, so it is drawn on a squared-up canvas and scaled
+  // back to the rect — otherwise a wide image gets an oval.
+  const radius = Math.max(rect.width, rect.height) / 2;
+
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.translate(centreX, centreY);
+  context.scale(rect.width / (radius * 2), rect.height / (radius * 2));
+
+  const gradient = context.createRadialGradient(0, 0, radius * VIGNETTE_INNER_STOP, 0, 0, radius * Math.SQRT2);
+  gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+  gradient.addColorStop(1, `rgba(0, 0, 0, ${(strength * VIGNETTE_MAX_ALPHA).toFixed(3)})`);
+  context.fillStyle = gradient;
+  context.fillRect(-radius * 2, -radius * 2, radius * 4, radius * 4);
+  context.restore();
 }
 
 function adjustPixels(context: Canvas2D, op: Extract<DrawOp, { op: "adjust-pixels" }>): void {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_ADJUSTMENTS,
   createDocument,
   deserializeDocument,
   documentToJSON,
@@ -61,7 +62,7 @@ describe("serialisation", () => {
       schemaVersion: 1,
       source: { resourceId: "res_1", width: 100, height: 100 },
     });
-    expect(restored.adjustments).toEqual({ brightness: 0, contrast: 0, saturation: 0 });
+    expect(restored.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
     expect(restored.layers).toEqual([]);
     expect(restored.output.quality).toBe(0.85);
   });
@@ -114,6 +115,23 @@ describe("migrations", () => {
     });
     expect(migrated.crop).toEqual({ x: 1, y: 2, width: 3, height: 4 });
     expect(migrated.meta).toEqual({ keep: true });
+  });
+
+  it("fills the adjustments a v2 document did not have, keeping the ones it did", () => {
+    const migrated = migrateDocument({
+      schemaVersion: 2,
+      source: { resourceId: "res_1", width: 10, height: 10 },
+      adjustments: { brightness: 0.4, contrast: 0, saturation: 0 },
+    });
+    expect(migrated.adjustments).toEqual({ ...DEFAULT_ADJUSTMENTS, brightness: 0.4 });
+  });
+
+  it("gives a v1 document the whole neutral adjustment set on the way through", () => {
+    const migrated = migrateDocument({
+      schemaVersion: 1,
+      source: { resourceId: "res_1", width: 10, height: 10 },
+    });
+    expect(migrated.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
   });
 
   it("accepts a document already at the current version", () => {

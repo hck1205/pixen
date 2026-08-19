@@ -43,7 +43,9 @@ was supplied to an AI tool as input at any point.
 | `image/decode.ts` | Decode from blob/URL/bitmap, EXIF normalisation | MDN/WHATWG: `createImageBitmap`, `fetch`, `HTMLImageElement` |
 | `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
 | `render/scene.ts` | Document → draw list projection | Original design for this project |
-| `render/adjustments.ts` | Brightness / contrast / saturation, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix in that specification |
+| `render/presets.ts` | Nine named looks | Values chosen here by eye against this project's own sample image |
+| `render/canvas2d.ts` vignette | Corner fall-off | A radial gradient fill; first principles |
+| `render/adjustments.ts` | The adjustment chain, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix, the `sepia` colour matrix, and the luminance-preserving `hue-rotate` matrix, all written out from that specification |
 | `render/ops.ts` | Scene to draw-operation list: paths, arrow heads, text layout | Greedy line breaking; quadratic midpoint smoothing for free-draw; arrow heads from trigonometry |
 | `render/canvas2d.ts` | Executes a draw-operation list | Canvas2D API. Redaction: `ctx.filter = blur(...)` is the W3C **Filter Effects Module Level 1** `blur()` function as exposed on the canvas context; pixelation is a downscale-then-upscale with `imageSmoothingEnabled = false`, which is what nearest-neighbour resampling means |
 | `export/watermark.ts` | Placing a watermark image in one of nine positions | First principles: a fraction of the longest edge, inset by a margin |

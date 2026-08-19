@@ -28,13 +28,13 @@ export const LAYER_HANDLES: readonly LayerHandle[] = [
 ];
 
 /** Smallest extent a resize may leave, in image pixels. */
-export const DEFAULT_MIN_LAYER_SIZE = 4;
+const DEFAULT_MIN_LAYER_SIZE = 4;
 
 /**
  * How far the rotate handle sits above the top edge, as a fraction of the
  * bounds' longest edge — so it stays clear of a flat line as well as a square.
  */
-export const ROTATE_HANDLE_OFFSET_RATIO = 0.2;
+const ROTATE_HANDLE_OFFSET_RATIO = 0.2;
 
 /** Rotation snap while a modifier is held. */
 export const ROTATION_SNAP = Math.PI / 12;

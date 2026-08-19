@@ -10,8 +10,10 @@ import { clampInside, constrainRect, transformBounds } from "../geometry/rect.js
 import { imageToStage } from "../geometry/spaces.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { effectiveCrop, stageRect } from "../model/document.js";
+import { clampAdjustments } from "../model/adjustments.js";
 import { layerBounds, translateLayer } from "../model/layers.js";
 import { resizeLayer, rotateLayer, type LayerHandle } from "../model/transform.js";
+import { DEFAULT_ADJUSTMENTS } from "../model/types.js";
 import type {
   Adjustments,
   DocumentTransform,
@@ -123,7 +125,9 @@ export function setAspectRatio(document: EditorDocument, aspectRatio: number | n
 }
 
 export function setAdjustments(document: EditorDocument, adjustments: Partial<Adjustments>): EditorDocument {
-  return { ...document, adjustments: { ...document.adjustments, ...adjustments } };
+  // Clamped on the way in: a host value outside the range would otherwise reach
+  // the filter string and the exported pixels.
+  return { ...document, adjustments: clampAdjustments({ ...document.adjustments, ...adjustments }) };
 }
 
 export function setOutput(document: EditorDocument, output: Partial<OutputSettings>): EditorDocument {
@@ -210,7 +214,7 @@ export function resetEdits(document: EditorDocument): EditorDocument {
     transform: { rotation: 0, flipX: false, flipY: false },
     crop: null,
     aspectRatio: null,
-    adjustments: { brightness: 0, contrast: 0, saturation: 0 },
+    adjustments: { ...DEFAULT_ADJUSTMENTS },
     layers: [],
     output: { ...document.output, width: null, height: null },
   };
