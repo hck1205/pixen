@@ -7,7 +7,6 @@ import {
   formatLabel,
   isResized,
   linkTogglePatch,
-  qualityApplies,
   ratioLinked,
   resizePatch,
 } from "../src/element/chrome/inspector/output-settings.js";
@@ -80,12 +79,6 @@ describe("formats", () => {
   it("names them the way the world does", () => {
     expect(formatLabel("image/jpeg")).toBe("JPEG");
     expect(formatLabel("image/webp")).toBe("WebP");
-  });
-
-  it("offers quality only where the encoder throws information away", () => {
-    expect(qualityApplies("image/jpeg")).toBe(true);
-    expect(qualityApplies("image/webp")).toBe(true);
-    expect(qualityApplies("image/png")).toBe(false);
   });
 
   it("needs a background exactly where there is no alpha channel", () => {

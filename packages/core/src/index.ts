@@ -10,7 +10,7 @@ export * from "./errors/index.js";
 export * from "./fp/index.js";
 export * from "./geometry/index.js";
 export * from "./model/index.js";
-export * as validators from "./model/validate.js";
+export * as validators from "./model/validate/index.js";
 export * from "./resources/index.js";
 export * from "./image/index.js";
 export * from "./render/index.js";

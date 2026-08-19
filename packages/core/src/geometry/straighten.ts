@@ -1,3 +1,4 @@
+import { QUARTER_TURN } from "./angles.js";
 import { applyToPoint } from "./matrix.js";
 import { corners } from "./rect.js";
 import type { Matrix, Rect, Size } from "./types.js";
@@ -13,8 +14,6 @@ import type { Matrix, Rect, Size } from "./types.js";
 
 /** Beyond 45° a straighten is a quarter turn plus a smaller straighten. */
 export const MAX_STRAIGHTEN = Math.PI / 4;
-
-const QUARTER_TURN = Math.PI / 2;
 
 /** How many quarter turns a rotation is nearest to. */
 export function nearestQuarterTurns(rotation: number): number {

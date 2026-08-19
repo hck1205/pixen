@@ -1,4 +1,5 @@
 export * from "./types.js";
+export * from "./angles.js";
 export * from "./matrix.js";
 export * from "./rect.js";
 export * from "./spaces.js";

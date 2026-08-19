@@ -1,3 +1,4 @@
+import { QUARTER_TURN } from "../geometry/angles.js";
 import type { Size } from "../geometry/types.js";
 
 /** TIFF orientation values as stored in EXIF tag 0x0112. */
@@ -71,7 +72,6 @@ function readOrientationFromTiff(view: DataView, tiffStart: number, end: number)
 
 /** The transform that brings an image stored with `orientation` upright. */
 export function orientationTransform(orientation: ExifOrientation): OrientationTransform {
-  const quarter = Math.PI / 2;
   switch (orientation) {
     case 1:
       return { rotation: 0, flipX: false, flipY: false };
@@ -82,13 +82,13 @@ export function orientationTransform(orientation: ExifOrientation): OrientationT
     case 4:
       return { rotation: 0, flipX: false, flipY: true };
     case 5:
-      return { rotation: quarter, flipX: true, flipY: false };
+      return { rotation: QUARTER_TURN, flipX: true, flipY: false };
     case 6:
-      return { rotation: quarter, flipX: false, flipY: false };
+      return { rotation: QUARTER_TURN, flipX: false, flipY: false };
     case 7:
-      return { rotation: -quarter, flipX: true, flipY: false };
+      return { rotation: -QUARTER_TURN, flipX: true, flipY: false };
     case 8:
-      return { rotation: -quarter, flipX: false, flipY: false };
+      return { rotation: -QUARTER_TURN, flipX: false, flipY: false };
   }
 }
 

@@ -3,7 +3,7 @@ import type { Size } from "../geometry/types.js";
 import { assertDrawableSize, createSurface, releaseSurface, type CanvasSurface } from "../image/canvas.js";
 import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTransparency } from "../image/encode.js";
 import { outputSize as documentOutputSize } from "../model/document.js";
-import type { EditorDocument, ImageFormat } from "../model/types.js";
+import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../model/types.js";
 import { createScene } from "../render/scene.js";
 import { renderScene } from "../render/canvas2d/index.js";
 import type { ResourceManager } from "../resources/manager.js";
@@ -38,7 +38,6 @@ export interface ExportResult {
 }
 
 const DEFAULT_FORMAT: ImageFormat = "image/png";
-const KNOWN_FORMATS: readonly string[] = ["image/jpeg", "image/png", "image/webp"];
 
 /**
  * The format an export will actually use.
@@ -51,7 +50,7 @@ export function resolveOutputFormat(document: EditorDocument, requested?: ImageF
   if (requested) return requested;
   if (document.output.format) return document.output.format;
   const sourceType = document.source.mimeType;
-  if (sourceType && KNOWN_FORMATS.includes(sourceType)) return sourceType as ImageFormat;
+  if (sourceType && (IMAGE_FORMATS as readonly string[]).includes(sourceType)) return sourceType as ImageFormat;
   return DEFAULT_FORMAT;
 }
 

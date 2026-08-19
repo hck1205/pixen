@@ -5,6 +5,7 @@ import {
   resizeCrop,
   type CropHandle,
 } from "../geometry/crop.js";
+import { QUARTER_TURN, positiveAngle } from "../geometry/angles.js";
 import { compose, invert } from "../geometry/matrix.js";
 import { center, clampInside, constrainRect, transformBounds } from "../geometry/rect.js";
 import {
@@ -38,14 +39,6 @@ import type {
  * The engine, the headless API and the tests all call the same functions, so
  * "what does rotate do to a crop" has exactly one answer in the codebase.
  */
-
-const QUARTER_TURN = Math.PI / 2;
-
-function normaliseRotation(radians: number): number {
-  const full = Math.PI * 2;
-  const value = radians % full;
-  return value < 0 ? value + full : value;
-}
 
 /**
  * Re-expresses the crop rect after the source transform changes.
@@ -83,7 +76,7 @@ function rotateAspectRatio(document: EditorDocument, nextTransform: DocumentTran
 }
 
 export function setTransform(document: EditorDocument, transform: DocumentTransform): EditorDocument {
-  const next: DocumentTransform = { ...transform, rotation: normaliseRotation(transform.rotation) };
+  const next: DocumentTransform = { ...transform, rotation: positiveAngle(transform.rotation) };
   const { crop, aspectRatio } = remapCrop(document, next);
   return { ...document, transform: next, crop, aspectRatio };
 }

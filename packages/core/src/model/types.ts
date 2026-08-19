@@ -3,7 +3,14 @@ import { DEFAULT_QUALITY } from "./defaults.js";
 
 export const SCHEMA_VERSION = 4;
 
-export type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
+/**
+ * Every format Pixen encodes, as the list rather than as a union — the same
+ * pattern as `FRAME_STYLES` and `REDACTION_MODES`, so a picker, a validator and
+ * a format probe can all be built from it instead of restating it.
+ */
+export const IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export type ImageFormat = (typeof IMAGE_FORMATS)[number];
 
 export interface Stroke {
   color: string;

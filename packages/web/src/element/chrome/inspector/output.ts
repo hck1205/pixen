@@ -1,4 +1,4 @@
-import { resolveOutputFormat, type ImageFormat } from "@pixen/core";
+import { isLossy, resolveOutputFormat, type ImageFormat } from "@pixen/core";
 import { button, field, input } from "../../dom/index.js";
 import { OUTPUT_QUALITY_RANGE } from "../../constants.js";
 import type { ChromeContext } from "../context.js";
@@ -10,7 +10,6 @@ import {
   formatLabel,
   isResized,
   linkTogglePatch,
-  qualityApplies,
   ratioLinked,
   resizePatch,
   type SizeEdge,
@@ -52,7 +51,8 @@ export function buildOutputControls(context: ChromeContext): Node[] {
     ...OUTPUT_FORMATS.map((option) => formatButton(context, option, format)),
   ];
 
-  if (qualityApplies(format)) {
+  // Quality is only a question for an encoder that throws information away.
+  if (isLossy(format)) {
     nodes.push(
       field(
         strings.quality,
