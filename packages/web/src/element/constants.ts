@@ -17,7 +17,21 @@ export const OBSERVED_ATTRIBUTES = ["src", "theme", "locale", "format", "quality
 export type ObservedAttribute = (typeof OBSERVED_ATTRIBUTES)[number];
 
 /** The inspector shows one of these at a time. */
-export type PanelId = "tool" | "adjust";
+export type PanelId = "tool" | "adjust" | "layers" | "output";
+
+/**
+ * What a panel is called when it opens.
+ *
+ * The tool panel has no name of its own — it is whichever tool is armed — so it
+ * is announced by the tool instead, which is why this is nullable rather than a
+ * string everywhere.
+ */
+export const PANEL_LABEL_KEYS: Record<PanelId, keyof PixenStrings | null> = {
+  tool: null,
+  adjust: "adjustments",
+  layers: "layers",
+  output: "output",
+};
 
 export interface AspectRatioOption {
   label: string;
@@ -83,9 +97,18 @@ export interface SliderRange {
 /** Stroke width, as a fraction of the image's longest edge. */
 export const STROKE_WIDTH_RANGE: SliderRange = { min: 0.001, max: 0.02, step: 0.001 };
 
+/** Corner rounding, as a fraction of a rectangle's shorter side. */
+export const CORNER_RATIO_RANGE: SliderRange = { min: 0, max: 0.5, step: 0.01 };
+
+/** Type size, as a fraction of the image's longest edge. */
+export const FONT_RATIO_RANGE: SliderRange = { min: 0.01, max: 0.15, step: 0.005 };
+
 /** Layer opacity, and rotation in degrees — the inspector's two layer sliders. */
 export const OPACITY_RANGE: SliderRange = { min: 0, max: 1, step: 0.05 };
 export const ROTATION_RANGE: SliderRange = { min: -180, max: 180, step: 1 };
+
+/** Encoder quality, for the formats that have one. */
+export const OUTPUT_QUALITY_RANGE: SliderRange = { min: 0.3, max: 1, step: 0.01 };
 
 /** Straighten, in degrees. The engine clamps to the same ±45°. */
 export const STRAIGHTEN_RANGE: SliderRange = { min: -45, max: 45, step: 0.5 };

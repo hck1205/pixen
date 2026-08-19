@@ -9,6 +9,7 @@ import {
   ADJUSTMENT_RANGES,
   FRAME_STYLES,
   presetAdjustments,
+  WATERMARK_POSITIONS,
   type WatermarkPosition,
 } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
@@ -18,20 +19,6 @@ import {
 } from "./fixtures.js";
 import { Row, SeededEditor, Stage, useSampleImage } from "./harness.js";
 import type { Story, StoryDefault } from "@ladle/react";
-
-/** Every placement the watermark helper accepts, in reading order. */
-const WATERMARK_POSITIONS: WatermarkPosition[] = [
-  "top-left",
-  "top",
-  "top-right",
-  "left",
-  "centre",
-  "right",
-  "bottom-left",
-  "bottom",
-  "bottom-right",
-  "tile",
-];
 
 /**
  * One title across every story file, so the ids stay `editor--<story>` however

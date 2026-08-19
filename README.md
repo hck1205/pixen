@@ -265,6 +265,38 @@ Holding shift locks the layer's own aspect ratio while resizing, and snaps
 rotation to 15°. The inspector carries the same two values as sliders, for when
 an exact angle matters more than a drag.
 
+## Layers, and what comes out
+
+Everything drawn on the image is a layer, and the layer panel is the list of
+them — topmost first, which is the opposite of the order they are painted in.
+A row selects, hides, locks, moves forward or back, and deletes; a locked layer
+keeps its place but stops responding to the pointer, so a finished annotation
+cannot be nudged by accident.
+
+The output panel is the other half: the size the export will be, the format,
+the quality where the encoder has one, and the colour painted behind a
+transparent picture. Linking the ratio stores one side and lets the document
+scale the other, so a linked field cannot drift a pixel each time it is typed
+into. All of it is document state, so all of it undoes.
+
+One edit is often more than one file. `exportVariants` plans the sizes before
+anything is rendered, drops any two specs that would land on the same file, and
+hands back a `srcset`:
+
+```js
+import { srcset } from "@pixen/core";
+
+const variants = await editor.exportVariants(
+  [{ width: 1200 }, { width: 800 }, { width: 400 }, { width: 200, label: "thumb" }],
+  { format: "image/webp" },
+);
+
+const value = srcset(variants.map((variant) => ({
+  url: URL.createObjectURL(variant.blob),
+  width: variant.width,
+})));
+```
+
 ## Policies
 
 A policy is a named set of output rules — the thing most teams actually want
@@ -323,7 +355,9 @@ enforces it on every test run and in CI.
 - [Provenance](docs/PROVENANCE.md) — where every non-obvious algorithm comes from
 - [Contributing](CONTRIBUTING.md) — the clean-room and dependency rules
 - **Stories** (`pnpm stories`) — every UI state on one page: themes, tools,
-  policies, locales, slots, tokens, and the compact layouts
+  policies, locales, slots, tokens, and the compact layouts. The *Coverage*
+  story is the feature list: every capability, what it is today, and the suite
+  that fails if it stops working
 - [Legal checklist](docs/LEGAL-CHECKLIST.md) — pre-release review list, with the
   latest independence audit
 

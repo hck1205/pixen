@@ -43,6 +43,7 @@ import {
   ZOOM_STEP,
   type AspectRatioOption,
   type ObservedAttribute,
+  PANEL_LABEL_KEYS,
   type PanelId,
 } from "./constants.js";
 import { PluginRegistry, type PixenPlugin } from "../plugins/index.js";
@@ -331,6 +332,23 @@ export class PixenImageEditorElement extends ElementBase {
     if (this.#viewport) this.#viewport.tool = value;
   }
 
+  /**
+   * Which inspector panel is open.
+   *
+   * Settable because a host knows things the editor does not — an application
+   * that has just dropped in six annotations can open the layer list, and one
+   * that exists to resize can open the output panel and leave it there.
+   */
+  get panel(): PanelId {
+    return this.#panel;
+  }
+
+  set panel(value: PanelId) {
+    if (this.#panel === value) return;
+    this.#panel = value;
+    this.#syncUI();
+  }
+
   /** The current document. Assigning restores a saved session. */
   get document(): EditorDocument | null {
     return this.editor.ready ? this.editor.toJSON() : null;
@@ -447,8 +465,7 @@ export class PixenImageEditorElement extends ElementBase {
     },
     togglePanel: (panel) => {
       this.#panel = this.#panel === panel ? "tool" : panel;
-      const toolKey = TOOL_META[this.tool]?.key ?? "crop";
-      this.#announce(this.#panel === "adjust" ? this.#strings.adjustments : this.#strings[toolKey]);
+      this.#announce(this.#panelLabel());
       this.#syncUI();
     },
     setAnnotationStyle: (patch) => {
@@ -484,6 +501,12 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   /** State that changes with the document: pressed, disabled, and the inspector. */
+  /** What the panel that just opened is called; the tool panel is its tool. */
+  #panelLabel(): string {
+    const key = PANEL_LABEL_KEYS[this.#panel] ?? TOOL_META[this.tool]?.key ?? "crop";
+    return this.#strings[key];
+  }
+
   #syncUI(): void {
     if (!this.#railHost) return;
     const context = this.#context();

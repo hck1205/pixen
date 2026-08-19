@@ -21,7 +21,14 @@ export function shapeLayerFor(tool: ShapeTool, origin: Point, context: GestureCo
 
   switch (tool) {
     case "rect":
-      return createRectLayer(frame, { id: context.createId("rect"), stroke, fill: null });
+      return createRectLayer(frame, {
+        id: context.createId("rect"),
+        stroke,
+        fill: context.style.fill,
+        // Zero until the drag gives the rectangle a size; `frameFrom` grows it,
+        // and the radius follows in `moveGesture`.
+        cornerRadius: 0,
+      });
     case "redact":
       return createRedactLayer(frame, {
         id: context.createId("redact"),
@@ -29,9 +36,14 @@ export function shapeLayerFor(tool: ShapeTool, origin: Point, context: GestureCo
         strength: context.style.redactionStrength,
       });
     case "ellipse":
-      return createEllipseLayer(frame, { id: context.createId("ellipse"), stroke, fill: null });
+      return createEllipseLayer(frame, { id: context.createId("ellipse"), stroke, fill: context.style.fill });
     case "arrow":
-      return createArrowLayer(origin, origin, { id: context.createId("line"), stroke });
+      return createArrowLayer(origin, origin, {
+        id: context.createId("line"),
+        stroke,
+        arrowStart: context.style.arrowStart,
+        arrowEnd: context.style.arrowEnd,
+      });
   }
 }
 

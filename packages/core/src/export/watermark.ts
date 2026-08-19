@@ -11,17 +11,25 @@ import type { ImageLayer, TextLayer } from "../model/types.js";
  * exports and survives a rotate exactly like every other layer, and leaves this
  * module with nothing but the arithmetic of where it goes.
  */
-export type WatermarkPosition =
-  | "top-left"
-  | "top"
-  | "top-right"
-  | "left"
-  | "centre"
-  | "right"
-  | "bottom-left"
-  | "bottom"
-  | "bottom-right"
-  | "tile";
+/**
+ * Every placement, in reading order, as the list rather than as a union — the
+ * pattern the rest of the model uses for `FRAME_STYLES` and `REDACTION_MODES`,
+ * so a picker can be built from it instead of restating it.
+ */
+export const WATERMARK_POSITIONS = [
+  "top-left",
+  "top",
+  "top-right",
+  "left",
+  "centre",
+  "right",
+  "bottom-left",
+  "bottom",
+  "bottom-right",
+  "tile",
+] as const;
+
+export type WatermarkPosition = (typeof WATERMARK_POSITIONS)[number];
 
 export interface WatermarkOptions {
   /** The registered bitmap, and its natural size, which sets the aspect ratio. */

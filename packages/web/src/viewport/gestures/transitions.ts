@@ -9,7 +9,7 @@ import {
   type Intent,
   type LayerHandle,
 } from "@pixen/core";
-import { fontSizeFor, strokeFor } from "../../tools/index.js";
+import { cornerRadiusFor, fontSizeFor, strokeFor, TEXT_PLATE_COLOUR } from "../../tools/index.js";
 import { MIN_LAYER_SIZE_RATIO, PATH_SAMPLE_RATIO } from "./constants.js";
 import { screenToImage, screenToStage } from "./coordinates.js";
 import { hitCropHandle, hitLayer, hitLayerHandle, isInsideCrop } from "./hit-testing.js";
@@ -113,6 +113,8 @@ function beginText(sample: PointerSample, context: GestureContext): GestureOutco
     id: context.createId("text"),
     color: context.style.colour,
     fontSize: fontSizeFor(context.style, context.imageLongestEdge),
+    align: context.style.textAlign,
+    backgroundColor: context.style.textPlate ? TEXT_PLATE_COLOUR : null,
   });
   // Text is created complete and then edited, so it needs no drag state; the
   // tool hands over to select so the new layer can be moved straight away.
@@ -238,7 +240,13 @@ export function moveGesture(
         return { state, effects: [intent({ kind: "update-layer", id: state.id, patch: { to } })] };
       }
       const frame = frameFrom(state.origin, point, square);
-      return { state, effects: [intent({ kind: "update-layer", id: state.id, patch: { frame } })] };
+      // A rectangle's rounding is a fraction of its own shorter side, so it has
+      // to follow the drag rather than being fixed when the drag began.
+      const patch =
+        state.tool === "rect"
+          ? { frame, cornerRadius: cornerRadiusFor(context.style, frame) }
+          : { frame };
+      return { state, effects: [intent({ kind: "update-layer", id: state.id, patch })] };
     }
 
     case "draw-path": {

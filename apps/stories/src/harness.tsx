@@ -9,7 +9,7 @@ import {
 } from "react";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Editor } from "@pixen/core";
-import type { PixenImageEditorElement, ToolId } from "@pixen/web";
+import type { PanelId, PixenImageEditorElement, ToolId } from "@pixen/web";
 import "@pixen/web";
 import { createSampleImage, type SampleOptions } from "./fixtures.js";
 import { note, panelTitle, statRow } from "./styles.js";
@@ -139,6 +139,8 @@ export interface SeededEditorProps {
   seed: (editor: Editor) => void;
   /** Tool to switch to after seeding, for stories about a particular tool. */
   tool?: ToolId;
+  /** Inspector panel to open, for stories about a panel rather than a tool. */
+  panel?: PanelId;
   height?: string;
 }
 
@@ -148,7 +150,7 @@ export interface SeededEditorProps {
  * Several stories differ only in what they seed, so the wiring — ref, load
  * callback, null guard — lives here rather than being repeated in each of them.
  */
-export function SeededEditor({ image, seed, tool, height = "100%" }: SeededEditorProps) {
+export function SeededEditor({ image, seed, tool, panel, height = "100%" }: SeededEditorProps) {
   const handle = useRef<PixenImageEditorHandle>(null);
   return (
     <PixenImageEditor
@@ -158,6 +160,7 @@ export function SeededEditor({ image, seed, tool, height = "100%" }: SeededEdito
         const editor = handle.current?.editor;
         if (editor) seed(editor);
         if (tool) handle.current?.setTool(tool);
+        if (panel && handle.current?.element) handle.current.element.panel = panel;
       }}
       style={{ height }}
     />

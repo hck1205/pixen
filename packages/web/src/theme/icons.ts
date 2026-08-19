@@ -13,6 +13,8 @@ export const icons = {
   arrow: wrap('<path d="M5 19L19 5"/><path d="M11 5h8v8"/>'),
   draw: wrap('<path d="M4 19c3-1 4-7 7-7s2 4 4 4 3-3 5-8"/>'),
   text: wrap('<path d="M6 6h12"/><path d="M12 6v13"/><path d="M9 19h6"/>'),
+  // Three sheets stacked, seen edge on.
+  layers: wrap('<path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/>'),
   // A page with its corner turned back: a thing you peel and place.
   sticker: wrap('<path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6l8-8V6a2 2 0 0 0-2-2h-4"/><path d="M12 20v-6a2 2 0 0 1 2-2h6"/>'),
   redact: wrap('<rect x="4" y="9" width="16" height="6" rx="1"/><path d="M8 5v2M16 17v2"/>'),
@@ -31,6 +33,16 @@ export const icons = {
   image: wrap('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M5 17l5-4 4 3 3-2 2 2"/>'),
   tune: wrap('<path d="M5 8h9M17 8h2"/><path d="M5 16h3M11 16h8"/><circle cx="15.5" cy="8" r="2"/><circle cx="9.5" cy="16" r="2"/>'),
   close: wrap('<path d="M6 6l12 12M18 6L6 18"/>'),
+  // An open eye, and the same eye struck through: shown, and hidden.
+  visible: wrap('<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.6"/>'),
+  hidden: wrap('<path d="M4 9c-1.2 1.3-2 3-2 3s4 6 10 6c1.6 0 3-.4 4.2-1"/><path d="M9.6 6.3A9.6 9.6 0 0 1 12 6c6 0 10 6 10 6s-1.2 1.8-3.2 3.4"/><path d="M4 4l16 16"/>'),
+  // A padlock; the open one has its shackle lifted clear on one side.
+  locked: wrap('<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
+  unlocked: wrap('<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/>'),
+  moveUp: wrap('<path d="M12 19V6"/><path d="M6 12l6-6 6 6"/>'),
+  // A frame with a corner being pulled: the size of the thing that comes out.
+  output: wrap('<path d="M4 9V4h5"/><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M13 16h3v-3"/>'),
+  moveDown: wrap('<path d="M12 5v13"/><path d="M6 12l6 6 6-6"/>'),
 } as const;
 
 export type IconName = keyof typeof icons;

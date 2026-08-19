@@ -40,7 +40,14 @@ export interface ExportResult {
 const DEFAULT_FORMAT: ImageFormat = "image/png";
 const KNOWN_FORMATS: readonly string[] = ["image/jpeg", "image/png", "image/webp"];
 
-function resolveFormat(document: EditorDocument, requested?: ImageFormat): ImageFormat {
+/**
+ * The format an export will actually use.
+ *
+ * Exported because "auto" is a promise the interface has to be able to keep:
+ * a format picker showing *Auto* has to be able to say what auto means for this
+ * picture, and a second implementation of that rule would be a second answer.
+ */
+export function resolveOutputFormat(document: EditorDocument, requested?: ImageFormat): ImageFormat {
   if (requested) return requested;
   if (document.output.format) return document.output.format;
   const sourceType = document.source.mimeType;
@@ -70,7 +77,7 @@ export async function exportDocument(
   if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
 
   const resource = resources.require(document.source.resourceId);
-  const format = resolveFormat(document, options.format);
+  const format = resolveOutputFormat(document, options.format);
   const quality = options.quality ?? document.output.quality;
 
   const target = resolveExportSize(document, options);

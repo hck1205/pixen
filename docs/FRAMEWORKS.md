@@ -22,6 +22,10 @@ dance is needed. See [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md#server-side-renderi
    `theme`, `locale`, `format`, `quality` and `preset` are attributes. `tools`,
    `aspectRatios`, `policy` and `document` are objects and arrays, so they are
    set as JavaScript properties — HTML attributes can only carry strings.
+   Two more properties are for driving the interface rather than describing the
+   picture: `tool` chooses the armed tool, and `panel` opens an inspector panel
+   (`"tool"`, `"adjust"`, `"layers"` or `"output"`). An application that exists
+   to resize can open the output panel on load and leave it there.
 2. **Events are DOM `CustomEvent`s** named `pixen-load`, `pixen-change`,
    `pixen-history`, `pixen-export`, `pixen-error` and `pixen-ready`. Each detail
    is on `event.detail`. Frameworks with their own event syntax need their usual

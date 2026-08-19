@@ -306,8 +306,31 @@ describe("moveGesture", () => {
     const state: GestureState = { kind: "draw-shape", id: "a", origin: { x: 100, y: 100 }, tool: "rect" };
     const outcome = moveGesture(state, at(40, 60), context());
     expect(intents(outcome.effects)).toEqual([
-      { kind: "update-layer", id: "a", patch: { frame: { x: 40, y: 60, width: 60, height: 40 } } },
+      {
+        kind: "update-layer",
+        id: "a",
+        patch: { frame: { x: 40, y: 60, width: 60, height: 40 }, cornerRadius: 0 },
+      },
     ]);
+  });
+
+  it("grows a rectangle's rounding with the drag, since it is a fraction of it", () => {
+    const state: GestureState = { kind: "draw-shape", id: "a", origin: { x: 0, y: 0 }, tool: "rect" };
+    const rounded = context({ style: { ...DEFAULT_STYLE, cornerRatio: 0.25 } });
+    // A radius fixed when the drag began would be wrong by the time it ended.
+    const small = intents(moveGesture(state, at(40, 40), rounded).effects)[0];
+    const large = intents(moveGesture(state, at(200, 200), rounded).effects)[0];
+    expect(small).toMatchObject({ patch: { cornerRadius: 10 } });
+    expect(large).toMatchObject({ patch: { cornerRadius: 50 } });
+  });
+
+  it("leaves other shapes without a radius they do not have", () => {
+    const state: GestureState = { kind: "draw-shape", id: "a", origin: { x: 0, y: 0 }, tool: "ellipse" };
+    expect(intents(moveGesture(state, at(40, 40), context()).effects)[0]).toEqual({
+      kind: "update-layer",
+      id: "a",
+      patch: { frame: { x: 0, y: 0, width: 40, height: 40 } },
+    });
   });
 
   it("squares a shape while shift is held", () => {
