@@ -57,7 +57,8 @@ exactly the kind that no unit test sees.
 pnpm build              # typecheck and build all packages
 pnpm test               # unit tests, including the independence scan
 pnpm test:browser       # Playwright against the built playground
-pnpm check:independence # the scan on its own, with readable output
+pnpm check:independence # third-party name / dependency / vendored-code scan
+pnpm check:exports      # exports nothing imports
 pnpm stories            # visual review of every UI state
 ```
 

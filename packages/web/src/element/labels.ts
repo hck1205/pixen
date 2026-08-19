@@ -45,7 +45,3 @@ export function sizeLabel(size: Size): string {
   return `${Math.round(size.width)} × ${Math.round(size.height)}`;
 }
 
-/** What the status region announces when the active tool changes. */
-export function toolAnnouncement(strings: PixenStrings, tool: keyof PixenStrings): string {
-  return `${strings[tool]}`;
-}

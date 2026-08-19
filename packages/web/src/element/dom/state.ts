@@ -5,7 +5,7 @@
  * layout on every history change, so state that changes often is written onto
  * the existing nodes instead.
  */
-export function findAction(host: HTMLElement, action: string): HTMLButtonElement | null {
+function findAction(host: HTMLElement, action: string): HTMLButtonElement | null {
   return host.querySelector<HTMLButtonElement>(`button[data-action=${action}]`);
 }
 

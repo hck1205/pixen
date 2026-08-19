@@ -39,9 +39,6 @@ const HANDLE_AXES: Record<CropHandle, HandleAxes> = {
   left: { x: -1, y: 0 },
 };
 
-export function handleAxes(handle: CropHandle): HandleAxes {
-  return HANDLE_AXES[handle];
-}
 
 /** Stage-space position of a crop handle. */
 export function handlePosition(crop: Rect, handle: CropHandle): Point {

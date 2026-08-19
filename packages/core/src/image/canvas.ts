@@ -29,7 +29,8 @@ export function assertDrawableSize(size: Size, what = "image"): void {
   }
 }
 
-export function supportsOffscreenCanvas(): boolean {
+/** OffscreenCanvas keeps one code path for the main thread and a worker. */
+function hasOffscreenCanvas(): boolean {
   return typeof OffscreenCanvas !== "undefined";
 }
 
@@ -42,7 +43,7 @@ export function createSurface(width: number, height: number, alpha = true): Canv
   const w = Math.max(1, Math.round(width));
   const h = Math.max(1, Math.round(height));
 
-  if (supportsOffscreenCanvas()) {
+  if (hasOffscreenCanvas()) {
     const canvas = new OffscreenCanvas(w, h);
     const context = canvas.getContext("2d", { alpha }) as OffscreenCanvasRenderingContext2D | null;
     if (!context) throw new PixenError("EXPORT_FAILED", "Could not acquire a 2D context on OffscreenCanvas");

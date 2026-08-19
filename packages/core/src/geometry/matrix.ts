@@ -36,7 +36,7 @@ export function rotation(radians: number): Matrix {
   return matrix(cos, sin, -sin, cos, 0, 0);
 }
 
-export function determinant(m: Matrix): number {
+function determinant(m: Matrix): number {
   return m.a * m.d - m.b * m.c;
 }
 
@@ -59,10 +59,6 @@ export function applyToPoint(m: Matrix, p: Point): Point {
   return { x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f };
 }
 
-/** Transforms a direction (ignores translation). */
-export function applyToVector(m: Matrix, p: Point): Point {
-  return { x: m.a * p.x + m.c * p.y, y: m.b * p.x + m.d * p.y };
-}
 
 /** Uniform-ish scale factor of the matrix, used for hit-test tolerances and line widths. */
 export function meanScale(m: Matrix): number {

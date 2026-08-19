@@ -17,7 +17,7 @@ export const DEFAULT_LAYER_VISIBLE = true;
 export const DEFAULT_LAYER_LOCKED = false;
 
 /** Stroke width in image pixels, before a tool scales it to the image. */
-export const DEFAULT_STROKE_WIDTH = 8;
+const DEFAULT_STROKE_WIDTH = 8;
 
 export const DEFAULT_FONT_SIZE = 48;
 export const DEFAULT_FONT_FAMILY = "system-ui, sans-serif";

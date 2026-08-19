@@ -40,7 +40,7 @@ export interface ExportResult {
 const DEFAULT_FORMAT: ImageFormat = "image/png";
 const KNOWN_FORMATS: readonly string[] = ["image/jpeg", "image/png", "image/webp"];
 
-export function resolveFormat(document: EditorDocument, requested?: ImageFormat): ImageFormat {
+function resolveFormat(document: EditorDocument, requested?: ImageFormat): ImageFormat {
   if (requested) return requested;
   if (document.output.format) return document.output.format;
   const sourceType = document.source.mimeType;
@@ -48,7 +48,7 @@ export function resolveFormat(document: EditorDocument, requested?: ImageFormat)
   return DEFAULT_FORMAT;
 }
 
-export function buildFilename(document: EditorDocument, format: ImageFormat, override?: string): string {
+function buildFilename(document: EditorDocument, format: ImageFormat, override?: string): string {
   if (override) return override;
   const source = document.source.name ?? "image";
   const base = source.replace(/\.[^.]+$/, "") || "image";
@@ -116,7 +116,7 @@ export async function exportDocument(
   }
 }
 
-export function resolveExportSize(document: EditorDocument, options: ExportOptions = {}): Size {
+function resolveExportSize(document: EditorDocument, options: ExportOptions = {}): Size {
   if (options.width == null && options.height == null) return documentOutputSize(document);
   return documentOutputSize({
     ...document,

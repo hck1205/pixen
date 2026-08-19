@@ -138,7 +138,7 @@ export interface UprightImage extends Size {
  * it. The size travels beside the source rather than being written onto it:
  * `ImageBitmap.width` is a read-only accessor, and assigning to it throws.
  */
-export function normaliseOrientation(source: CanvasImageSource, orientation: ExifOrientation): UprightImage {
+function normaliseOrientation(source: CanvasImageSource, orientation: ExifOrientation): UprightImage {
   const size = sourceSize(source);
   if (orientation === 1) return { source, ...size };
 

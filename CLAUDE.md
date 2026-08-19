@@ -52,6 +52,8 @@ than you found it, and act on these the moment you notice them:
 - **Commonise the third occurrence.** Two similar pieces of code can wait; three
   is a shared module. Do not abstract on the first.
 - **Delete rather than deprecate.** Pre-1.0, an unused export is dead weight.
+  `pnpm check:exports` fails on one, so this is a check rather than an intention;
+  a genuine host-facing seam goes in that script's short allowlist with a reason.
 
 The public API is the exception: `@pixen/*` exports, custom element attributes,
 `part` names and slot names are contracts. Changing one is a decision, not

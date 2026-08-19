@@ -18,7 +18,8 @@
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo apps/*/dist apps/stories/build test-results playwright-report",
     "check:independence": "node scripts/independence-scan.mjs",
     "stories": "pnpm --filter @pixen/stories dev",
-    "stories:build": "pnpm --filter @pixen/stories build"
+    "stories:build": "pnpm --filter @pixen/stories build",
+    "check:exports": "node scripts/unused-exports.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

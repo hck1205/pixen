@@ -22,6 +22,7 @@ export { definePixenImageEditor, TAG_NAME } from "./define.js";
 export * from "./element/index.js";
 export * from "./viewport/index.js";
 export * from "./tools/index.js";
+export * from "./bindings/index.js";
 export { en, ko, registerLocale, resolveStrings, type PixenStrings } from "./i18n/index.js";
 export { styles as pixenStyles, icons, type IconName } from "./theme/index.js";
 

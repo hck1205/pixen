@@ -13,6 +13,9 @@ import type { ToolId } from "../tools/index.js";
 /** Attributes the element reacts to. Structured values are properties instead. */
 export const OBSERVED_ATTRIBUTES = ["src", "theme", "locale", "format", "quality", "preset"] as const;
 
+/** Adding one here without handling it in the element fails to compile. */
+export type ObservedAttribute = (typeof OBSERVED_ATTRIBUTES)[number];
+
 /** The inspector shows one of these at a time. */
 export type PanelId = "tool" | "adjust";
 

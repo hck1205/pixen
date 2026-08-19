@@ -26,6 +26,9 @@ jobs:
       - name: Independence scan
         run: pnpm check:independence
 
+      - name: Unused-export scan
+        run: pnpm check:exports
+
       - name: Build packages
         run: pnpm build
 

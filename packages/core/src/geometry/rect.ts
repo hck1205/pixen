@@ -34,17 +34,7 @@ export function corners(r: Rect): [Point, Point, Point, Point] {
   ];
 }
 
-export function containsPoint(r: Rect, p: Point): boolean {
-  return p.x >= r.x && p.x <= right(r) && p.y >= r.y && p.y <= bottom(r);
-}
 
-export function intersect(a: Rect, b: Rect): Rect {
-  const x = Math.max(a.x, b.x);
-  const y = Math.max(a.y, b.y);
-  const w = Math.min(right(a), right(b)) - x;
-  const h = Math.min(bottom(a), bottom(b)) - y;
-  return { x, y, width: Math.max(0, w), height: Math.max(0, h) };
-}
 
 export function union(a: Rect, b: Rect): Rect {
   const x = Math.min(a.x, b.x);
@@ -52,14 +42,6 @@ export function union(a: Rect, b: Rect): Rect {
   return { x, y, width: Math.max(right(a), right(b)) - x, height: Math.max(bottom(a), bottom(b)) - y };
 }
 
-export function rectEquals(a: Rect, b: Rect, epsilon = 1e-6): boolean {
-  return (
-    Math.abs(a.x - b.x) <= epsilon &&
-    Math.abs(a.y - b.y) <= epsilon &&
-    Math.abs(a.width - b.width) <= epsilon &&
-    Math.abs(a.height - b.height) <= epsilon
-  );
-}
 
 /** Axis-aligned bounding box of `r` after `m` is applied. */
 export function transformBounds(m: Matrix, r: Rect): Rect {
@@ -111,20 +93,6 @@ export function fitAspectRatio(bounds: Size, aspectRatio: number): Rect {
   return { x: (bounds.width - width) / 2, y: (bounds.height - height) / 2, width, height };
 }
 
-/** Smallest rect with `aspectRatio` that covers `bounds`, centered (may overflow). */
-export function coverAspectRatio(bounds: Size, aspectRatio: number): Rect {
-  const boundsRatio = bounds.width / bounds.height;
-  let width: number;
-  let height: number;
-  if (boundsRatio > aspectRatio) {
-    width = bounds.width;
-    height = width / aspectRatio;
-  } else {
-    height = bounds.height;
-    width = height * aspectRatio;
-  }
-  return { x: (bounds.width - width) / 2, y: (bounds.height - height) / 2, width, height };
-}
 
 /**
  * Moves `r` so it sits inside `bounds` without resizing it. If `r` is larger than

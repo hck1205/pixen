@@ -69,7 +69,7 @@ export const PRESETS = {
 
 export type PresetName = keyof typeof PRESETS;
 
-export function resolvePolicy(policy: ImagePolicy | PresetName): ImagePolicy {
+function resolvePolicy(policy: ImagePolicy | PresetName): ImagePolicy {
   return typeof policy === "string" ? PRESETS[policy] : policy;
 }
 

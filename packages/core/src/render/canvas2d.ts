@@ -14,7 +14,7 @@ export interface RenderOptions {
 }
 
 /** Measures text with the real context, which is the only accurate source. */
-export function contextMeasurer(context: Canvas2D): TextMeasurer {
+function contextMeasurer(context: Canvas2D): TextMeasurer {
   return (text, font) => {
     context.font = font;
     return context.measureText(text).width;

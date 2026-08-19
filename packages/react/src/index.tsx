@@ -4,31 +4,24 @@ import type {
   EditorDocument,
   ExportOptions,
   ExportResult,
+  HistorySummary,
   ImageFormat,
   ImagePolicy,
   PixenError,
   PresetName,
 } from "@pixen/core";
-import type { AspectRatioOption, PixenImageEditorElement, ToolDefinition, ToolId } from "@pixen/web";
+import {
+  applyProperty,
+  attachEvents,
+  type AspectRatioOption,
+  type PixenElementProperties,
+  type PixenImageEditorElement,
+  type ToolDefinition,
+  type ToolId,
+} from "@pixen/web";
 import "@pixen/web";
 
-export interface HistoryState {
-  canUndo: boolean;
-  canRedo: boolean;
-  undoLabel: string | null;
-  redoLabel: string | null;
-  depth: number;
-  inTransaction: boolean;
-}
-
-export interface PixenImageEditorProps {
-  /** URL, data URL, `File` or `Blob`. */
-  src?: string | Blob | null;
-  /** A previously saved document, to resume a session. */
-  document?: EditorDocument | string | null;
-  tools?: (ToolId | ToolDefinition)[];
-  aspectRatios?: (number | null | AspectRatioOption)[];
-  policy?: ImagePolicy | PresetName | null;
+export interface PixenImageEditorProps extends PixenElementProperties {
   theme?: "dark" | "light";
   locale?: string;
   format?: ImageFormat;
@@ -40,7 +33,7 @@ export interface PixenImageEditorProps {
   onLoad?: (document: EditorDocument) => void;
   /** Fires for every state change, including mid-gesture ones (`transient`). */
   onChange?: (document: EditorDocument, meta: { reason: string; transient: boolean }) => void;
-  onHistoryChange?: (state: HistoryState) => void;
+  onHistoryChange?: (state: HistorySummary) => void;
   onExport?: (result: ExportResult) => void;
   onError?: (error: PixenError) => void;
 }
@@ -62,8 +55,8 @@ export interface PixenImageEditorHandle {
  *
  * React props become element properties and custom events become callbacks —
  * nothing more. The editor engine stays the single source of truth, so React
- * never holds a second copy of the document to drift out of sync. Hosts that
- * want to persist state listen to `onChange` and store what they get.
+ * never holds a second copy of the document to drift out of sync. The mapping
+ * itself lives in `@pixen/web`, shared with the other wrappers.
  */
 export const PixenImageEditor = forwardRef<PixenImageEditorHandle, PixenImageEditorProps>(
   function PixenImageEditor(props, ref) {
@@ -101,71 +94,28 @@ export const PixenImageEditor = forwardRef<PixenImageEditorHandle, PixenImageEdi
       const element = elementRef.current;
       if (!element) return;
 
-      // Listeners read from a ref so a changing callback identity never forces a
-      // re-subscribe — a common source of dropped events in wrapper components.
-      const onReady = () => handlers.current.onReady?.(element.editor);
-      const onLoad = (event: Event) =>
-        handlers.current.onLoad?.((event as CustomEvent<{ document: EditorDocument }>).detail.document);
-      const onChange = (event: Event) => {
-        const detail = (event as CustomEvent<{ document: EditorDocument; reason: string; transient: boolean }>).detail;
-        handlers.current.onChange?.(detail.document, { reason: detail.reason, transient: detail.transient });
-      };
-      const onHistory = (event: Event) =>
-        handlers.current.onHistoryChange?.((event as CustomEvent<HistoryState>).detail);
-      const onExport = (event: Event) =>
-        handlers.current.onExport?.((event as CustomEvent<ExportResult>).detail);
-      const onError = (event: Event) =>
-        handlers.current.onError?.((event as CustomEvent<{ error: PixenError }>).detail.error);
-
-      element.addEventListener("pixen-ready", onReady);
-      element.addEventListener("pixen-load", onLoad);
-      element.addEventListener("pixen-change", onChange);
-      element.addEventListener("pixen-history", onHistory);
-      element.addEventListener("pixen-export", onExport);
-      element.addEventListener("pixen-error", onError);
-
-      return () => {
-        element.removeEventListener("pixen-ready", onReady);
-        element.removeEventListener("pixen-load", onLoad);
-        element.removeEventListener("pixen-change", onChange);
-        element.removeEventListener("pixen-history", onHistory);
-        element.removeEventListener("pixen-export", onExport);
-        element.removeEventListener("pixen-error", onError);
-      };
+      // Handlers are read from a ref, so a changing callback identity never
+      // forces a re-subscribe — a common source of dropped events in wrappers.
+      return attachEvents(element, {
+        ready: () => handlers.current.onReady?.(element.editor),
+        load: (detail) => handlers.current.onLoad?.(detail.document),
+        change: (detail) =>
+          handlers.current.onChange?.(detail.document, {
+            reason: detail.reason,
+            transient: detail.transient,
+          }),
+        history: (detail) => handlers.current.onHistoryChange?.(detail),
+        export: (detail) => handlers.current.onExport?.(detail),
+        error: (detail) => handlers.current.onError?.(detail.error),
+      });
     }, []);
 
-    useEffect(() => {
-      const element = elementRef.current;
-      if (!element || props.tools === undefined) return;
-      element.tools = props.tools;
-    }, [props.tools]);
-
-    useEffect(() => {
-      const element = elementRef.current;
-      if (!element || props.aspectRatios === undefined) return;
-      element.aspectRatios = props.aspectRatios;
-    }, [props.aspectRatios]);
-
-    useEffect(() => {
-      const element = elementRef.current;
-      if (!element || props.policy === undefined) return;
-      element.policy = props.policy;
-    }, [props.policy]);
-
-    useEffect(() => {
-      const element = elementRef.current;
-      if (!element || !props.src) return;
-      // Strings go through the attribute so the element can dedupe reloads;
-      // Blobs cannot, so they are loaded imperatively.
-      if (typeof props.src === "string") element.setAttribute("src", props.src);
-      else void element.load(props.src);
-    }, [props.src]);
-
-    useEffect(() => {
-      const element = elementRef.current;
-      if (!element || !props.document) return;
-      element.document = props.document;
-    }, [props.document]);
+    // One effect per structured prop, so each re-applies only when it changes.
+    useEffect(() => applyProperty(elementRef.current!, "tools", props.tools), [props.tools]);
+    useEffect(() => applyProperty(elementRef.current!, "aspectRatios", props.aspectRatios), [props.aspectRatios]);
+    useEffect(() => applyProperty(elementRef.current!, "policy", props.policy), [props.policy]);
+    useEffect(() => applyProperty(elementRef.current!, "document", props.document), [props.document]);
+    useEffect(() => applyProperty(elementRef.current!, "src", props.src), [props.src]);
 
     useEffect(() => {
       const element = elementRef.current;
@@ -187,5 +137,5 @@ export const PixenImageEditor = forwardRef<PixenImageEditorHandle, PixenImageEdi
   },
 );
 
-export type { ToolDefinition, ToolId, AspectRatioOption } from "@pixen/web";
-export type { EditorDocument, ExportResult, ImagePolicy, PresetName } from "@pixen/core";
+export type { AspectRatioOption, ToolDefinition, ToolId } from "@pixen/web";
+export type { EditorDocument, ExportResult, HistorySummary, ImagePolicy, PresetName } from "@pixen/core";

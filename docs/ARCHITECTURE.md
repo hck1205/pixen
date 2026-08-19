@@ -139,9 +139,15 @@ packages/web/src/
     constants.ts    every literal the chrome depends on, named
   viewport/         canvas, gestures, overlay geometry, view fitting
   tools/            what a tool is, and how new annotations look
+  bindings/         what a framework wrapper needs: events, property mapping
   i18n/             one module per locale, plus the registry
   theme/            styles and icons
 ```
+
+`bindings/` exists because `@pixen/react` and `@pixen/vue` were copying the same
+event list and the same "a URL is an attribute, a Blob is a load" rule. They
+share it now, so a third wrapper starts with the mapping already written and the
+two cannot drift apart.
 
 The rule that produces this: **the module that decides is pure and tested, the
 module that acts is thin.** `input/keyboard.ts` resolves a keystroke to an
