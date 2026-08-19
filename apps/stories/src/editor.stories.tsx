@@ -4,6 +4,7 @@ import type { Story, StoryDefault } from "@ladle/react";
 import { createTransparentSample } from "./fixtures.js";
 import { seedAnnotations, seedRedaction } from "./fixtures.js";
 import { ElementEditor, Row, Stage, useBlob, useSampleImage } from "./harness.js";
+import { hostButton, hostPrimaryButton } from "./styles.js";
 
 export default {
   title: "Editor",
@@ -300,7 +301,7 @@ export const Slots: Story = () => {
           </button>
           <button
             type="button"
-            style={{ ...hostButton, background: "#12a594", color: "#04120f" }}
+            style={hostPrimaryButton}
             onClick={(event) => void event.currentTarget.closest("pixen-image-editor")?.export()}
           >
             Save photo
@@ -311,15 +312,6 @@ export const Slots: Story = () => {
   );
 };
 
-const hostButton: React.CSSProperties = {
-  font: "600 13px/1 system-ui, sans-serif",
-  color: "#eef1f6",
-  background: "rgba(255,255,255,0.08)",
-  border: 0,
-  borderRadius: 8,
-  padding: "9px 12px",
-  cursor: "pointer",
-};
 
 /** A transparent PNG: alpha in the viewport, and what JPEG export does with it. */
 export const Transparency: Story = () => {

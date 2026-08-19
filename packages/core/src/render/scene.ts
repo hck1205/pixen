@@ -121,6 +121,11 @@ export function cssFilter(adjustments: Adjustments): string {
   return parts.join(" ");
 }
 
+/** Filters are clamped so an absurd adjustment cannot blow out the image. */
+const MAX_FILTER_FACTOR = 4;
+const FILTER_PRECISION = 1000;
+
 function clampFactor(value: number): number {
-  return Math.round(Math.min(4, Math.max(0, value)) * 1000) / 1000;
+  const clamped = Math.min(MAX_FILTER_FACTOR, Math.max(0, value));
+  return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
 }

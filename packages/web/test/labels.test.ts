@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { en, ko } from "../src/i18n.js";
+import { en, ko } from "../src/i18n/index.js";
 import {
   isAppleShortcutPlatform,
   modifierLabel,
@@ -7,7 +7,7 @@ import {
   sizeLabel,
   undoLabel,
   zoomLabel,
-} from "../src/labels.js";
+} from "../src/element/labels.js";
 import type { HistorySummary } from "@pixen/core";
 
 const history = (overrides: Partial<HistorySummary> = {}): HistorySummary => ({

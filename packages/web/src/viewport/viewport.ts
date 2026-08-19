@@ -33,7 +33,7 @@ import {
   type PinchState,
 } from "./gestures.js";
 import { cornerSegments, gridSegments, inflate, projectRect, type Segment } from "./overlay.js";
-import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "./tools.js";
+import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
 import { clampZoom, fitView, MAX_ZOOM, MIN_ZOOM } from "./view.js";
 
 export interface ViewportCallbacks {

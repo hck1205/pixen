@@ -1,6 +1,17 @@
 import type { Point, Rect } from "../geometry/types.js";
 import { createId } from "../util/id.js";
-import { DEFAULT_ANNOTATION_COLOUR } from "./palette.js";
+import {
+  DEFAULT_CORNER_RADIUS,
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+  DEFAULT_LAYER_LOCKED,
+  DEFAULT_LAYER_OPACITY,
+  DEFAULT_LAYER_ROTATION,
+  DEFAULT_LAYER_VISIBLE,
+  DEFAULT_STROKE,
+  DEFAULT_TEXT_ALIGN,
+  DEFAULT_TEXT_COLOUR,
+} from "./defaults.js";
 import type {
   EditorLayer,
   EllipseLayer,
@@ -12,16 +23,13 @@ import type {
 } from "./types.js";
 
 const layerDefaults = {
-  visible: true,
-  locked: false,
-  opacity: 1,
-  rotation: 0,
+  visible: DEFAULT_LAYER_VISIBLE,
+  locked: DEFAULT_LAYER_LOCKED,
+  opacity: DEFAULT_LAYER_OPACITY,
+  rotation: DEFAULT_LAYER_ROTATION,
 } as const;
 
-export const DEFAULT_STROKE: Readonly<Stroke> = Object.freeze({
-  color: DEFAULT_ANNOTATION_COLOUR,
-  width: 8,
-});
+export { DEFAULT_STROKE };
 
 export function createRectLayer(frame: Rect, options: Partial<RectLayer> = {}): RectLayer {
   return {
@@ -31,7 +39,7 @@ export function createRectLayer(frame: Rect, options: Partial<RectLayer> = {}): 
     frame,
     stroke: { ...DEFAULT_STROKE },
     fill: null,
-    cornerRadius: 0,
+    cornerRadius: DEFAULT_CORNER_RADIUS,
     ...options,
   };
 }
@@ -85,10 +93,10 @@ export function createTextLayer(position: Point, text: string, options: Partial<
     ...layerDefaults,
     position,
     text,
-    fontSize: 48,
-    fontFamily: "system-ui, sans-serif",
-    color: "#ffffff",
-    align: "left",
+    fontSize: DEFAULT_FONT_SIZE,
+    fontFamily: DEFAULT_FONT_FAMILY,
+    color: DEFAULT_TEXT_COLOUR,
+    align: DEFAULT_TEXT_ALIGN,
     backgroundColor: null,
     maxWidth: null,
     ...options,

@@ -1,6 +1,14 @@
 import { ANNOTATION_COLOURS, REDACTION_COLOUR } from "@pixen/core";
 import { icons } from "@pixen/web";
 import type { Story, StoryDefault } from "@ladle/react";
+import {
+  specimenCaption,
+  specimenCell,
+  specimenGrid,
+  table as tableStyle,
+  tableCell,
+  tableHeader,
+} from "./styles.js";
 
 export default {
   title: "Design",
@@ -8,15 +16,15 @@ export default {
 
 /** The icon set on one page: one weight, one grid, no third-party assets. */
 export const Icons: Story<{ size: number }> = ({ size }) => (
-  <div style={grid}>
+  <div style={specimenGrid}>
     {Object.entries(icons).map(([name, markup]) => (
-      <figure key={name} style={cell}>
+      <figure key={name} style={specimenCell}>
         <span
           style={{ width: size, height: size, display: "grid", placeItems: "center" }}
           // The icons are authored in this repository, so the markup is trusted.
           dangerouslySetInnerHTML={{ __html: markup }}
         />
-        <figcaption style={caption}>{name}</figcaption>
+        <figcaption style={specimenCaption}>{name}</figcaption>
       </figure>
     ))}
   </div>
@@ -27,11 +35,11 @@ Icons.argTypes = { size: { control: { type: "range", min: 16, max: 64, step: 4 }
 
 /** Annotation colours, at the size an annotation actually appears. */
 export const Palette: Story = () => (
-  <div style={grid}>
+  <div style={specimenGrid}>
     {[...ANNOTATION_COLOURS, REDACTION_COLOUR].map((colour, index) => (
-      <figure key={`${colour}-${index}`} style={cell}>
+      <figure key={`${colour}-${index}`} style={specimenCell}>
         <span style={{ width: 56, height: 56, borderRadius: 12, background: colour, display: "block" }} />
-        <figcaption style={caption}>{colour}</figcaption>
+        <figcaption style={specimenCaption}>{colour}</figcaption>
       </figure>
     ))}
   </div>
@@ -39,21 +47,21 @@ export const Palette: Story = () => (
 
 /** The customisation surface: every token, with what it controls. */
 export const Tokens: Story = () => (
-  <table style={table}>
+  <table style={tableStyle}>
     <thead>
       <tr>
-        <th style={th}>Token</th>
-        <th style={th}>Default</th>
-        <th style={th}>Controls</th>
+        <th style={tableHeader}>Token</th>
+        <th style={tableHeader}>Default</th>
+        <th style={tableHeader}>Controls</th>
       </tr>
     </thead>
     <tbody>
       {TOKENS.map((token) => (
         <tr key={token.name}>
-          <td style={td}>
+          <td style={tableCell}>
             <code>{token.name}</code>
           </td>
-          <td style={td}>
+          <td style={tableCell}>
             <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
               {token.value.startsWith("#") || token.value.startsWith("rgba") ? (
                 <span
@@ -69,7 +77,7 @@ export const Tokens: Story = () => (
               <code>{token.value}</code>
             </span>
           </td>
-          <td style={td}>{token.controls}</td>
+          <td style={tableCell}>{token.controls}</td>
         </tr>
       ))}
     </tbody>
@@ -91,40 +99,8 @@ const TOKENS = [
   { name: "--pixen-selection", value: "#4f8cff", controls: "Selected annotation outline" },
 ];
 
-const grid: React.CSSProperties = {
-  display: "grid",
-  gap: 16,
-  gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-  font: "400 12px/1.4 system-ui, sans-serif",
-};
 
-const cell: React.CSSProperties = {
-  margin: 0,
-  display: "grid",
-  gap: 8,
-  justifyItems: "center",
-  padding: 14,
-  borderRadius: 12,
-  border: "1px solid rgba(127,140,170,0.25)",
-};
 
-const caption: React.CSSProperties = { opacity: 0.7, textAlign: "center", wordBreak: "break-all" };
 
-const table: React.CSSProperties = {
-  borderCollapse: "collapse",
-  font: "400 13px/1.5 system-ui, sans-serif",
-  width: "100%",
-  maxWidth: 860,
-};
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "8px 12px",
-  borderBottom: "1px solid rgba(127,140,170,0.35)",
-  opacity: 0.7,
-  font: "600 12px/1.4 system-ui, sans-serif",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
 
 const td: React.CSSProperties = { padding: "8px 12px", borderBottom: "1px solid rgba(127,140,170,0.18)" };

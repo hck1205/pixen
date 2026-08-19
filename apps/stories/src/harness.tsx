@@ -10,6 +10,7 @@ import {
 import type { PixenImageEditorElement } from "@pixen/web";
 import "@pixen/web";
 import { createSampleImage, type SampleOptions } from "./fixtures.js";
+import { note, panelTitle, statRow } from "./styles.js";
 
 /** Loads a generated sample once per set of options. */
 export function useSampleImage(options: SampleOptions = {}): Blob | null {
@@ -57,13 +58,13 @@ export interface StageProps {
  * The frame every story sits in: a titled panel with a fixed height, because the
  * editor fills its container and a story with no height would collapse.
  */
-export function Stage({ children, height = 560, title, note, style }: StageProps) {
+export function Stage({ children, height = 560, title, note: noteText, style }: StageProps) {
   return (
     <section style={{ display: "grid", gap: 10, minWidth: 0 }}>
-      {(title || note) && (
+      {(title || noteText) && (
         <header style={{ display: "grid", gap: 2 }}>
-          {title && <h2 style={styles.title}>{title}</h2>}
-          {note && <p style={styles.note}>{note}</p>}
+          {title && <h2 style={panelTitle}>{title}</h2>}
+          {noteText && <p style={note}>{noteText}</p>}
         </header>
       )}
       <div style={{ height, minWidth: 0, ...style }}>{children}</div>
@@ -87,13 +88,13 @@ export function ResultPanel({ result }: { result: ExportSummary | null }) {
   }, [url]);
 
   if (!result || !url) {
-    return <p style={styles.note}>Export the image to see the result here.</p>;
+    return <p style={note}>Export the image to see the result here.</p>;
   }
 
   return (
     <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
       <img src={url} alt="Exported result" style={{ maxWidth: "100%", borderRadius: 10, display: "block" }} />
-      <dl style={styles.stats}>
+      <dl style={statRow}>
         <div>
           <dt>Size</dt>
           <dd>
@@ -127,23 +128,6 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-const styles = {
-  title: {
-    margin: 0,
-    font: "600 13px/1.4 system-ui, sans-serif",
-    letterSpacing: "0.02em",
-    textTransform: "uppercase",
-    opacity: 0.7,
-  },
-  note: { margin: 0, font: "400 13px/1.5 system-ui, sans-serif", opacity: 0.65, maxWidth: "70ch" },
-  stats: {
-    margin: 0,
-    display: "flex",
-    gap: 18,
-    font: "400 12px/1.4 system-ui, sans-serif",
-    opacity: 0.8,
-  },
-} satisfies Record<string, CSSProperties>;
 
 // --- raw custom element ----------------------------------------------------
 

@@ -1,4 +1,10 @@
-import { applyAspectRatio, moveCrop, resizeCrop, type CropHandle } from "../geometry/crop.js";
+import {
+  applyAspectRatio,
+  DEFAULT_MIN_CROP_SIZE,
+  moveCrop,
+  resizeCrop,
+  type CropHandle,
+} from "../geometry/crop.js";
 import { compose, invert } from "../geometry/matrix.js";
 import { clampInside, constrainRect, transformBounds } from "../geometry/rect.js";
 import { imageToStage } from "../geometry/spaces.js";
@@ -94,7 +100,7 @@ export function dragCropHandle(
   document: EditorDocument,
   handle: CropHandle,
   pointer: Point,
-  minSize = 16,
+  minSize = DEFAULT_MIN_CROP_SIZE,
 ): EditorDocument {
   const bounds = stageRect(document);
   const crop = resizeCrop(effectiveCrop(document), handle, pointer, {

@@ -13,6 +13,15 @@ export function supportsTransparency(format: ImageFormat): boolean {
   return TRANSPARENT_FORMATS.includes(format);
 }
 
+/**
+ * How the byte-budget search behaves: how low quality may go, how many attempts
+ * it gets, and how hard each attempt undershoots so the loop converges instead
+ * of creeping toward the budget.
+ */
+export const MIN_BUDGET_QUALITY = 0.4;
+export const MAX_BUDGET_ATTEMPTS = 5;
+export const BUDGET_QUALITY_BACKOFF = 0.9;
+
 export function extensionForFormat(format: ImageFormat): string {
   switch (format) {
     case "image/jpeg":
@@ -78,8 +87,8 @@ export async function encodeWithinBudget(
   maxBytes: number,
   options: { minQuality?: number; steps?: number } = {},
 ): Promise<{ blob: Blob; quality: number; attempts: number }> {
-  const minQuality = options.minQuality ?? 0.4;
-  const steps = options.steps ?? 5;
+  const minQuality = options.minQuality ?? MIN_BUDGET_QUALITY;
+  const steps = options.steps ?? MAX_BUDGET_ATTEMPTS;
 
   let attempt = 0;
   let currentQuality = quality;
@@ -96,10 +105,12 @@ export async function encodeWithinBudget(
     if (blob.size <= maxBytes || !isLossy(format) || currentQuality <= minQuality) {
       return { blob, quality: currentQuality, attempts: attempt };
     }
-    // Assume size scales roughly with quality, then bias downwards so the loop
-    // converges instead of creeping toward the budget.
+    // Size scales roughly with quality, so aim at the ratio and bias downwards.
     const ratio = maxBytes / blob.size;
-    currentQuality = Math.max(minQuality, Math.min(currentQuality * 0.9, currentQuality * ratio));
+    currentQuality = Math.max(
+      minQuality,
+      Math.min(currentQuality * BUDGET_QUALITY_BACKOFF, currentQuality * ratio),
+    );
   }
 
   if (!best) throw new PixenError("ENCODE_FAILED", "Encoding produced no data");

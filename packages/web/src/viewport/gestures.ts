@@ -17,7 +17,7 @@ import {
   type Point,
   type Rect,
 } from "@pixen/core";
-import { fontSizeFor, strokeFor, type AnnotationStyle, type ToolId } from "./tools.js";
+import { fontSizeFor, strokeFor, type AnnotationStyle, type ToolId } from "../tools/index.js";
 
 /**
  * Pointer gestures as a pure state machine.

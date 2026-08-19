@@ -11,7 +11,7 @@ import {
   MAX_ZOOM,
   MIN_FREE_SIZE,
   MIN_ZOOM,
-} from "../src/view.js";
+} from "../src/viewport/view.js";
 
 const stage = { width: 1600, height: 1000 };
 

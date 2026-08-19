@@ -1,4 +1,5 @@
 import type { Point, Rect } from "../geometry/types.js";
+import { DEFAULT_QUALITY } from "./defaults.js";
 
 export const SCHEMA_VERSION = 1;
 
@@ -126,6 +127,6 @@ export const DEFAULT_OUTPUT: Readonly<OutputSettings> = Object.freeze({
   width: null,
   height: null,
   format: null,
-  quality: 0.85,
+  quality: DEFAULT_QUALITY,
   background: null,
 });

@@ -12,10 +12,10 @@ import type {
   ImageFormat,
   OutputSettings,
 } from "../model/types.js";
-import { ResourceManager, type ImageResource } from "../resources/manager.js";
+import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
 import { exportDocument, type ExportOptions, type ExportResult } from "../export/pipeline.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
-import { summarise, type HistorySummary } from "./history.js";
+import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
 import {
   createSession,
   reduce,
@@ -64,9 +64,11 @@ export class Editor {
   #destroyed = false;
 
   constructor(options: EditorOptions = {}) {
-    this.resources = options.resources ?? new ResourceManager({ previewMaxSize: options.previewMaxSize ?? 2048 });
+    this.resources =
+      options.resources ??
+      new ResourceManager({ previewMaxSize: options.previewMaxSize ?? DEFAULT_PREVIEW_MAX_SIZE });
     this.#ownsResources = !options.resources;
-    this.#historyLimit = options.historyLimit ?? 100;
+    this.#historyLimit = options.historyLimit ?? DEFAULT_HISTORY_LIMIT;
   }
 
   // --- state ---------------------------------------------------------------

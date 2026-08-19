@@ -31,6 +31,9 @@ export function supportsContextFilter(context: Canvas2D): boolean {
  * Kept in sync with `cssFilter` on purpose: an export must not look different
  * from the preview just because the browser lacks canvas filters.
  */
+/** Largest value a colour channel can hold. */
+export const CHANNEL_MAX = 255;
+
 export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments: Adjustments): void {
   const brightness = 1 + adjustments.brightness;
   const contrast = 1 + adjustments.contrast;
@@ -63,7 +66,7 @@ export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments
 }
 
 function clamp255(value: number): number {
-  return value < 0 ? 0 : value > 255 ? 255 : value;
+  return value < 0 ? 0 : value > CHANNEL_MAX ? CHANNEL_MAX : value;
 }
 
 export function hasAdjustments(adjustments: Adjustments): boolean {
