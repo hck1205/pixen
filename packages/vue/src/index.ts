@@ -19,6 +19,7 @@ import {
   type PixenImageEditorElement,
   type StickerDefinition,
   type ToolDefinition,
+  type ToolInput,
   type ToolId,
 } from "@pixen/web";
 import "@pixen/web";
@@ -54,7 +55,7 @@ export const PixenImageEditor = defineComponent({
     src: { type: [String, Object] as PropType<string | Blob | null>, default: null },
     /** A previously saved document, to resume a session. */
     document: { type: [Object, String] as PropType<EditorDocument | string | null>, default: null },
-    tools: { type: Array as PropType<(ToolId | ToolDefinition)[] | null>, default: null },
+    tools: { type: Array as PropType<ToolInput[] | null>, default: null },
     aspectRatios: { type: Array as PropType<(number | null | AspectRatioOption)[] | null>, default: null },
     stickers: { type: Array as PropType<(string | Blob | StickerDefinition)[] | null>, default: null },
     policy: { type: [Object, String] as PropType<ImagePolicy | PresetName | null>, default: null },
@@ -146,5 +147,5 @@ export const PixenImageEditor = defineComponent({
 });
 
 export default PixenImageEditor;
-export type { AspectRatioOption, StickerDefinition, ToolDefinition, ToolId } from "@pixen/web";
+export type { AspectRatioOption, StickerDefinition, ToolDefinition, ToolId, ToolInput } from "@pixen/web";
 export type { EditorDocument, ExportResult, HistorySummary, ImagePolicy, PresetName } from "@pixen/core";

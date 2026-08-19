@@ -5,7 +5,7 @@ import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTranspar
 import { outputSize as documentOutputSize } from "../model/document.js";
 import type { EditorDocument, ImageFormat } from "../model/types.js";
 import { createScene } from "../render/scene.js";
-import { renderScene } from "../render/canvas2d.js";
+import { renderScene } from "../render/canvas2d/index.js";
 import type { ResourceManager } from "../resources/manager.js";
 
 export interface ExportOptions {

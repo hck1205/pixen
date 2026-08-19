@@ -26,7 +26,7 @@ import {
 import { invert } from "../geometry/matrix.js";
 import { transformBounds } from "../geometry/rect.js";
 import { imageToStage } from "../geometry/spaces.js";
-import { createImageLayer } from "../model/layers.js";
+import { createImageLayer, findLayer } from "../model/layers.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
 import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
 import {
@@ -35,7 +35,7 @@ import {
   type Intent,
   type SessionEvent,
   type SessionState,
-} from "./session.js";
+} from "./session/index.js";
 
 export interface EditorEvents {
   load: { document: EditorDocument; resource: ImageResource };
@@ -143,7 +143,7 @@ export class Editor {
   get selectedLayer(): EditorLayer | null {
     const id = this.session.selection;
     if (!id) return null;
-    return this.document.layers.find((layer) => layer.id === id) ?? null;
+    return findLayer(this.document.layers, id);
   }
 
   on<K extends keyof EditorEvents>(event: K, listener: (payload: EditorEvents[K]) => void): Unsubscribe {

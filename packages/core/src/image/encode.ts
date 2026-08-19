@@ -20,6 +20,13 @@ export function supportsTransparency(format: ImageFormat): boolean {
  * of creeping toward the budget.
  */
 const MIN_BUDGET_QUALITY = 0.4;
+/**
+ * The floor any requested quality is clamped to. Zero is not a quality, and a
+ * browser handed one produces an image nobody asked for.
+ */
+const MIN_QUALITY = 0.01;
+/** Anything encodes at this; the probe is about the format, not the picture. */
+const FORMAT_PROBE_QUALITY = 0.5;
 const MAX_BUDGET_ATTEMPTS = 5;
 const BUDGET_QUALITY_BACKOFF = 0.9;
 
@@ -39,7 +46,7 @@ export async function isFormatSupported(format: ImageFormat): Promise<boolean> {
   try {
     const { createSurface, releaseSurface } = await import("./canvas.js");
     const surface = createSurface(1, 1);
-    const blob = await encodeSurface(surface.canvas, format, 0.5);
+    const blob = await encodeSurface(surface.canvas, format, FORMAT_PROBE_QUALITY);
     releaseSurface(surface);
     return blob.type === format;
   } catch {
@@ -67,7 +74,7 @@ export async function encodeSurface(
   quality: number,
   options: EncodeSurfaceOptions = {},
 ): Promise<Blob> {
-  const clampedQuality = Math.min(1, Math.max(0.01, quality));
+  const clampedQuality = Math.min(1, Math.max(MIN_QUALITY, quality));
 
   if (options.offload !== false) {
     const offloaded = await encodeOnWorker(canvas, format, clampedQuality);

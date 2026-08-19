@@ -95,6 +95,13 @@ export function applyPolicy(editor: Editor, policy: ImagePolicy | PresetName): v
 }
 
 /** Checks a candidate result against the policy. Empty means it passes. */
+/**
+ * How far a cropped image may sit from a policy's ratio before it counts as a
+ * violation. Integer pixel sizes cannot hit most ratios exactly — 4:3 of a
+ * 1001px width is not 4:3 — so an exact test would fail images that are right.
+ */
+const ASPECT_RATIO_TOLERANCE = 0.01;
+
 export function checkPolicy(
   policy: ImagePolicy | PresetName,
   candidate: Size & { bytes?: number },
@@ -120,7 +127,7 @@ export function checkPolicy(
   }
   if (resolved.aspectRatio != null) {
     const actual = candidate.width / candidate.height;
-    if (Math.abs(actual - resolved.aspectRatio) > 0.01) {
+    if (Math.abs(actual - resolved.aspectRatio) > ASPECT_RATIO_TOLERANCE) {
       violations.push({
         rule: "aspectRatio",
         message: `Image must have a ${resolved.aspectRatio.toFixed(2)}:1 aspect ratio`,

@@ -1,6 +1,7 @@
 import {
   createPathLayer,
   createTextLayer,
+  findLayer,
   last,
   layerBounds,
   ROTATION_SNAP,
@@ -33,7 +34,7 @@ export const IDLE: GestureState = { kind: "idle" };
 const intent = (value: Intent): GestureEffect => ({ kind: "intent", intent: value });
 
 /** A shift-drag locks the ratio the layer already has, rather than a square. */
-function aspectRatioOf(layer: EditorLayer | undefined, handle: LayerHandle): number | null {
+function aspectRatioOf(layer: EditorLayer | null, handle: LayerHandle): number | null {
   if (!layer || handle === "rotate") return null;
   const bounds = layerBounds(layer);
   return bounds.height === 0 ? null : bounds.width / bounds.height;
@@ -207,7 +208,7 @@ export function moveGesture(
     }
 
     case "layer-transform": {
-      const layer = context.layers.find((candidate) => candidate.id === state.id);
+      const layer = findLayer(context.layers, state.id);
       // Shift means "keep it honest" in both directions: a square corner drag,
       // and a rotation that lands on a multiple of 15 degrees.
       const modified = sample.shiftKey === true;
@@ -270,7 +271,7 @@ export function endGesture(state: GestureState, context: GestureContext): Gestur
 
     case "draw-shape":
     case "draw-path": {
-      const layer = context.layers.find((candidate) => candidate.id === state.id);
+      const layer = findLayer(context.layers, state.id);
       if (!layer || isDegenerate(layer, context.imageLongestEdge)) {
         return { state: IDLE, effects: [intent({ kind: "rollback-transaction" })] };
       }

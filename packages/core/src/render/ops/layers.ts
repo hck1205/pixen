@@ -1,139 +1,32 @@
-import { last } from "../fp/function.js";
-import { compose, rotation, translation } from "../geometry/matrix.js";
-import type { Matrix, Point, Rect, Size } from "../geometry/types.js";
+import { last } from "../../fp/function.js";
+import { compose, rotation, translation } from "../../geometry/matrix.js";
+import type { Matrix, Point, Rect } from "../../geometry/types.js";
 import type {
-  Adjustments,
   EditorLayer,
-  FrameSettings,
-  FrameStyle,
-  ImageLayer,
-  RedactLayer,
   EllipseLayer,
+  ImageLayer,
   LineLayer,
   PathLayer,
   RectLayer,
+  RedactLayer,
   Stroke,
   TextLayer,
-} from "../model/types.js";
-import type { Scene, SceneLayerNode } from "./scene.js";
+} from "../../model/types.js";
+import type { SceneLayerNode } from "../scene.js";
+import { fontFor, LINE_HEIGHT_RATIO, wrapLines } from "./text.js";
+import type { DrawOp, PathCommand, StrokeStyle, TextMeasurer } from "./types.js";
 
 /**
- * Drawing, expressed as data.
+ * One layer at a time: what to draw for each kind, as data.
  *
- * The renderer used to decide *and* draw in the same statement, which put every
- * decision — where an arrow head goes, how text wraps, whether a rotation is
- * applied around the right centre — behind a canvas context and out of reach of
- * a unit test. Building an op list first splits the two: this module is pure and
- * fully testable in node, and `canvas2d.ts` is a small executor with no
- * decisions left in it.
+ * Every decision a layer implies — where an arrow head sits, how a path is
+ * smoothed, which centre a rotation turns about — is made here and handed to
+ * the executor already resolved.
  */
-export type PathCommand =
-  | { op: "move"; to: Point }
-  | { op: "line"; to: Point }
-  | { op: "quad"; control: Point; to: Point }
-  | { op: "rect"; rect: Rect }
-  | { op: "round-rect"; rect: Rect; radius: number }
-  | { op: "ellipse"; centre: Point; radiusX: number; radiusY: number }
-  | { op: "circle"; centre: Point; radius: number }
-  | { op: "close" };
-
-export interface StrokeStyle {
-  color: string;
-  width: number;
-  dash: number[];
-}
-
-export interface TextBackground {
-  rect: Rect;
-  color: string;
-}
-
-export type DrawOp =
-  | {
-      op: "layer-image";
-      source: CanvasImageSource;
-      frame: Rect;
-      /** Tiles the bitmap at its natural size instead of stretching it. */
-      repeat: boolean;
-    }
-  | {
-      /**
-       * Hides what is already on the canvas inside `frame`.
-       *
-       * The executor reads the pixels back, which is why this is an operation
-       * rather than a shape: the effect depends on what was drawn before it.
-       */
-      op: "obscure";
-      frame: Rect;
-      mode: "solid" | "blur" | "pixelate";
-      /** Blur radius or block size, in image-space units. */
-      strength: number;
-      /** Used by `solid`, and whenever the pixels cannot be read back. */
-      colour: string;
-    }
-  | { op: "clear"; width: number; height: number }
-  | { op: "fill-viewport"; color: string; width: number; height: number }
-  | {
-      /** A soft darkening towards the corners, drawn over the image. */
-      op: "vignette";
-      rect: Rect;
-      /** 0 leaves the image alone; 1 is the strongest fall-off offered. */
-      strength: number;
-    }
-  | {
-      /** A border drawn over the finished picture. */
-      op: "frame";
-      rect: Rect;
-      style: FrameStyle;
-      /** All four in target pixels: the builder resolves the fractions. */
-      width: number;
-      radius: number;
-      inset: number;
-      colour: string;
-    }
-  | { op: "filter"; value: string }
-  | { op: "transform"; matrix: Matrix }
-  | { op: "alpha"; value: number }
-  | { op: "image"; source: CanvasImageSource; width: number; height: number }
-  | { op: "path"; commands: PathCommand[]; stroke?: StrokeStyle; fill?: string }
-  | {
-      op: "text";
-      lines: string[];
-      origin: Point;
-      lineHeight: number;
-      font: string;
-      align: "left" | "center" | "right";
-      color: string;
-      background?: TextBackground;
-    }
-  | { op: "adjust-pixels"; adjustments: Adjustments; width: number; height: number };
-
-/** Measures a string in a given CSS font. Injected so text layout is testable. */
-export type TextMeasurer = (text: string, font: string) => number;
-
-export interface BuildOptions {
-  /** False when the engine lacks canvas `filter`, which switches to the pixel path. */
-  contextFilter?: boolean;
-  measureText?: TextMeasurer;
-  clear?: boolean;
-  skipLayers?: boolean;
-}
-
-/** Rough fallback: enough for layout when no real measurer is available. */
-export const estimateTextWidth: TextMeasurer = (text, font) => {
-  const size = Number.parseFloat(font) || 16;
-  return text.length * size * 0.55;
-};
-
 function toStrokeStyle(stroke: Stroke): StrokeStyle {
   return { color: stroke.color, width: stroke.width, dash: stroke.dash ?? [] };
 }
 
-function fontFor(layer: TextLayer): string {
-  return `${layer.fontSize}px ${layer.fontFamily}`;
-}
-
-/** Rotation happens around the shape's own centre, in image space. */
 export function withLayerRotation(matrix: Matrix, rotationRadians: number, centre: Point): Matrix {
   if (!rotationRadians) return matrix;
   return compose(
@@ -296,35 +189,6 @@ export function redactLayerOps(layer: RedactLayer, imageLongestEdge: number): Dr
   ];
 }
 
-export const LINE_HEIGHT_RATIO = 1.25;
-
-/** Greedy word wrap. Explicit newlines always break; `maxWidth` is optional. */
-export function wrapLines(
-  text: string,
-  maxWidth: number | null,
-  font: string,
-  measure: TextMeasurer,
-): string[] {
-  const paragraphs = text.split("\n");
-  if (maxWidth == null) return paragraphs;
-
-  const lines: string[] = [];
-  for (const paragraph of paragraphs) {
-    let line = "";
-    for (const word of paragraph.split(/(\s+)/)) {
-      const candidate = line + word;
-      if (line && measure(candidate, font) > maxWidth) {
-        lines.push(line.trimEnd());
-        line = word.trimStart();
-      } else {
-        line = candidate;
-      }
-    }
-    lines.push(line);
-  }
-  return lines;
-}
-
 export function textLayerOps(layer: TextLayer, measure: TextMeasurer): DrawOp[] {
   const font = fontFor(layer);
   const lines = wrapLines(layer.text, layer.maxWidth, font, measure);
@@ -422,89 +286,4 @@ function layerBodyOps(node: SceneLayerNode, measure: TextMeasurer, imageLongestE
     case "redact":
       return redactLayerOps(layer, imageLongestEdge);
   }
-}
-
-// --- scene -----------------------------------------------------------------
-
-/**
- * Resolves a frame's fractions against the target it is drawn on.
- *
- * Stored as fractions so one setting suits a thumbnail and a 6000px export;
- * resolved here so the executor only ever sees pixels.
- */
-export function frameOp(frame: FrameSettings, region: Rect): Extract<DrawOp, { op: "frame" }> {
-  const longestEdge = Math.max(region.width, region.height);
-  return {
-    op: "frame",
-    rect: region,
-    style: frame.style,
-    width: Math.max(1, frame.width * longestEdge),
-    radius: Math.max(0, frame.radius * longestEdge),
-    inset: Math.max(0, frame.inset * longestEdge),
-    colour: frame.colour,
-  };
-}
-
-/**
- * The whole frame as a list of operations, in draw order.
- *
- * Colour adjustment takes the canvas `filter` when the engine has one and the
- * pixel path when it does not, so a preview and an export cannot disagree
- * because of a browser capability.
- */
-export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[] {
-  const measure = options.measureText ?? estimateTextWidth;
-  const useFilter = scene.filter !== "" && options.contextFilter !== false;
-  const ops: DrawOp[] = [];
-
-  if (options.clear !== false) {
-    ops.push({ op: "clear", width: scene.target.width, height: scene.target.height });
-  }
-  if (scene.background) {
-    ops.push({
-      op: "fill-viewport",
-      color: scene.background,
-      width: scene.target.width,
-      height: scene.target.height,
-    });
-  }
-
-  if (useFilter) ops.push({ op: "filter", value: scene.filter });
-  ops.push(
-    { op: "alpha", value: 1 },
-    { op: "transform", matrix: scene.image.matrix },
-    { op: "image", source: scene.image.source, width: scene.image.size.width, height: scene.image.size.height },
-  );
-  if (useFilter) ops.push({ op: "filter", value: "none" });
-
-  if (!useFilter && scene.filter !== "") {
-    ops.push({
-      op: "adjust-pixels",
-      adjustments: scene.adjustments,
-      width: scene.target.width,
-      height: scene.target.height,
-    });
-  }
-
-  if (scene.adjustments.vignette > 0) {
-    // Over the image and under the annotations: the vignette is part of the
-    // picture, and an arrow drawn on top should not be dimmed by it.
-    ops.push({
-      op: "vignette",
-      rect: { x: 0, y: 0, width: scene.target.width, height: scene.target.height },
-      strength: scene.adjustments.vignette,
-    });
-  }
-
-  if (options.skipLayers !== true) {
-    // Redaction strengths are fractions of the image, so the builder needs to
-    // know how big the image is.
-    const longestEdge = Math.max(scene.image.size.width, scene.image.size.height);
-    for (const node of scene.layers) ops.push(...layerOps(node, measure, longestEdge));
-  }
-
-  // Around the picture, not around the canvas: in the viewport those differ.
-  if (scene.frame) ops.push(frameOp(scene.frame, scene.regionInTarget));
-
-  return ops;
 }
