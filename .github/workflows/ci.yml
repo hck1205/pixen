@@ -32,6 +32,11 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      # The apps are not part of the package build, so they need saying: a type
+      # error in the playground or the stories used to reach nobody.
+      - name: Typecheck everything, apps included
+        run: pnpm typecheck
+
       - name: Unit tests
         run: pnpm test
 

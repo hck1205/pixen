@@ -1,6 +1,7 @@
 import {
   applyToPoint,
   CROP_HANDLES,
+  findLayer,
   LAYER_HANDLES,
   layerBounds,
   layerHandlePosition,
@@ -65,7 +66,8 @@ export function hitLayer(context: GestureContext, imagePoint: Point): EditorLaye
 /** The layer the handles belong to: the selection, when it is still present. */
 export function selectedLayer(context: GestureContext): EditorLayer | null {
   if (!context.selectedId) return null;
-  return context.layers.find((layer) => layer.id === context.selectedId && !layer.locked) ?? null;
+  const layer = findLayer(context.layers, context.selectedId);
+  return layer && !layer.locked ? layer : null;
 }
 
 /**

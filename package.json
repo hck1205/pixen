@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -b packages/core packages/web packages/react packages/vue packages/svelte",
-    "typecheck": "tsc -b packages/core packages/web packages/react packages/vue packages/svelte",
+    "typecheck": "tsc -b packages/core packages/web packages/react packages/vue packages/svelte && pnpm --filter @pixen/stories exec tsc --noEmit -p tsconfig.json && pnpm --filter @pixen/playground exec tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "pnpm build && pnpm playground:build && playwright test",

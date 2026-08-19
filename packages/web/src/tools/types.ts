@@ -16,6 +16,15 @@ export interface ToolDefinition {
   options?: Record<string, unknown>;
 }
 
+/**
+ * What a host may put in `tools`.
+ *
+ * Three spellings, because all three read naturally and `normaliseTools`
+ * accepts all three: a bare id, `{ id, options }`, or `{ type, options }` —
+ * which is the one the documentation has always shown.
+ */
+export type ToolInput = ToolId | ToolDefinition | { type: ToolId; options?: Record<string, unknown> };
+
 export interface CropToolOptions {
   /** Selectable ratios. `null` is the freeform entry. */
   ratios?: (number | null)[];

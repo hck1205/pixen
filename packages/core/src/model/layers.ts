@@ -142,6 +142,27 @@ export function createRedactLayer(frame: Rect, options: Partial<RedactLayer> = {
   };
 }
 
+/**
+ * The layer with this id, or null.
+ *
+ * A one-line `find` repeated in six places is six places that could disagree
+ * about what "missing" means; this one says null, everywhere.
+ */
+export function findLayer(layers: readonly EditorLayer[], id: string | null | undefined): EditorLayer | null {
+  if (!id) return null;
+  return layers.find((layer) => layer.id === id) ?? null;
+}
+
+/** Narrows in the same step, for callers that only want one kind of layer. */
+export function findLayerOfType<T extends EditorLayer["type"]>(
+  layers: readonly EditorLayer[],
+  id: string | null | undefined,
+  type: T,
+): Extract<EditorLayer, { type: T }> | null {
+  const layer = findLayer(layers, id);
+  return layer?.type === type ? (layer as Extract<EditorLayer, { type: T }>) : null;
+}
+
 /** Image-space bounding box of a layer, ignoring its own rotation. */
 export function layerBounds(layer: EditorLayer): Rect {
   switch (layer.type) {

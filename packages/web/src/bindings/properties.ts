@@ -1,7 +1,7 @@
 import type { EditorDocument, ImagePolicy, PresetName } from "@pixen/core";
 import type { PixenImageEditorElement } from "../element/index.js";
 import type { AspectRatioOption } from "../element/constants.js";
-import type { StickerDefinition, ToolDefinition, ToolId } from "../tools/index.js";
+import type { StickerDefinition, ToolInput } from "../tools/index.js";
 
 /**
  * The structured settings a framework binds to the element.
@@ -14,7 +14,7 @@ import type { StickerDefinition, ToolDefinition, ToolId } from "../tools/index.j
 export interface PixenElementProperties {
   src?: string | Blob | null;
   document?: EditorDocument | string | null;
-  tools?: (ToolId | ToolDefinition)[] | null;
+  tools?: ToolInput[] | null;
   aspectRatios?: (number | null | AspectRatioOption)[] | null;
   policy?: ImagePolicy | PresetName | null;
   stickers?: (string | Blob | StickerDefinition)[] | null;

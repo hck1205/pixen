@@ -38,7 +38,7 @@ was supplied to an AI tool as input at any point.
 | `model/palette.ts` | Annotation colours and default ratios | Chosen for this project; not taken from any design system |
 | `engine/commands.ts` | Pure document transforms, crop remapping across a rotate | First principles, using the matrices above |
 | `engine/history.ts` | Snapshot undo with explicit transactions, as immutable state | Ordinary software design; undo-as-snapshot and command grouping are textbook concepts, not anyone's implementation |
-| `engine/session.ts` | Intent-to-command reducer over document, selection and history | Original design for this project; the reducer shape is a common functional idiom |
+| `engine/session/` | The intent vocabulary and the reducer over document, selection and history | Original design for this project; the reducer shape is a common functional idiom |
 | `image/exif.ts` | JPEG APP1 / TIFF IFD orientation parsing | The Exif and TIFF 6.0 specifications: `FFD8` SOI, `FFE1` APP1, the `Exif\0\0` header, `II`/`MM` byte order, magic `0x002A`, IFD entry layout, orientation tag `0x0112`. Written from the specified byte layout |
 | `image/worker/*` | Decode and encode on a worker thread | MDN/WHATWG: `Worker`, `postMessage` transferables, `OffscreenCanvas.convertToBlob`. Shipping the body as a serialised function in a blob URL is our own choice, for the reason recorded in the module |
 | `image/canvas.ts`, `image/encode.ts` | Surface allocation, encoding, byte budgets | MDN/WHATWG: `OffscreenCanvas.convertToBlob`, `HTMLCanvasElement.toBlob`. The quality-reduction loop is our own |
@@ -46,10 +46,10 @@ was supplied to an AI tool as input at any point.
 | `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
 | `render/scene.ts` | Document → draw list projection | Original design for this project |
 | `render/presets.ts` | Nine named looks | Values chosen here by eye against this project's own sample image |
-| `render/canvas2d.ts` vignette | Corner fall-off | A radial gradient fill; first principles |
+| `render/canvas2d/decoration.ts` | Vignette and frame | A radial gradient fill and a stroked rectangle; first principles |
 | `render/adjustments.ts` | The adjustment chain, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix, the `sepia` colour matrix, and the luminance-preserving `hue-rotate` matrix, all written out from that specification |
-| `render/ops.ts` | Scene to draw-operation list: paths, arrow heads, text layout | Greedy line breaking; quadratic midpoint smoothing for free-draw; arrow heads from trigonometry |
-| `render/canvas2d.ts` | Executes a draw-operation list | Canvas2D API. Redaction: `ctx.filter = blur(...)` is the W3C **Filter Effects Module Level 1** `blur()` function as exposed on the canvas context; pixelation is a downscale-then-upscale with `imageSmoothingEnabled = false`, which is what nearest-neighbour resampling means |
+| `render/ops/` | Scene to draw-operation list: paths, arrow heads, text layout | Greedy line breaking; quadratic midpoint smoothing for free-draw; arrow heads from trigonometry |
+| `render/canvas2d/` | Executes a draw-operation list | Canvas2D API. Redaction: `ctx.filter = blur(...)` is the W3C **Filter Effects Module Level 1** `blur()` function as exposed on the canvas context; pixelation is a downscale-then-upscale with `imageSmoothingEnabled = false`, which is what nearest-neighbour resampling means |
 | `export/watermark.ts` | Placing a watermark image in one of nine positions | First principles: a fraction of the longest edge, inset by a margin |
 | `export/*` | Full-resolution export, headless processing, policies | Original design for this project |
 | `web/viewport/gestures/*` | Pointer gestures as a state machine | Original design for this project |

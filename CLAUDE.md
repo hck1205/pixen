@@ -43,9 +43,10 @@ than you found it, and act on these the moment you notice them:
 - **One concern per module.** When a file starts answering two questions, split
   it. Names describe the concern, not the type: `chrome/inspector/crop.ts`, not
   `helpers.ts` or `utils.ts`.
-- **Folders nest by concern, repeatedly.** `element/chrome/inspector/` is the
-  pattern: as a concern grows its own parts, it becomes a folder with a barrel
-  `index.ts`, and the same rule applies inside it.
+- **Folders nest by concern, repeatedly.** `element/chrome/inspector/`,
+  `render/ops/`, `render/canvas2d/` and `engine/session/` are the pattern: as a
+  concern grows its own parts, it becomes a folder with a barrel `index.ts`, and
+  the same rule applies inside it.
 - **Extract the decision, keep the effect thin.** Anything that decides — what a
   keystroke means, which inspector section to show, how a gesture maps to an
   intent — is a pure function over data, and gets a unit test. Classes hold
