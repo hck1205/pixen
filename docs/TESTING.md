@@ -62,6 +62,23 @@ passed a build with the accent colour changed from blue to pink, because the
 accent covers well under one per cent of the page. A threshold that forgiving
 forgives regressions.
 
+### CI installs a browser, not a package manager
+
+The workflow runs `playwright install chromium` without `--with-deps`. That
+flag runs `apt-get update` first, and on the runner the Ubuntu mirror has twice
+stopped answering mid-fetch — the job sat silent until the timeout killed it,
+which is reported as "cancelled" and reads as though a person did it.
+
+What it was installing was fonts: CJK, Thai and Cyrillic sets. The shared
+objects Chromium needs are already in the image, which is why runs that got
+past apt were green. Fonts change glyph rasterisation, so they matter to golden
+images — and the suite that takes those is opt-in and never runs in CI, which
+is what makes dropping them safe here rather than merely convenient. Anyone
+recording baselines is doing it on their own machine with their own fonts.
+
+The step is bounded by `timeout-minutes` so a stalled download fails in minutes,
+by name, instead of consuming the job's whole budget.
+
 ### Each suite starts only the servers it uses
 
 The browser suite drives the playground on 4173. The visual suite photographs
