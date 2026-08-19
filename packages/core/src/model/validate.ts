@@ -1,8 +1,11 @@
 import { PixenError } from "../errors/index.js";
 import { collectAll, err, isErr, ok, type Result } from "../fp/result.js";
 import type { Point, Rect } from "../geometry/types.js";
+import { REDACTION_COLOUR } from "./palette.js";
 import {
   DEFAULT_CORNER_RADIUS,
+  DEFAULT_REDACTION_MODE,
+  DEFAULT_REDACTION_STRENGTH,
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
   DEFAULT_LAYER_LOCKED,
@@ -14,7 +17,7 @@ import {
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_COLOUR,
 } from "./defaults.js";
-import type { EditorDocument, EditorLayer, ImageFormat, Stroke } from "./types.js";
+import { REDACTION_MODES, type EditorDocument, type EditorLayer, type ImageFormat, type Stroke } from "./types.js";
 
 export interface ValidationIssue {
   /** JSON path into the document, e.g. `$.layers[2].frame.width`. */
@@ -194,6 +197,23 @@ export const layer: Validator<EditorLayer> = (value, path) => {
         stroke: field("stroke", withDefault(stroke, { ...DEFAULT_STROKE })),
         closed: field("closed", withDefault(boolean, false)),
       });
+    case "image":
+      return shape<EditorLayer & { type: "image" }>(source, path, {
+        ...layerBase,
+        type: () => ok("image" as const),
+        resourceId: field("resourceId", text),
+        frame: field("frame", rect),
+        repeat: field("repeat", withDefault(boolean, false)),
+      });
+    case "redact":
+      return shape<EditorLayer & { type: "redact" }>(source, path, {
+        ...layerBase,
+        type: () => ok("redact" as const),
+        frame: field("frame", rect),
+        mode: field("mode", withDefault(literalUnion(...REDACTION_MODES), DEFAULT_REDACTION_MODE)),
+        strength: field("strength", withDefault(finiteNumber, DEFAULT_REDACTION_STRENGTH)),
+        colour: field("colour", withDefault(text, REDACTION_COLOUR)),
+      });
     case "text":
       return shape<EditorLayer & { type: "text" }>(source, path, {
         ...layerBase,
@@ -208,7 +228,7 @@ export const layer: Validator<EditorLayer> = (value, path) => {
         maxWidth: field("maxWidth", nullable(finiteNumber)),
       });
     default:
-      return err(issue(`${path}.type`, "one of rect, ellipse, line, path, text", source.type));
+      return err(issue(`${path}.type`, "one of rect, ellipse, line, path, text, image, redact", source.type));
   }
 };
 

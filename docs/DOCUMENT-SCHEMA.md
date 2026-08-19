@@ -6,7 +6,7 @@ migratable from v1.
 
 ```jsonc
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": { "resourceId": "res_1a2b", "width": 4000, "height": 3000, "name": "beach.jpg", "mimeType": "image/jpeg" },
   "transform": { "rotation": 0, "flipX": false, "flipY": false },   // radians, clockwise
   "crop": { "x": 0, "y": 0, "width": 4000, "height": 3000 },        // stage space, or null
@@ -40,8 +40,16 @@ migratable from v1.
 | `line` | `from`, `to` | `arrowStart` / `arrowEnd` draw heads |
 | `path` | `points[]` | free draw, midpoint-smoothed at render time |
 | `text` | `position` | `fontSize`, `fontFamily`, `align`, optional `maxWidth` wrapping |
+| `image` | `frame` | A bitmap by `resourceId` — a sticker, a logo, a watermark. `repeat` tiles it |
+| `redact` | `frame` | `mode` (`solid` / `blur` / `pixelate`), `strength`, and the `colour` used by `solid` and as the fallback |
 
 Every layer carries `id`, `visible`, `locked`, `opacity` and its own `rotation`.
+
+An `image` layer holds no pixels either: like the source, it references the
+`ResourceManager` by id, so a document with ten stickers is still small JSON and
+the same bitmap placed twice is decoded once. A layer whose resource is missing
+renders as nothing rather than as an error — a saved document can outlive the
+sticker it referenced.
 
 ## Versioning
 
@@ -51,8 +59,14 @@ one, applying each registered step in order:
 ```js
 import { registerMigration } from "@pixen/core";
 
-registerMigration(1, (document) => ({ ...document, /* v1 -> v2 changes */ }));
+registerMigration(2, (document) => ({ ...document, /* v2 -> v3 changes */ }));
 ```
+
+Shipped so far:
+
+| Step | What changed |
+| --- | --- |
+| v1 → v2 | Added the `image` and `redact` layer types. Nothing in a v1 document changes, but the version moves so that a v1 build refuses a v2 document rather than dropping a redaction it cannot render |
 
 - A document from a **newer** build fails with `UNSUPPORTED_SCHEMA_VERSION`
   rather than being partially understood.

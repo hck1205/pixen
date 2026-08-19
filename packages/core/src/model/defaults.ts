@@ -1,4 +1,5 @@
 import { DEFAULT_ANNOTATION_COLOUR } from "./palette.js";
+import type { RedactionMode } from "./types.js";
 
 /**
  * Default values for a new document and its layers.
@@ -25,6 +26,16 @@ export const DEFAULT_TEXT_COLOUR = "#ffffff";
 export const DEFAULT_TEXT_ALIGN = "left" as const;
 
 export const DEFAULT_CORNER_RADIUS = 0;
+
+/**
+ * Redaction defaults. `solid` is the default mode because it is the only one
+ * that removes the pixels rather than obscuring them.
+ */
+export const DEFAULT_REDACTION_MODE: RedactionMode = "solid";
+/** Blur radius and pixel block size, as a fraction of the image's longest edge. */
+export const DEFAULT_REDACTION_STRENGTH = 0.02;
+export const MIN_REDACTION_STRENGTH = 0.002;
+export const MAX_REDACTION_STRENGTH = 0.08;
 
 /** The stroke a new annotation gets when the caller does not supply one. */
 export const DEFAULT_STROKE = Object.freeze({

@@ -12,7 +12,7 @@
     "typecheck": "tsc -b packages/core packages/web packages/react packages/vue",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:browser": "playwright test",
+    "test:browser": "pnpm build && pnpm playground:build && playwright test",
     "playground": "pnpm --filter @pixen/playground dev",
     "playground:build": "pnpm --filter @pixen/playground build",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo apps/*/dist apps/stories/build test-results playwright-report",

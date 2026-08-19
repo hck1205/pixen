@@ -62,6 +62,12 @@ The same `createScene` code produces both. They differ only in which region they
 render (`crop` versus `stage`) and how the region maps onto the target
 (`fit: "stretch"` for export, `fit: "none"` plus a view matrix for the viewport).
 
+Both hand `createScene` a `resolveResource` function — `ResourceManager.resolve`
+— because a layer stores a `resourceId` and only the manager knows which bitmap
+that is. Preview and export therefore see the same stickers and watermarks; a
+renderer that forgets the resolver silently loses every image layer, which is
+why the browser suite asserts a watermark reaches both canvases.
+
 ## Pure core, imperative shell
 
 Every part of Pixen that *decides* something is a pure function over data; the

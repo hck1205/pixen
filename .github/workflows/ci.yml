@@ -35,15 +35,14 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      - name: Build playground
-        run: pnpm playground:build
-
       - name: Build stories
         run: pnpm stories:build
 
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      # `test:browser` builds the packages and the playground it tests, so the
+      # suite can never run against a stale bundle.
       - name: Browser tests
         run: pnpm test:browser
 

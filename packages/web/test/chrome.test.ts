@@ -20,9 +20,27 @@ describe("inspectorSectionFor", () => {
     expect(inspectorSectionFor({ panel: "tool", tool: "select", hasSelection: false })).toBe("select-hint");
   });
 
-  it("hints at what to do for the tools that need a drag first", () => {
+  it("hints at what to do for the text tool, which needs a click first", () => {
     expect(inspectorSectionFor({ panel: "tool", tool: "text", hasSelection: false })).toBe("text-hint");
-    expect(inspectorSectionFor({ panel: "tool", tool: "redact", hasSelection: false })).toBe("redact-hint");
+  });
+
+  it("offers the redaction modes whenever the redact tool is active", () => {
+    expect(inspectorSectionFor({ panel: "tool", tool: "redact", hasSelection: false })).toBe("redaction");
+  });
+
+  it("edits a selected redaction wherever it was selected from", () => {
+    expect(
+      inspectorSectionFor({ panel: "tool", tool: "select", hasSelection: true, redactionSelected: true }),
+    ).toBe("redaction");
+    expect(inspectorSectionFor({ panel: "tool", tool: "crop", hasSelection: true, redactionSelected: true })).toBe(
+      "redaction",
+    );
+  });
+
+  it("still puts the adjustment panel first", () => {
+    expect(
+      inspectorSectionFor({ panel: "adjust", tool: "select", hasSelection: true, redactionSelected: true }),
+    ).toBe("adjustments");
   });
 
   it("falls back to the annotation style for the drawing tools", () => {

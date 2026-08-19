@@ -2,6 +2,8 @@ import type { Point, Rect } from "../geometry/types.js";
 import { createId } from "../util/id.js";
 import {
   DEFAULT_CORNER_RADIUS,
+  DEFAULT_REDACTION_MODE,
+  DEFAULT_REDACTION_STRENGTH,
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
   DEFAULT_LAYER_LOCKED,
@@ -12,8 +14,11 @@ import {
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_COLOUR,
 } from "./defaults.js";
+import { REDACTION_COLOUR } from "./palette.js";
 import type {
   EditorLayer,
+  ImageLayer,
+  RedactLayer,
   EllipseLayer,
   LineLayer,
   PathLayer,
@@ -103,11 +108,47 @@ export function createTextLayer(position: Point, text: string, options: Partial<
   };
 }
 
+/**
+ * A bitmap placed on the image. The pixels stay in the resource manager; the
+ * layer is a frame and an id, which is what keeps a document with ten stickers
+ * as small as one with none.
+ */
+export function createImageLayer(resourceId: string, frame: Rect, options: Partial<ImageLayer> = {}): ImageLayer {
+  return {
+    id: createId("image"),
+    type: "image",
+    ...layerDefaults,
+    resourceId,
+    frame,
+    repeat: false,
+    ...options,
+  };
+}
+
+/**
+ * A region to hide. `solid` removes the pixels; `blur` and `pixelate` obscure
+ * them, which is a weaker promise and is documented as such.
+ */
+export function createRedactLayer(frame: Rect, options: Partial<RedactLayer> = {}): RedactLayer {
+  return {
+    id: createId("redact"),
+    type: "redact",
+    ...layerDefaults,
+    frame,
+    mode: DEFAULT_REDACTION_MODE,
+    strength: DEFAULT_REDACTION_STRENGTH,
+    colour: REDACTION_COLOUR,
+    ...options,
+  };
+}
+
 /** Image-space bounding box of a layer, ignoring its own rotation. */
 export function layerBounds(layer: EditorLayer): Rect {
   switch (layer.type) {
     case "rect":
     case "ellipse":
+    case "image":
+    case "redact":
       return layer.frame;
     case "line": {
       const x = Math.min(layer.from.x, layer.to.x);
@@ -145,6 +186,8 @@ export function translateLayer(layer: EditorLayer, dx: number, dy: number): Edit
   switch (layer.type) {
     case "rect":
     case "ellipse":
+    case "image":
+    case "redact":
       return { ...layer, frame: { ...layer.frame, x: layer.frame.x + dx, y: layer.frame.y + dy } };
     case "line":
       return {

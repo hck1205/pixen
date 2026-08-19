@@ -2,7 +2,7 @@ import {
   createArrowLayer,
   createEllipseLayer,
   createRectLayer,
-  REDACTION_COLOUR,
+  createRedactLayer,
   type EditorLayer,
   type Point,
   type Rect,
@@ -23,7 +23,11 @@ export function shapeLayerFor(tool: ShapeTool, origin: Point, context: GestureCo
     case "rect":
       return createRectLayer(frame, { id: context.createId("rect"), stroke, fill: null });
     case "redact":
-      return createRectLayer(frame, { id: context.createId("rect"), stroke: null, fill: REDACTION_COLOUR });
+      return createRedactLayer(frame, {
+        id: context.createId("redact"),
+        mode: context.style.redactionMode,
+        strength: context.style.redactionStrength,
+      });
     case "ellipse":
       return createEllipseLayer(frame, { id: context.createId("ellipse"), stroke, fill: null });
     case "arrow":
@@ -60,6 +64,8 @@ export function isDegenerate(layer: EditorLayer, imageLongestEdge: number): bool
   switch (layer.type) {
     case "rect":
     case "ellipse":
+    case "redact":
+    case "image":
       return layer.frame.width < minimum && layer.frame.height < minimum;
     case "line":
       return Math.hypot(layer.to.x - layer.from.x, layer.to.y - layer.from.y) < minimum;

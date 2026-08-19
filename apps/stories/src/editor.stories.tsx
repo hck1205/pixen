@@ -1,10 +1,31 @@
 import { useRef, useState } from "react";
+import { REDACTION_MODES, type RedactionMode, type WatermarkPosition } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Story, StoryDefault } from "@ladle/react";
-import { createTransparentSample } from "./fixtures.js";
-import { seedAnnotations, seedRedaction } from "./fixtures.js";
-import { ElementEditor, Row, Stage, useBlob, useSampleImage } from "./harness.js";
+import { createTransparentSample, seedAnnotations, seedRedaction, seedWatermark } from "./fixtures.js";
+import { ElementEditor, Row, SeededEditor, Stage, useBlob, useSampleImage } from "./harness.js";
 import { hostButton, hostPrimaryButton } from "./styles.js";
+
+/** What each redaction mode actually promises, in the words the docs use. */
+const REDACTION_MODE_NOTES: Record<RedactionMode, string> = {
+  solid: "Replaces the pixels. The only mode to use for an identifier.",
+  blur: "Obscures the pixels. Irreversible in the export, but not erasure.",
+  pixelate: "Averages blocks of pixels. Same caveat as blur.",
+};
+
+/** Every placement the watermark helper accepts, in reading order. */
+const WATERMARK_POSITIONS: WatermarkPosition[] = [
+  "top-left",
+  "top",
+  "top-right",
+  "left",
+  "centre",
+  "right",
+  "bottom-left",
+  "bottom",
+  "bottom-right",
+  "tile",
+];
 
 export default {
   title: "Editor",
@@ -132,22 +153,24 @@ export const Annotations: Story = () => {
 };
 
 /** Redaction covers the identifier printed on the sample. */
-export const Redaction: Story = () => {
+export const Redaction: Story<{ mode: RedactionMode }> = ({ mode }) => {
   const image = useSampleImage();
   const editor = useRef<PixenImageEditorHandle>(null);
 
   return (
     <Stage
-      title="Redaction"
+      title={`Redaction: ${mode}`}
       note="The mask is part of the document, so the export rasterises over the pixels rather than hiding them."
     >
       <PixenImageEditor
+        // Remounting on the knob keeps one seeded layer per mode, not three.
+        key={mode}
         ref={editor}
         src={image}
         onLoad={() => {
           const instance = editor.current?.editor;
           if (instance) {
-            seedRedaction(instance);
+            seedRedaction(instance, mode);
             editor.current?.setTool("redact");
           }
         }}
@@ -155,6 +178,54 @@ export const Redaction: Story = () => {
       />
     </Stage>
   );
+};
+
+Redaction.args = { mode: "solid" };
+Redaction.argTypes = { mode: { options: REDACTION_MODES, control: { type: "radio" } } };
+
+/**
+ * The three modes on one page. Blur and pixelate are irreversible in the export
+ * but are not cryptographic erasure — solid is the one to use for identifiers.
+ */
+export const RedactionModes: Story = () => {
+  const image = useSampleImage();
+  return (
+    <Row columns={3}>
+      {REDACTION_MODES.map((mode) => (
+        <Stage key={mode} height={360} title={mode} note={REDACTION_MODE_NOTES[mode]}>
+          <SeededEditor image={image} seed={(instance) => seedRedaction(instance, mode)} />
+        </Stage>
+      ))}
+    </Row>
+  );
+};
+
+/** A watermark is an image layer, so it undoes, serialises and exports as one. */
+export const Watermark: Story<{ position: WatermarkPosition; scale: number; opacity: number }> = ({
+  position,
+  scale,
+  opacity,
+}) => {
+  const image = useSampleImage();
+  return (
+    <Stage
+      title={`Watermark: ${position}`}
+      note="Placement is a fraction of the longest edge, so the same options suit any source size."
+    >
+      <SeededEditor
+        key={`${position}:${scale}:${opacity}`}
+        image={image}
+        seed={(instance) => void seedWatermark(instance, { position, scale, opacity })}
+      />
+    </Stage>
+  );
+};
+
+Watermark.args = { position: "bottom-right", scale: 0.18, opacity: 0.6 };
+Watermark.argTypes = {
+  position: { options: WATERMARK_POSITIONS, control: { type: "select" } },
+  scale: { control: { type: "range", min: 0.05, max: 0.6, step: 0.01 } },
+  opacity: { control: { type: "range", min: 0.1, max: 1, step: 0.05 } },
 };
 
 /** Colour adjustment, driven from the story so the sliders can be compared. */

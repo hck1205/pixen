@@ -53,6 +53,13 @@ async function sampleImage(): Promise<Blob> {
     context.fill();
   }
 
+  // Printed detail, so the redaction tools have something real to destroy — and
+  // so the browser tests can measure whether they did.
+  context.fillStyle = "rgba(255, 255, 255, 0.9)";
+  context.font = `${Math.round(canvas.height * 0.05)}px system-ui, sans-serif`;
+  context.fillText("ID 4821-77", canvas.width * 0.08, canvas.height * 0.2);
+  context.fillText("pixen sample", canvas.width * 0.08, canvas.height * 0.28);
+
   return await new Promise<Blob>((resolve) => canvas.toBlob((blob) => resolve(blob!), "image/jpeg", 0.9));
 }
 

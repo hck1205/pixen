@@ -1,7 +1,7 @@
 import type { Point, Rect } from "../geometry/types.js";
 import { DEFAULT_QUALITY } from "./defaults.js";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 
@@ -67,7 +67,49 @@ export interface TextLayer extends LayerBase {
   maxWidth: number | null;
 }
 
-export type EditorLayer = RectLayer | EllipseLayer | LineLayer | PathLayer | TextLayer;
+/**
+ * A bitmap placed on the image: a sticker, a logo, a watermark.
+ *
+ * Like the source image, the pixels live in the `ResourceManager` and the layer
+ * carries only an id — so a document with ten stickers is still small JSON, and
+ * the same bitmap placed twice is decoded once.
+ */
+export interface ImageLayer extends LayerBase {
+  type: "image";
+  resourceId: string;
+  frame: Rect;
+  /** Tiles the bitmap across the frame instead of stretching it once. */
+  repeat: boolean;
+}
+
+/**
+ * How a redaction hides what is underneath.
+ *
+ * `solid` is the only mode that removes information outright, which is why it is
+ * the default; `blur` and `pixelate` obscure, and the difference matters when
+ * the content is sensitive. See docs/SECURITY.md.
+ */
+export const REDACTION_MODES = ["solid", "blur", "pixelate"] as const;
+export type RedactionMode = (typeof REDACTION_MODES)[number];
+
+export interface RedactLayer extends LayerBase {
+  type: "redact";
+  frame: Rect;
+  mode: RedactionMode;
+  /** Blur radius, or pixel block size, as a fraction of the image's longest edge. */
+  strength: number;
+  /** Fill used by `solid`, and as the fallback when pixels cannot be read back. */
+  colour: string;
+}
+
+export type EditorLayer =
+  | RectLayer
+  | EllipseLayer
+  | LineLayer
+  | PathLayer
+  | TextLayer
+  | ImageLayer
+  | RedactLayer;
 export type LayerType = EditorLayer["type"];
 
 export interface SourceDescriptor {

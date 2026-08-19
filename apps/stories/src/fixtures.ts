@@ -3,9 +3,11 @@ import {
   createEllipseLayer,
   createPathLayer,
   createRectLayer,
+  createRedactLayer,
   createTextLayer,
-  REDACTION_COLOUR,
   type Editor,
+  type RedactionMode,
+  type WatermarkOptions,
 } from "@pixen/core";
 
 /**
@@ -134,13 +136,43 @@ export function seedAnnotations(editor: Editor): void {
 }
 
 /** Covers the identifier printed on the sample, for redaction stories. */
-export function seedRedaction(editor: Editor): void {
+export function seedRedaction(editor: Editor, mode: RedactionMode = "solid"): void {
   const { width, height } = editor.document.source;
   editor.addLayer(
-    createRectLayer(
-      { x: width * 0.07, y: height * 0.14, width: width * 0.28, height: height * 0.075 },
-      { stroke: null, fill: REDACTION_COLOUR },
-    ),
+    createRedactLayer({ x: width * 0.07, y: height * 0.14, width: width * 0.28, height: height * 0.075 }, { mode }),
     { select: false },
   );
+}
+
+/**
+ * A mark to watermark with. Drawn here for the same reason the sample is: the
+ * story suite carries no binary fixtures and no third-party artwork.
+ */
+export const WATERMARK_SIZE = { width: 512, height: 160 };
+
+export async function createWatermarkMark(): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  canvas.width = WATERMARK_SIZE.width;
+  canvas.height = WATERMARK_SIZE.height;
+  const context = canvas.getContext("2d")!;
+
+  context.strokeStyle = "#fbfcfe";
+  context.lineWidth = 10;
+  context.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+  context.fillStyle = "#fbfcfe";
+  context.font = "600 76px system-ui, sans-serif";
+  context.textBaseline = "middle";
+  context.fillText("PIXEN", 56, canvas.height / 2);
+
+  return await new Promise<Blob>((resolve) => canvas.toBlob((blob) => resolve(blob!), "image/png"));
+}
+
+/** Registers the mark and places it, for watermark stories. */
+export async function seedWatermark(
+  editor: Editor,
+  options: Omit<WatermarkOptions, "resourceId" | "size"> = {},
+): Promise<void> {
+  const resource = await editor.resources.load(await createWatermarkMark());
+  editor.addWatermark({ ...options, resourceId: resource.id, size: WATERMARK_SIZE });
 }

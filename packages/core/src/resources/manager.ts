@@ -121,6 +121,16 @@ export class ResourceManager {
     return this.#entries.get(id)?.resource;
   }
 
+  /**
+   * The bitmap an image layer refers to, or null when it is gone.
+   *
+   * Bound to the instance so it can be handed straight to `createScene`, which
+   * is the one place that needs to turn a `resourceId` back into pixels. A
+   * missing resource is not an error here: a document can outlive the sticker it
+   * referenced, and the renderer draws nothing rather than throwing mid-frame.
+   */
+  resolve = (id: string): CanvasImageSource | null => this.#entries.get(id)?.resource.source ?? null;
+
   /** Like `get`, but states which invariant broke instead of returning undefined. */
   require(id: string): ImageResource {
     const entry = this.#entries.get(id);

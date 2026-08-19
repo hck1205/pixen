@@ -264,7 +264,7 @@ export class Viewport {
       context,
       createScene(
         document,
-        { source: preview.source, sourceScale: preview.scale },
+        { source: preview.source, sourceScale: preview.scale, resolveResource: this.#editor.resources.resolve },
         { region: "stage", target: { width, height }, fit: "none", transform: deviceMatrix },
       ),
       { clear: false },

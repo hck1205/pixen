@@ -38,4 +38,8 @@ export interface PixenStrings {
   toolbarOptions: string;
   zoomLevel: string;
   adjustments: string;
+  redactSolid: string;
+  redactBlur: string;
+  redactPixelate: string;
+  redactStrength: string;
 }

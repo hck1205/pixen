@@ -143,6 +143,23 @@ Images live in the `ResourceManager` keyed by id, which is what keeps documents
 small, serialisable and safe to diff — and lets memory be released at a point you
 choose.
 
+## Watermarks and stickers
+
+A watermark is a bitmap layer with placement maths, so it undoes, serialises,
+exports and survives a rotate like anything else:
+
+```js
+const logo = await editor.resources.load(logoFile);
+
+editor.addWatermark({
+  resourceId: logo.id,
+  size: { width: logo.width, height: logo.height },
+  position: "bottom-right",   // or a corner, an edge, "centre", or "tile"
+  scale: 0.18,                // fraction of the image's longest edge
+  opacity: 0.6,
+});
+```
+
 ## Policies
 
 A policy is a named set of output rules — the thing most teams actually want

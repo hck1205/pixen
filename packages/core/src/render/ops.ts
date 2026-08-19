@@ -4,6 +4,8 @@ import type { Matrix, Point, Rect } from "../geometry/types.js";
 import type {
   Adjustments,
   EditorLayer,
+  ImageLayer,
+  RedactLayer,
   EllipseLayer,
   LineLayer,
   PathLayer,
@@ -45,6 +47,28 @@ export interface TextBackground {
 }
 
 export type DrawOp =
+  | {
+      op: "layer-image";
+      source: CanvasImageSource;
+      frame: Rect;
+      /** Tiles the bitmap at its natural size instead of stretching it. */
+      repeat: boolean;
+    }
+  | {
+      /**
+       * Hides what is already on the canvas inside `frame`.
+       *
+       * The executor reads the pixels back, which is why this is an operation
+       * rather than a shape: the effect depends on what was drawn before it.
+       */
+      op: "obscure";
+      frame: Rect;
+      mode: "solid" | "blur" | "pixelate";
+      /** Blur radius or block size, in image-space units. */
+      strength: number;
+      /** Used by `solid`, and whenever the pixels cannot be read back. */
+      colour: string;
+    }
   | { op: "clear"; width: number; height: number }
   | { op: "fill-viewport"; color: string; width: number; height: number }
   | { op: "filter"; value: string }
@@ -229,6 +253,29 @@ export function pathLayerOps(layer: PathLayer): DrawOp[] {
   return [{ op: "path", commands, stroke: toStrokeStyle(layer.stroke) }];
 }
 
+/** Draws a bitmap into its frame, stretched or tiled. */
+export function imageLayerOps(layer: ImageLayer, source: CanvasImageSource | undefined): DrawOp[] {
+  if (!source) return [];
+  return [{ op: "layer-image", source, frame: layer.frame, repeat: layer.repeat }];
+}
+
+/**
+ * A redaction is one operation, whatever the mode: the executor decides how to
+ * hide the region, and falls back to the solid fill when it cannot read the
+ * canvas — a tainted canvas must not silently produce an unredacted export.
+ */
+export function redactLayerOps(layer: RedactLayer, imageLongestEdge: number): DrawOp[] {
+  return [
+    {
+      op: "obscure",
+      frame: layer.frame,
+      mode: layer.mode,
+      strength: Math.max(1, layer.strength * imageLongestEdge),
+      colour: layer.colour,
+    },
+  ];
+}
+
 export const LINE_HEIGHT_RATIO = 1.25;
 
 /** Greedy word wrap. Explicit newlines always break; `maxWidth` is optional. */
@@ -315,6 +362,9 @@ export function layerRotationCentre(layer: EditorLayer, measure: TextMeasurer): 
       if (xs.length === 0) return { x: 0, y: 0 };
       return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
     }
+    case "image":
+    case "redact":
+      return rectCentre(layer.frame);
     case "text": {
       const font = fontFor(layer);
       const lines = wrapLines(layer.text, layer.maxWidth, font, measure);
@@ -325,23 +375,33 @@ export function layerRotationCentre(layer: EditorLayer, measure: TextMeasurer): 
   }
 }
 
-export function layerOps(node: SceneLayerNode, measure: TextMeasurer): DrawOp[] {
+export function layerOps(node: SceneLayerNode, measure: TextMeasurer, imageLongestEdge = 1): DrawOp[] {
   const { layer } = node;
   const matrix = withLayerRotation(node.matrix, layer.rotation, layerRotationCentre(layer, measure));
-
-  const body =
-    layer.type === "rect"
-      ? rectLayerOps(layer)
-      : layer.type === "ellipse"
-        ? ellipseLayerOps(layer)
-        : layer.type === "line"
-          ? lineLayerOps(layer)
-          : layer.type === "path"
-            ? pathLayerOps(layer)
-            : textLayerOps(layer, measure);
+  const body = layerBodyOps(node, measure, imageLongestEdge);
 
   if (body.length === 0) return [];
   return [{ op: "alpha", value: layer.opacity }, { op: "transform", matrix }, ...body];
+}
+
+function layerBodyOps(node: SceneLayerNode, measure: TextMeasurer, imageLongestEdge: number): DrawOp[] {
+  const { layer } = node;
+  switch (layer.type) {
+    case "rect":
+      return rectLayerOps(layer);
+    case "ellipse":
+      return ellipseLayerOps(layer);
+    case "line":
+      return lineLayerOps(layer);
+    case "path":
+      return pathLayerOps(layer);
+    case "text":
+      return textLayerOps(layer, measure);
+    case "image":
+      return imageLayerOps(layer, node.resource);
+    case "redact":
+      return redactLayerOps(layer, imageLongestEdge);
+  }
 }
 
 // --- scene -----------------------------------------------------------------
@@ -397,7 +457,10 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   }
 
   if (options.skipLayers !== true) {
-    for (const node of scene.layers) ops.push(...layerOps(node, measure));
+    // Redaction strengths are fractions of the image, so the builder needs to
+    // know how big the image is.
+    const longestEdge = Math.max(scene.image.size.width, scene.image.size.height);
+    for (const node of scene.layers) ops.push(...layerOps(node, measure, longestEdge));
   }
 
   return ops;

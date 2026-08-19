@@ -38,8 +38,9 @@ unit tests and a browser suite driving the real bundle.
 ## Phase 3 — Pro
 
 - [ ] Filters and presets beyond brightness / contrast / saturation
-- [ ] Blur and pixelate redaction modes (solid mask ships today)
-- [ ] Watermarks: text, image, tiling, opacity
+- [x] Blur and pixelate redaction modes
+- [x] Image watermarks: corner, edge, centre or tiled, with opacity
+- [ ] Text watermarks (a text layer plus the same placement maths)
 - [x] Vue wrapper (`@pixen/vue`)
 - [ ] Svelte and Angular wrappers (both usable today through the element; see
       [FRAMEWORKS.md](FRAMEWORKS.md))
