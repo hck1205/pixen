@@ -1,5 +1,5 @@
 import "@pixen/web";
-import { layerHandlePosition } from "@pixen/core";
+import { ImageWorker, layerHandlePosition } from "@pixen/core";
 import type { ExportResult, ImageFormat } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
 
@@ -10,7 +10,7 @@ import type { PixenImageEditorElement } from "@pixen/web";
  * come from the engine itself — re-deriving a handle position in the test would
  * only prove the test agrees with itself.
  */
-(window as unknown as { pixen: Record<string, unknown> }).pixen = { layerHandlePosition };
+(window as unknown as { pixen: Record<string, unknown> }).pixen = { layerHandlePosition, ImageWorker };
 
 const editor = document.querySelector<PixenImageEditorElement>("#editor")!;
 const preset = document.querySelector<HTMLSelectElement>("#preset")!;

@@ -160,6 +160,14 @@ editor.addWatermark({
 });
 ```
 
+## Off the main thread
+
+Decoding and encoding move to a worker where the browser allows it, so opening
+and exporting a large photograph does not freeze the interface. Nothing to
+configure: the worker ships inside the bundle, and every path falls back to the
+main thread if a `Content-Security-Policy`, a missing API, or a stalled worker
+gets in the way.
+
 ## Languages
 
 Nine locales ship — `en`, `ko`, `ja`, `zh`, `es`, `fr`, `de`, `pt`, `ar` — and a

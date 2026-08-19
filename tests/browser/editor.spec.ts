@@ -904,6 +904,94 @@ test("a right-to-left locale mirrors the chrome without reversing the numbers", 
   expect(measure.readoutTexts).toContain("1600 × 1067");
 });
 
+test("the image worker really runs, and agrees with the main thread", async ({ page }) => {
+  const measure = await page.evaluate(async () => {
+    const pixen = (window as unknown as { pixen: Record<string, unknown> }).pixen;
+    const ImageWorkerClass = pixen.ImageWorker as new () => {
+      ready: boolean;
+      decode(blob: Blob): Promise<{ bitmap: ImageBitmap; width: number; height: number } | null>;
+      encode(
+        pixels: ArrayBuffer,
+        width: number,
+        height: number,
+        format: string,
+        quality: number,
+      ): Promise<Blob | null>;
+      dispose(): void;
+    };
+    const available = (pixen.ImageWorker as unknown as { available: boolean }).available;
+
+    // A picture with real detail, so a JPEG of it is not trivially tiny.
+    const size = 1200;
+    const canvas = new OffscreenCanvas(size, size);
+    const context = canvas.getContext("2d")!;
+    const gradient = context.createLinearGradient(0, 0, size, size);
+    gradient.addColorStop(0, "#2040a0");
+    gradient.addColorStop(1, "#f0a020");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
+    for (let i = 0; i < 200; i += 1) {
+      context.fillStyle = `hsl(${i * 7}, 80%, ${40 + (i % 30)}%)`;
+      context.fillRect((i * 37) % size, (i * 53) % size, 24, 24);
+    }
+    const source = await canvas.convertToBlob({ type: "image/png" });
+    const pixels = context.getImageData(0, 0, size, size);
+
+    const worker = new ImageWorkerClass();
+    const decoded = await worker.decode(source);
+    const workerBlob = await worker.encode(
+      pixels.data.slice().buffer,
+      size,
+      size,
+      "image/jpeg",
+      0.8,
+    );
+    const started = worker.ready;
+
+    // The same encode on the main thread, for comparison.
+    const mainBlob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 });
+
+    /** Mean absolute luma difference between two encodings of the same pixels. */
+    const difference = async (a: Blob, b: Blob) => {
+      const read = async (blob: Blob) => {
+        const bitmap = await createImageBitmap(blob);
+        const surface = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = surface.getContext("2d")!;
+        ctx.drawImage(bitmap, 0, 0);
+        return ctx.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      };
+      const [left, right] = await Promise.all([read(a), read(b)]);
+      let total = 0;
+      let count = 0;
+      for (let i = 0; i < left.length; i += 4 * 13) {
+        total += Math.abs(left[i]! - right[i]!);
+        count += 1;
+      }
+      return count === 0 ? 255 : total / count;
+    };
+
+    const result = {
+      available,
+      started,
+      decodedSize: decoded ? [decoded.width, decoded.height] : null,
+      workerBytes: workerBlob?.size ?? 0,
+      workerType: workerBlob?.type ?? "",
+      pixelDifference: workerBlob ? await difference(workerBlob, mainBlob) : 255,
+    };
+    worker.dispose();
+    return result;
+  });
+
+  expect(measure.available).toBe(true);
+  expect(measure.started).toBe(true);
+  expect(measure.decodedSize).toEqual([1200, 1200]);
+  expect(measure.workerType).toBe("image/jpeg");
+  expect(measure.workerBytes).toBeGreaterThan(1000);
+  // Same encoder, same pixels, same settings: the two paths must not disagree
+  // about what the picture looks like.
+  expect(measure.pixelDifference).toBeLessThan(2);
+});
+
 test("undo and redo survive a rotate, crop and annotate sequence", async ({ page }) => {
   const summary = await page.evaluate(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

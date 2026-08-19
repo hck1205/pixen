@@ -17,6 +17,10 @@ export const INTENTIONAL_PUBLIC_API = new Set([
   "renderDocumentToCanvas",
   // The decompression-bomb ceiling, documented in docs/SECURITY.md.
   "MAX_CANVAS_PIXELS",
+  // Releases the shared image worker. Pixen never calls it — the worker is
+  // shared across editors, so no single editor may end it — but a page that
+  // unmounts Pixen entirely should be able to give the thread back.
+  "disposeImageWorker",
 ]);
 
 const SOURCE = /^packages\/[^/]+\/src\/.*\.tsx?$/;

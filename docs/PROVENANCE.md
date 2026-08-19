@@ -40,6 +40,7 @@ was supplied to an AI tool as input at any point.
 | `engine/history.ts` | Snapshot undo with explicit transactions, as immutable state | Ordinary software design; undo-as-snapshot and command grouping are textbook concepts, not anyone's implementation |
 | `engine/session.ts` | Intent-to-command reducer over document, selection and history | Original design for this project; the reducer shape is a common functional idiom |
 | `image/exif.ts` | JPEG APP1 / TIFF IFD orientation parsing | The Exif and TIFF 6.0 specifications: `FFD8` SOI, `FFE1` APP1, the `Exif\0\0` header, `II`/`MM` byte order, magic `0x002A`, IFD entry layout, orientation tag `0x0112`. Written from the specified byte layout |
+| `image/worker/*` | Decode and encode on a worker thread | MDN/WHATWG: `Worker`, `postMessage` transferables, `OffscreenCanvas.convertToBlob`. Shipping the body as a serialised function in a blob URL is our own choice, for the reason recorded in the module |
 | `image/canvas.ts`, `image/encode.ts` | Surface allocation, encoding, byte budgets | MDN/WHATWG: `OffscreenCanvas.convertToBlob`, `HTMLCanvasElement.toBlob`. The quality-reduction loop is our own |
 | `image/decode.ts` | Decode from blob/URL/bitmap, EXIF normalisation | MDN/WHATWG: `createImageBitmap`, `fetch`, `HTMLImageElement` |
 | `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |

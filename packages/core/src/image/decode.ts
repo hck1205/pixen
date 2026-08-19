@@ -1,6 +1,7 @@
 import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import { assertDrawableSize, createSurface, releaseSurface } from "./canvas.js";
+import { imageWorker } from "./worker/client.js";
 import {
   applyOrientationToSize,
   orientationTransform,
@@ -84,8 +85,23 @@ async function readOrientation(blob: Blob): Promise<ExifOrientation> {
   }
 }
 
+/**
+ * Below this, the round trip to a worker costs more than the decode saves.
+ * Above it, a decode on the main thread is long enough to be felt.
+ */
+const WORKER_DECODE_MIN_BYTES = 512 * 1024;
+
 async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<CanvasImageSource> {
   throwIfAborted(signal);
+
+  if (blob.size >= WORKER_DECODE_MIN_BYTES) {
+    // Null when the environment has no worker, or a policy forbids one; the
+    // main-thread path below is then exactly what ran before.
+    const offloaded = await imageWorker().decode(blob);
+    throwIfAborted(signal);
+    if (offloaded) return offloaded.bitmap;
+  }
+
   if (typeof createImageBitmap === "function") {
     try {
       // "none" keeps orientation handling in our hands so every browser agrees.

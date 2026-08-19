@@ -1,6 +1,7 @@
 import { PixenError, toPixenError } from "../errors/index.js";
 import type { ImageFormat } from "../model/types.js";
 import type { AnyCanvas } from "./canvas.js";
+import { imageWorker } from "./worker/client.js";
 
 const LOSSY_FORMATS: readonly ImageFormat[] = ["image/jpeg", "image/webp"];
 const TRANSPARENT_FORMATS: readonly ImageFormat[] = ["image/png", "image/webp"];
@@ -51,12 +52,28 @@ export async function isFormatSupported(format: ImageFormat): Promise<boolean> {
  * falls back to PNG, so the result's real type is checked and reported rather
  * than passed off as the requested one.
  */
+export interface EncodeSurfaceOptions {
+  /**
+   * Whether the encode may be handed to the worker. The byte-budget search
+   * turns it off: it encodes up to five times, and reading the canvas back for
+   * each attempt costs more than the offload returns.
+   */
+  offload?: boolean;
+}
+
 export async function encodeSurface(
   canvas: AnyCanvas,
   format: ImageFormat,
   quality: number,
+  options: EncodeSurfaceOptions = {},
 ): Promise<Blob> {
   const clampedQuality = Math.min(1, Math.max(0.01, quality));
+
+  if (options.offload !== false) {
+    const offloaded = await encodeOnWorker(canvas, format, clampedQuality);
+    if (offloaded) return offloaded;
+  }
+
   try {
     if ("convertToBlob" in canvas) {
       return await canvas.convertToBlob({ type: format, quality: clampedQuality });
@@ -73,6 +90,33 @@ export async function encodeSurface(
     });
   } catch (cause) {
     throw toPixenError(cause, "ENCODE_FAILED", `Failed to encode image as ${format}`);
+  }
+}
+
+/**
+ * Above this many pixels a lossy encode is long enough that moving it off the
+ * main thread is worth reading the canvas back first.
+ */
+const WORKER_ENCODE_MIN_PIXELS = 1_000_000;
+
+/**
+ * Encodes on the worker, or returns null so the caller does it here.
+ *
+ * Only lossy formats and only large surfaces: PNG encoding is comparatively
+ * cheap, and below a megapixel the readback costs more than the encode saves.
+ */
+async function encodeOnWorker(canvas: AnyCanvas, format: ImageFormat, quality: number): Promise<Blob | null> {
+  if (!isLossy(format)) return null;
+  if (canvas.width * canvas.height < WORKER_ENCODE_MIN_PIXELS) return null;
+
+  try {
+    const context = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+    if (!context) return null;
+    // Throws on a tainted canvas, which is a fallback rather than an error.
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    return await imageWorker().encode(image.data.buffer as ArrayBuffer, canvas.width, canvas.height, format, quality);
+  } catch {
+    return null;
   }
 }
 
@@ -97,7 +141,7 @@ export async function encodeWithinBudget(
 
   while (attempt < steps) {
     attempt += 1;
-    const blob = await encodeSurface(canvas, format, currentQuality);
+    const blob = await encodeSurface(canvas, format, currentQuality, { offload: false });
     if (!best || blob.size < best.size) {
       best = blob;
       bestQuality = currentQuality;
