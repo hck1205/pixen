@@ -62,6 +62,18 @@ passed a build with the accent colour changed from blue to pink, because the
 accent covers well under one per cent of the page. A threshold that forgiving
 forgives regressions.
 
+### Each suite starts only the servers it uses
+
+The browser suite drives the playground on 4173. The visual suite photographs
+the story browser on 4174, so that second server starts **only** when
+`PIXEN_VISUAL` is set.
+
+That is not tidiness. A web server Playwright is configured to start is a
+precondition of the whole run, whether or not a test opens it: while the story
+browser started unconditionally, a runner that was slow to bring it up failed a
+browser suite that never touches port 4174 — and every CI run after it was added
+was red for a reason that had nothing to do with the code under test.
+
 ### Preview servers are never reused
 
 Both suites start their own preview server and refuse to reuse a running one.

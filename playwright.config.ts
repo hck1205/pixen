@@ -34,6 +34,40 @@ function selectedProjects() {
   return projects.length > 0 ? projects : [BROWSER_PROJECTS.chromium];
 }
 
+/** True for a run of the opt-in visual suite; see docs/TESTING.md. */
+const visual = Boolean(process.env.PIXEN_VISUAL);
+
+/**
+ * The playground preview, which every browser test drives.
+ *
+ * Never reused: `vite preview` and `ladle preview` both resolve their build
+ * once at startup, so a server left over from an earlier run serves the
+ * *previous* bundle — and a suite photographing a stale build passes no matter
+ * what the change did. A port already in use fails loudly here, which is the
+ * outcome worth having.
+ */
+const PLAYGROUND_SERVER = {
+  command: "pnpm --filter @pixen/playground preview -- --port 4173 --strictPort",
+  url: "http://127.0.0.1:4173",
+  reuseExistingServer: false,
+  timeout: 60_000,
+};
+
+/**
+ * The story browser, which only the visual suite photographs.
+ *
+ * Started only for a visual run, and that is not a tidiness point: a server
+ * nothing in the run talks to is still a precondition of the run, so when it
+ * was started unconditionally, a story browser that was slow to come up on a
+ * CI runner failed a browser suite that never opens port 4174.
+ */
+const STORIES_SERVER = {
+  command: "pnpm --filter @pixen/stories exec ladle preview --port 4174",
+  url: "http://127.0.0.1:4174",
+  reuseExistingServer: false,
+  timeout: 120_000,
+};
+
 export default defineConfig({
   testDir: "tests/browser",
   fullyParallel: true,
@@ -60,7 +94,7 @@ export default defineConfig({
    * red build on someone else's. `PIXEN_VISUAL=1` turns it on, for a run inside
    * the image the baselines were recorded in; see docs/TESTING.md.
    */
-  testIgnore: process.env.PIXEN_VISUAL ? [] : ["**/visual.spec.ts"],
+  testIgnore: visual ? [] : ["**/visual.spec.ts"],
 
   expect: {
     toHaveScreenshot: {
@@ -72,28 +106,5 @@ export default defineConfig({
     },
   },
 
-  /**
-   * Never reuse a preview server.
-   *
-   * `ladle preview` resolves the build once at startup, so a server left over
-   * from an earlier run serves the *previous* bundle — and a suite photographing
-   * a stale build passes no matter what the change did. A port already in use
-   * fails loudly here, which is the outcome worth having.
-   */
-  webServer: [
-    {
-      command: "pnpm --filter @pixen/playground preview -- --port 4173 --strictPort",
-      url: "http://127.0.0.1:4173",
-      reuseExistingServer: false,
-      timeout: 60_000,
-    },
-    {
-      // The story browser: the visual suite photographs it, because the stories
-      // are already the reference for what the UI should look like.
-      command: "pnpm --filter @pixen/stories exec ladle preview --port 4174",
-      url: "http://127.0.0.1:4174",
-      reuseExistingServer: false,
-      timeout: 60_000,
-    },
-  ],
+  webServer: visual ? [PLAYGROUND_SERVER, STORIES_SERVER] : [PLAYGROUND_SERVER],
 });
