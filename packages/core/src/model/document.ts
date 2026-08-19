@@ -70,13 +70,7 @@ export function outputSize(document: EditorDocument): Size {
   return { width: Math.max(1, Math.round(crop.width)), height: Math.max(1, Math.round(crop.height)) };
 }
 
-export function findLayer(document: EditorDocument, id: string): EditorLayer | undefined {
-  return document.layers.find((layer) => layer.id === id);
-}
 
-export function layerIndex(document: EditorDocument, id: string): number {
-  return document.layers.findIndex((layer) => layer.id === id);
-}
 
 /** True when the document would export the source unchanged. */
 export function isPristine(document: EditorDocument): boolean {
@@ -95,6 +89,3 @@ export function isPristine(document: EditorDocument): boolean {
   );
 }
 
-export function nextLayerId(type: LayerType): string {
-  return createId(type);
-}

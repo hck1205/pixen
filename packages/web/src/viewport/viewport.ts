@@ -1,4 +1,5 @@
 import {
+  applyToPoint,
   compose,
   createId,
   createScene,
@@ -8,7 +9,7 @@ import {
   renderScene,
   scaling,
   stageToView,
-  toArray,
+  transformBounds,
   type Matrix,
   type Point,
   type Rect,
@@ -31,8 +32,14 @@ import {
   type GestureOutcome,
   type GestureState,
   type PinchState,
-} from "./gestures.js";
-import { cornerSegments, gridSegments, inflate, projectRect, type Segment } from "./overlay.js";
+} from "./gestures/index.js";
+import { projectRect } from "./overlay.js";
+import {
+  drawCropFrame,
+  drawCropScrim,
+  drawSelectionOutline,
+  readOverlayPalette,
+} from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
 import { clampZoom, fitView, MAX_ZOOM, MIN_ZOOM } from "./view.js";
 
@@ -211,7 +218,7 @@ export class Viewport {
   }
 
   stageToScreen(point: Point): Point {
-    return { ...applyView(this.#viewMatrix(), point) };
+    return applyToPoint(this.#viewMatrix(), point);
   }
 
   screenToImage(point: Point): Point {
@@ -268,58 +275,28 @@ export class Viewport {
   }
 
   #drawOverlay(context: CanvasRenderingContext2D, matrix: Matrix, dpr: number): void {
-    const styles = getComputedStyle(this.canvas);
-    const crop = this.#editor.cropRect;
-    const stage = this.#editor.stageRect;
+    const palette = readOverlayPalette(getComputedStyle(this.canvas));
 
     if (this.#tool === "crop") {
-      // Scrim everything outside the crop with the even-odd rule, which avoids
-      // four separate rects meeting on seams.
-      context.save();
-      context.setTransform(...toArray(matrix));
-      context.beginPath();
-      context.rect(stage.x - 1e4, stage.y - 1e4, stage.width + 2e4, stage.height + 2e4);
-      context.rect(crop.x, crop.y, crop.width, crop.height);
-      context.fillStyle = cssVar(styles, "--pixen-crop-scrim", "rgba(8,9,12,0.62)");
-      context.fill("evenodd");
-      context.restore();
-
+      const crop = this.#editor.cropRect;
+      drawCropScrim(context, { stage: this.#editor.stageRect, crop, matrix, colour: palette.scrim });
       context.setTransform(1, 0, 0, 1, 0, 0);
-      const screenCrop = projectRect(crop, (point) => this.stageToScreen(point), dpr);
-      strokeSegments(context, gridSegments(screenCrop), cssVar(styles, "--pixen-grid-line", "rgba(255,255,255,0.28)"), dpr);
-
-      context.strokeStyle = cssVar(styles, "--pixen-crop-outline", "rgba(255,255,255,0.95)");
-      context.lineWidth = 1.5 * dpr;
-      context.strokeRect(screenCrop.x, screenCrop.y, screenCrop.width, screenCrop.height);
-
-      context.lineCap = "square";
-      strokeSegments(
-        context,
-        cornerSegments(screenCrop, 22 * dpr),
-        cssVar(styles, "--pixen-crop-outline", "rgba(255,255,255,0.95)"),
-        dpr * 3.5,
-      );
+      drawCropFrame(context, { rect: this.#toScreenRect(crop, dpr), palette, dpr });
       return;
     }
 
     const selected = this.#editor.selectedLayer;
     if (!selected) return;
 
-    const bounds = layerBounds(selected);
+    // Layer bounds are image space; the outline is drawn in device pixels.
     const stageFromImage = invert(this.#imageFromStage());
-    const projected = projectRect(
-      transformRect(bounds, stageFromImage),
-      (point) => this.stageToScreen(point),
-      dpr,
-    );
+    const bounds = transformBounds(stageFromImage, layerBounds(selected));
+    drawSelectionOutline(context, { rect: this.#toScreenRect(bounds, dpr), colour: palette.selection, dpr });
+  }
 
-    context.save();
-    context.strokeStyle = cssVar(styles, "--pixen-selection", "#4f8cff");
-    context.lineWidth = 1.5 * dpr;
-    context.setLineDash([5 * dpr, 4 * dpr]);
-    const outline = inflate(projected, 6 * dpr);
-    context.strokeRect(outline.x, outline.y, outline.width, outline.height);
-    context.restore();
+  /** stage rect -> device pixels, through the current view transform. */
+  #toScreenRect(rect: Rect, dpr: number): Rect {
+    return projectRect(rect, (point) => this.stageToScreen(point), dpr);
   }
 
   // --- pointer input -------------------------------------------------------
@@ -441,39 +418,6 @@ export class Viewport {
   }
 }
 
-function applyView(matrix: Matrix, point: Point): Point {
-  return { x: matrix.a * point.x + matrix.c * point.y + matrix.e, y: matrix.b * point.x + matrix.d * point.y + matrix.f };
-}
 
-function transformRect(rect: Rect, matrix: Matrix): Rect {
-  const topLeft = applyView(matrix, { x: rect.x, y: rect.y });
-  const bottomRight = applyView(matrix, { x: rect.x + rect.width, y: rect.y + rect.height });
-  return {
-    x: Math.min(topLeft.x, bottomRight.x),
-    y: Math.min(topLeft.y, bottomRight.y),
-    width: Math.abs(bottomRight.x - topLeft.x),
-    height: Math.abs(bottomRight.y - topLeft.y),
-  };
-}
 
-function cssVar(styles: CSSStyleDeclaration, name: string, fallback: string): string {
-  return styles.getPropertyValue(name).trim() || fallback;
-}
 
-function strokeSegments(
-  context: CanvasRenderingContext2D,
-  segments: readonly Segment[],
-  colour: string,
-  lineWidth: number,
-): void {
-  context.save();
-  context.strokeStyle = colour;
-  context.lineWidth = lineWidth;
-  context.beginPath();
-  for (const segment of segments) {
-    context.moveTo(segment.from.x, segment.from.y);
-    context.lineTo(segment.to.x, segment.to.y);
-  }
-  context.stroke();
-  context.restore();
-}

@@ -28,7 +28,7 @@ import type {
 
 const QUARTER_TURN = Math.PI / 2;
 
-export function normaliseRotation(radians: number): number {
+function normaliseRotation(radians: number): number {
   const full = Math.PI * 2;
   const value = radians % full;
   return value < 0 ? value + full : value;

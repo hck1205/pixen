@@ -33,7 +33,7 @@ import {
   type GestureContext,
   type GestureEffect,
   type GestureState,
-} from "../src/viewport/gestures.js";
+} from "../src/viewport/gestures/index.js";
 import { DEFAULT_STYLE } from "../src/tools/index.js";
 
 /**

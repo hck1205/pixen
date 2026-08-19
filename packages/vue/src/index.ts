@@ -4,12 +4,22 @@ import type {
   EditorDocument,
   ExportOptions,
   ExportResult,
+  HistorySummary,
   ImageFormat,
   ImagePolicy,
   PixenError,
   PresetName,
 } from "@pixen/core";
-import type { AspectRatioOption, PixenImageEditorElement, ToolDefinition, ToolId } from "@pixen/web";
+import {
+  applyProperties,
+  applyProperty,
+  attachEvents,
+  type AspectRatioOption,
+  type PixenElementProperties,
+  type PixenImageEditorElement,
+  type ToolDefinition,
+  type ToolId,
+} from "@pixen/web";
 import "@pixen/web";
 
 export interface PixenEditorExposed {
@@ -28,8 +38,8 @@ export interface PixenEditorExposed {
  * A thin adapter, by design.
  *
  * Vue props become element properties and custom events become emits — nothing
- * more. The editor engine stays the single source of truth, so Vue never holds a
- * second copy of the document to drift out of sync.
+ * more. The mapping itself lives in `@pixen/web`, shared with the other
+ * wrappers, so the two cannot drift apart.
  *
  * Vue needs to know the tag is a custom element rather than a component. In a
  * build with the SFC compiler that is `compilerOptions.isCustomElement`; using
@@ -56,91 +66,46 @@ export const PixenImageEditor = defineComponent({
     ready: (_editor: Editor) => true,
     load: (_document: EditorDocument) => true,
     change: (_document: EditorDocument, _meta: { reason: string; transient: boolean }) => true,
-    history: (_state: unknown) => true,
+    history: (_state: HistorySummary) => true,
     export: (_result: ExportResult) => true,
     error: (_error: PixenError) => true,
   },
 
   setup(props, { emit, expose }) {
     const element: Ref<PixenImageEditorElement | null> = ref(null);
+    let detach: (() => void) | null = null;
 
-    const on = <T,>(type: string, handler: (detail: T) => void) => (event: Event) =>
-      handler((event as CustomEvent<T>).detail);
-
-    /** Attached once, when the element mounts; detached on unmount. */
-    const attach = (instance: PixenImageEditorElement | null) => {
+    const attach = (instance: PixenImageEditorElement | null): void => {
       if (!instance || instance === element.value) return;
       element.value = instance;
 
-      instance.addEventListener("pixen-ready", () => emit("ready", instance.editor));
-      instance.addEventListener(
-        "pixen-load",
-        on<{ document: EditorDocument }>("pixen-load", (detail) => emit("load", detail.document)),
-      );
-      instance.addEventListener(
-        "pixen-change",
-        on<{ document: EditorDocument; reason: string; transient: boolean }>("pixen-change", (detail) =>
-          emit("change", detail.document, { reason: detail.reason, transient: detail.transient }),
-        ),
-      );
-      instance.addEventListener("pixen-history", on<unknown>("pixen-history", (detail) => emit("history", detail)));
-      instance.addEventListener(
-        "pixen-export",
-        on<ExportResult>("pixen-export", (detail) => emit("export", detail)),
-      );
-      instance.addEventListener(
-        "pixen-error",
-        on<{ error: PixenError }>("pixen-error", (detail) => emit("error", detail.error)),
-      );
+      detach?.();
+      detach = attachEvents(instance, {
+        ready: () => emit("ready", instance.editor),
+        load: (detail) => emit("load", detail.document),
+        change: (detail) => emit("change", detail.document, { reason: detail.reason, transient: detail.transient }),
+        history: (detail) => emit("history", detail),
+        export: (detail) => emit("export", detail),
+        error: (detail) => emit("error", detail.error),
+      });
 
-      applyProperties(instance);
+      applyProperties(instance, props as PixenElementProperties);
     };
 
-    /** Structured values are properties, not attributes: HTML cannot carry them. */
-    const applyProperties = (instance: PixenImageEditorElement) => {
-      if (props.tools) instance.tools = props.tools;
-      if (props.aspectRatios) instance.aspectRatios = props.aspectRatios;
-      if (props.policy !== null) instance.policy = props.policy;
-      if (props.document) instance.document = props.document;
-      if (typeof props.src === "string") instance.setAttribute("src", props.src);
-      else if (props.src) void instance.load(props.src);
+    // One watcher per structured prop, each re-applying only what changed.
+    const bind = <K extends keyof PixenElementProperties>(key: K): void => {
+      watch(
+        () => props[key] as PixenElementProperties[K],
+        (value) => {
+          if (element.value) applyProperty(element.value, key, value);
+        },
+      );
     };
-
-    watch(
-      () => props.tools,
-      (tools) => {
-        if (element.value && tools) element.value.tools = tools;
-      },
-    );
-    watch(
-      () => props.aspectRatios,
-      (ratios) => {
-        if (element.value && ratios) element.value.aspectRatios = ratios;
-      },
-    );
-    watch(
-      () => props.policy,
-      (policy) => {
-        if (element.value) element.value.policy = policy;
-      },
-    );
-    watch(
-      () => props.document,
-      (document) => {
-        if (element.value && document) element.value.document = document;
-      },
-    );
-    watch(
-      () => props.src,
-      (src) => {
-        const instance = element.value;
-        if (!instance || !src) return;
-        if (typeof src === "string") instance.setAttribute("src", src);
-        else void instance.load(src);
-      },
-    );
+    (["tools", "aspectRatios", "policy", "document", "src"] as const).forEach(bind);
 
     onBeforeUnmount(() => {
+      detach?.();
+      detach = null;
       // Releasing decoded bitmaps here is the whole reason this hook exists:
       // without it a route change leaks the full-resolution image.
       element.value?.destroy();
@@ -155,9 +120,7 @@ export const PixenImageEditor = defineComponent({
         return element.value?.editor ?? null;
       },
       exportImage: (options) =>
-        element.value
-          ? element.value.export(options)
-          : Promise.reject(new Error("Pixen: the editor is not mounted")),
+        element.value ? element.value.export(options) : Promise.reject(new Error("Pixen: the editor is not mounted")),
       undo: () => element.value?.undo(),
       redo: () => element.value?.redo(),
       reset: () => element.value?.reset(),
@@ -181,5 +144,5 @@ export const PixenImageEditor = defineComponent({
 });
 
 export default PixenImageEditor;
-export type { ToolDefinition, ToolId, AspectRatioOption } from "@pixen/web";
-export type { EditorDocument, ExportResult, ImagePolicy, PresetName } from "@pixen/core";
+export type { AspectRatioOption, ToolDefinition, ToolId } from "@pixen/web";
+export type { EditorDocument, ExportResult, HistorySummary, ImagePolicy, PresetName } from "@pixen/core";

@@ -40,7 +40,7 @@ interface ResourceEntry {
  * is what keeps a 48-megapixel image interactive on a phone.
  */
 export const DEFAULT_PREVIEW_MAX_SIZE = 2048;
-export const MIN_PREVIEW_MAX_SIZE = 64;
+const MIN_PREVIEW_MAX_SIZE = 64;
 
 export interface ResourceManagerOptions {
   /** Longest edge of the preview bitmap the editor renders while interacting. */

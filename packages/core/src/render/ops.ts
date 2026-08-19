@@ -81,11 +81,11 @@ export const estimateTextWidth: TextMeasurer = (text, font) => {
   return text.length * size * 0.55;
 };
 
-export function toStrokeStyle(stroke: Stroke): StrokeStyle {
+function toStrokeStyle(stroke: Stroke): StrokeStyle {
   return { color: stroke.color, width: stroke.width, dash: stroke.dash ?? [] };
 }
 
-export function fontFor(layer: TextLayer): string {
+function fontFor(layer: TextLayer): string {
   return `${layer.fontSize}px ${layer.fontFamily}`;
 }
 
@@ -100,7 +100,7 @@ export function withLayerRotation(matrix: Matrix, rotationRadians: number, centr
   );
 }
 
-export function rectCentre(rect: Rect): Point {
+function rectCentre(rect: Rect): Point {
   return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
 }
 

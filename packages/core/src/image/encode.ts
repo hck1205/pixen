@@ -2,8 +2,8 @@ import { PixenError, toPixenError } from "../errors/index.js";
 import type { ImageFormat } from "../model/types.js";
 import type { AnyCanvas } from "./canvas.js";
 
-export const LOSSY_FORMATS: readonly ImageFormat[] = ["image/jpeg", "image/webp"];
-export const TRANSPARENT_FORMATS: readonly ImageFormat[] = ["image/png", "image/webp"];
+const LOSSY_FORMATS: readonly ImageFormat[] = ["image/jpeg", "image/webp"];
+const TRANSPARENT_FORMATS: readonly ImageFormat[] = ["image/png", "image/webp"];
 
 export function isLossy(format: ImageFormat): boolean {
   return LOSSY_FORMATS.includes(format);
@@ -18,9 +18,9 @@ export function supportsTransparency(format: ImageFormat): boolean {
  * it gets, and how hard each attempt undershoots so the loop converges instead
  * of creeping toward the budget.
  */
-export const MIN_BUDGET_QUALITY = 0.4;
-export const MAX_BUDGET_ATTEMPTS = 5;
-export const BUDGET_QUALITY_BACKOFF = 0.9;
+const MIN_BUDGET_QUALITY = 0.4;
+const MAX_BUDGET_ATTEMPTS = 5;
+const BUDGET_QUALITY_BACKOFF = 0.9;
 
 export function extensionForFormat(format: ImageFormat): string {
   switch (format) {

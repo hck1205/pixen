@@ -53,7 +53,5 @@ export interface ChromeBuild {
   readouts: Readouts;
 }
 
-export const selectedLayerOf = (context: ChromeContext): EditorLayer | null =>
-  context.editor.ready ? context.editor.selectedLayer : null;
 
 export type { ImageFormat };

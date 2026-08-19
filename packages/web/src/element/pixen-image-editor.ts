@@ -29,7 +29,14 @@ import { imageFromClipboard, imageFromFiles, carriesFiles } from "./input/transf
 import { nudgeDistance, resolveKeyboardAction } from "./input/keyboard.js";
 import { isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
 import { normaliseAspectRatios } from "./ratios.js";
-import { OBSERVED_ATTRIBUTES, TOOL_META, ZOOM_STEP, type AspectRatioOption, type PanelId } from "./constants.js";
+import {
+  OBSERVED_ATTRIBUTES,
+  TOOL_META,
+  ZOOM_STEP,
+  type AspectRatioOption,
+  type ObservedAttribute,
+  type PanelId,
+} from "./constants.js";
 import { SELECTORS, template } from "./template.js";
 
 /**
@@ -174,29 +181,42 @@ export class PixenImageEditorElement extends ElementBase {
 
   attributeChangedCallback(name: string, previous: string | null, value: string | null): void {
     if (previous === value) return;
+    this.#applyAttribute(name as ObservedAttribute, value);
+  }
+
+  /** One place that knows what each observed attribute means. */
+  #applyAttribute(name: ObservedAttribute, value: string | null): void {
     switch (name) {
       case "src":
-        if (value) {
-          if (this.#viewport) void this.load(value);
-          else this.#pendingSrc = value;
-        }
-        break;
+        if (!value) return;
+        // Before the viewport exists there is nothing to render into, so the
+        // source waits for connectedCallback.
+        if (this.#viewport) void this.load(value);
+        else this.#pendingSrc = value;
+        return;
       case "locale":
         this.#strings = resolveStrings(value);
         this.#renderChrome();
         this.#syncUI();
-        break;
+        return;
       case "format":
         if (this.editor.ready && value) this.editor.setFormat(value as ImageFormat);
-        break;
+        return;
       case "quality":
         if (this.editor.ready && value) this.editor.setQuality(Number(value));
-        break;
+        return;
       case "preset":
         this.policy = (value as PresetName) || null;
-        break;
-      default:
+        return;
+      case "theme":
+        // Themes are pure CSS; the chrome only needs to re-read its state.
         this.#syncUI();
+        return;
+      default: {
+        // Adding an observed attribute without handling it fails to compile.
+        const unhandled: never = name;
+        void unhandled;
+      }
     }
   }
 

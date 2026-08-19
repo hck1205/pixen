@@ -40,5 +40,3 @@ export function inspectorSectionFor({ panel, tool, hasSelection }: InspectorCond
   }
 }
 
-/** Sections that let the annotation stroke width be set, as well as its colour. */
-export const SECTIONS_WITH_STROKE_WIDTH: readonly InspectorSection[] = ["style"];
