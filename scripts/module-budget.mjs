@@ -40,7 +40,7 @@ export const EXEMPT = {
   // extracted out of it — on-canvas text editing, sticker placement, every way
   // an image arrives, what each attribute means, what the engine's events do,
   // and the busy pill — and what is left is the element itself.
-  "packages/web/src/element/pixen-image-editor.ts": 731,
+  "packages/web/src/element/pixen-image-editor.ts": 723,
   // The public imperative API: very nearly one line per method, each building
   // an intent and handing it to `dispatch`. Splitting it would scatter the
   // surface a host reads as one thing, and the decisions are already elsewhere.

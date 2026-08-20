@@ -1,16 +1,11 @@
 import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import type { StepReporter } from "../util/progress.js";
-import { assertDrawableSize, createSurface, releaseCanvas } from "./canvas.js";
+import { assertDrawableSize, releaseCanvas, sourceSize } from "./canvas.js";
 import { toBlob } from "./bytes.js";
 import { imageWorker } from "./worker/client.js";
-import { decoderAppliesOrientation } from "./auto-orient.js";
-import {
-  applyOrientationToSize,
-  orientationTransform,
-  readExifOrientation,
-  type ExifOrientation,
-} from "./exif.js";
+import { uprightImage, type UprightImage } from "./auto-orient.js";
+import { readExifOrientation, type ExifOrientation } from "./exif.js";
 
 export type ImageInput =
   | Blob
@@ -68,6 +63,28 @@ export interface DecodeOptions {
    * applications never see.
    */
   beforeDecode?: (input: Blob, signal?: AbortSignal) => Blob | Promise<Blob>;
+  /**
+   * The decoded pixels, before the editor takes them as the picture.
+   *
+   * `beforeDecode` is the seam for bytes no browser reads; this is the one for
+   * pixels the host wants changed before anyone edits them — a colour profile
+   * the browser ignored, a denoiser or upscaler compiled to WebAssembly, a white
+   * background composited under a transparent PNG, a scan straightened by a
+   * model. Doing any of that through `beforeDecode` would mean decoding and
+   * re-encoding to get at the pixels, which is slower and, for a lossy format,
+   * lossy.
+   *
+   * The picture arrives upright, so a hook never has to think about EXIF. Return
+   * a source of any size — at load it simply is the size; through
+   * `replaceSource` the aspect ratio has to match, and the document's geometry
+   * is rescaled to it. Draw onto the surface you were handed and return it and
+   * nothing is copied.
+   *
+   * `blob` in the result stays the bytes that were decoded, so the byte size a
+   * host reports and the metadata an export can carry still describe the file
+   * the picture came from.
+   */
+  afterDecode?: (image: UprightImage, signal?: AbortSignal) => CanvasImageSource | Promise<CanvasImageSource>;
 }
 
 const EXIF_SCAN_BYTES = 256 * 1024;
@@ -140,56 +157,6 @@ function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Pr
   });
 }
 
-/** Intrinsic pixel size of any drawable source. */
-export function sourceSize(source: CanvasImageSource): Size {
-  if (typeof HTMLImageElement !== "undefined" && source instanceof HTMLImageElement) {
-    return { width: source.naturalWidth, height: source.naturalHeight };
-  }
-  const candidate = source as unknown as Size;
-  return { width: Number(candidate.width), height: Number(candidate.height) };
-}
-
-export interface UprightImage extends Size {
-  source: CanvasImageSource;
-}
-
-/**
- * The turn still owed to a decoded picture — the file's orientation, or none
- * because the decoder already did it.
- *
- * The probe is only reached for when there is something to decide, so a library
- * of upright images never pays for it.
- */
-async function outstandingOrientation(orientation: ExifOrientation): Promise<ExifOrientation> {
-  if (orientation === 1) return 1;
-  return (await decoderAppliesOrientation((blob) => decodeBlob(blob, undefined))) ? 1 : orientation;
-}
-
-/**
- * Bakes an EXIF orientation into pixels so nothing downstream has to know about
- * it. The size travels beside the source rather than being written onto it:
- * `ImageBitmap.width` is a read-only accessor, and assigning to it throws.
- */
-function normaliseOrientation(source: CanvasImageSource, orientation: ExifOrientation): UprightImage {
-  const size = sourceSize(source);
-  if (orientation === 1) return { source, ...size };
-
-  const upright = applyOrientationToSize(size, orientation);
-  assertDrawableSize(upright, "image");
-  const surface = createSurface(upright.width, upright.height);
-  const { rotation, flipX, flipY } = orientationTransform(orientation);
-
-  const context = surface.context;
-  context.translate(upright.width / 2, upright.height / 2);
-  context.rotate(rotation);
-  context.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-  context.drawImage(source, -size.width / 2, -size.height / 2, size.width, size.height);
-  context.setTransform(1, 0, 0, 1, 0, 0);
-
-  if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) source.close();
-  return { source: surface.canvas, ...upright };
-}
-
 /**
  * Turns any supported input into an upright, drawable image.
  *
@@ -242,17 +209,35 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
   options.onProgress?.({ stage: "decode", loaded: 0, total: null });
   const decoded = await decodeBlob(decodable, options.signal);
   assertDrawableSize(sourceSize(decoded), "image");
-  const upright = normaliseOrientation(decoded, await outstandingOrientation(orientation));
+  const upright = await uprightImage(decoded, orientation, (blob) => decodeBlob(blob, undefined));
+  const ready = options.afterDecode ? await runAfterDecode(upright, options) : upright;
 
   return {
-    source: upright.source,
-    width: upright.width,
-    height: upright.height,
+    source: ready.source,
+    width: ready.width,
+    height: ready.height,
     blob: decodable,
     mimeType: decodable.type || "application/octet-stream",
     orientation,
     ...(name ? { name } : {}),
   };
+}
+
+/**
+ * Hands the decoded picture to the host, and takes back whatever it returns.
+ *
+ * The source is released only when the hook swapped it for a different one:
+ * drawing onto the surface it was given and returning that is the cheap path,
+ * and freeing it would take the picture away.
+ */
+async function runAfterDecode(image: UprightImage, options: DecodeOptions): Promise<UprightImage> {
+  const replacement = await options.afterDecode!(image, options.signal);
+  throwIfAborted(options.signal);
+
+  const size = sourceSize(replacement);
+  assertDrawableSize(size, "image");
+  if (replacement !== image.source) disposeImageSource(image.source);
+  return { source: replacement, ...size };
 }
 
 export function disposeImageSource(source: CanvasImageSource | null | undefined): void {

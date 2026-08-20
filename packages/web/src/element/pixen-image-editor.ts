@@ -3,6 +3,7 @@ import {
   Editor,
   isPixenError,
   PixenError,
+  type DecodeOptions,
   type EditorDocument,
   type ExportOptions,
   type ExportResult,
@@ -19,12 +20,13 @@ import {
   type ToolDefinition,
   type ToolId,
 } from "../tools/index.js";
-import { Viewport, type EdgeBox } from "../viewport/index.js";
+import { Viewport } from "../viewport/index.js";
 import {
   buildActions,
   buildEmptyState,
   buildInspector,
   buildRail,
+  measureChrome,
   refreshActions,
   refreshRail,
   type ChromeActions,
@@ -84,6 +86,12 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   readonly editor = new Editor();
+  /**
+   * Applied to every load — the file picker, a drop, a paste, the `src`
+   * attribute — because a format no browser reads arrives by all of them, not
+   * only through a `load()` the host wrote. Options passed to `load()` win.
+   */
+  decodeOptions: DecodeOptions = {};
 
   #root: ShadowRoot;
   #canvas!: HTMLCanvasElement;
@@ -169,7 +177,7 @@ export class PixenImageEditorElement extends ElementBase {
         this.#textEditing.reposition();
       },
       onEditText: (id) => this.#textEditing.open(id),
-      measureChrome: () => this.#measureChrome(),
+      measureChrome: () => measureChrome(this.#canvas, this.#root),
     });
     this.#viewport.style = this.#annotationStyle;
 
@@ -409,11 +417,11 @@ export class PixenImageEditorElement extends ElementBase {
    * format, the busy state — from running against an editor that has moved on.
    * Both are needed; neither replaces the other.
    */
-  async load(input: Parameters<Editor["load"]>[0]): Promise<void> {
+  async load(input: Parameters<Editor["load"]>[0], options?: DecodeOptions): Promise<void> {
     const token = ++this.#loadToken;
     this.#busy.begin("load");
     try {
-      await this.editor.load(input);
+      await this.editor.load(input, { ...this.decodeOptions, ...options });
       // A newer load started while this one was decoding: drop the stale result.
       if (token !== this.#loadToken) return;
       if (this.#policy) applyPolicy(this.editor, this.#policy);
@@ -565,7 +573,6 @@ export class PixenImageEditorElement extends ElementBase {
     this.#dropHost.textContent = strings.dropHint;
   }
 
-  /** State that changes with the document: pressed, disabled, and the inspector. */
   /** What the panel that just opened is called; the tool panel is its tool. */
   #panelLabel(): string {
     const key = PANEL_LABEL_KEYS[this.#panel] ?? TOOL_META[this.tool]?.key ?? "crop";
@@ -623,21 +630,6 @@ export class PixenImageEditorElement extends ElementBase {
   /** Announces changes to assistive technology without moving focus. */
   #announce(message: string): void {
     if (this.#statusHost) this.#statusHost.textContent = message;
-  }
-
-  /**
-   * The chrome's current rectangles, for fitting the image around them.
-   *
-   * Read from the live DOM rather than assumed: the inspector's height depends
-   * on which panel is open and how many rows it wrapped onto.
-   */
-  #measureChrome(): { host: EdgeBox; chrome: EdgeBox[] } | null {
-    const root = this.#root;
-    const host = this.#canvas.getBoundingClientRect();
-    const chrome = [...root.querySelectorAll<HTMLElement>(".cluster")]
-      .filter((node) => node.offsetParent !== null || node.getClientRects().length > 0)
-      .map((node) => node.getBoundingClientRect());
-    return { host, chrome };
   }
 
   /**

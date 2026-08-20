@@ -1671,6 +1671,144 @@ test("all eight EXIF orientations open upright, whatever the browser did first",
 });
 
 /**
+ * The pixels a host wants changed before anyone edits them.
+ *
+ * `beforeDecode` takes bytes no browser reads; `afterDecode` takes the decoded
+ * picture — a colour profile, a denoiser, a background composited under a
+ * transparent PNG. Only a real decoder can hand over real pixels, so the claim
+ * that what the hook returns is what gets edited and exported belongs here.
+ */
+test("afterDecode replaces the picture the editor goes on to edit", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      load(input: unknown, options?: Record<string, unknown>): Promise<void>;
+    };
+
+    const source = document.createElement("canvas");
+    source.width = 200;
+    source.height = 100;
+    const context = source.getContext("2d")!;
+    context.fillStyle = "#204080";
+    context.fillRect(0, 0, 200, 100);
+    const blob: Blob = await new Promise((resolve) => source.toBlob((b) => resolve(b!), "image/png"));
+
+    const seen: Array<{ width: number; height: number }> = [];
+    // Stored options are the fallback, not the rule: the one passed to load()
+    // has to win, or a host cannot override its own default for one picture.
+    let storedRan = false;
+    (element as unknown as { decodeOptions: Record<string, unknown> }).decodeOptions = {
+      afterDecode: (image: { source: CanvasImageSource }) => {
+        storedRan = true;
+        return image.source;
+      },
+    };
+    await element.load(blob, {
+      afterDecode: (image: { source: CanvasImageSource; width: number; height: number }) => {
+        seen.push({ width: image.width, height: image.height });
+        // Half the size and a colour that is nowhere in what went in, so both
+        // "the size is the hook's" and "the pixels are the hook's" are visible.
+        const half = document.createElement("canvas");
+        half.width = image.width / 2;
+        half.height = image.height / 2;
+        const paint = half.getContext("2d")!;
+        paint.fillStyle = "#f08000";
+        paint.fillRect(0, 0, half.width, half.height);
+        return half;
+      },
+    });
+
+    const exported = await element.export({ format: "image/png" });
+    const bitmap = await createImageBitmap(exported.blob);
+    const readback = document.createElement("canvas");
+    readback.width = bitmap.width;
+    readback.height = bitmap.height;
+    const read = readback.getContext("2d")!;
+    read.drawImage(bitmap, 0, 0);
+    const middle = read.getImageData(Math.round(bitmap.width / 2), Math.round(bitmap.height / 2), 1, 1).data;
+
+    return {
+      seen,
+      storedRan,
+      document: { width: element.editor.document.source.width, height: element.editor.document.source.height },
+      exported: { width: exported.width, height: exported.height },
+      middle: [middle[0], middle[1], middle[2]],
+    };
+  });
+
+  // Handed the decoded picture, once, at the size it really decoded to.
+  expect(outcome.seen).toEqual([{ width: 200, height: 100 }]);
+  // The stored default was overridden rather than run as well.
+  expect(outcome.storedRan).toBe(false);
+
+  // What came back is the picture: its size is the document's...
+  expect(outcome.document).toEqual({ width: 100, height: 50 });
+  expect(outcome.exported).toEqual({ width: 100, height: 50 });
+
+  // ...and its pixels are the ones exported. Orange in, orange out; the blue
+  // that was decoded never reaches the file.
+  const [r, g, b] = outcome.middle;
+  expect(r).toBeGreaterThan(200);
+  expect(g).toBeGreaterThan(90);
+  expect(b).toBeLessThan(60);
+});
+
+/**
+ * ...and reaches the picture however it arrived.
+ *
+ * The hook exists for formats and pixels the browser gets wrong, and those
+ * arrive by being dropped or pasted far more often than through a `load()` a
+ * host wrote. A seam that only works on the one entry point nobody uses is not
+ * a seam, so `decodeOptions` is set on the element and a real paste has to go
+ * through it.
+ */
+test("decodeOptions reach a pasted image, not only an explicit load", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      decodeOptions: Record<string, unknown>;
+    };
+
+    let called = 0;
+    element.decodeOptions = {
+      afterDecode: (image: { source: CanvasImageSource; width: number; height: number }) => {
+        called += 1;
+        const half = document.createElement("canvas");
+        half.width = Math.round(image.width / 2);
+        half.height = Math.round(image.height / 2);
+        half.getContext("2d")!.drawImage(image.source, 0, 0, half.width, half.height);
+        return half;
+      },
+    };
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 240;
+    canvas.height = 160;
+    canvas.getContext("2d")!.fillRect(0, 0, 240, 160);
+    const blob: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/png"));
+
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([blob], "pasted.png", { type: "image/png" }));
+    element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true }));
+
+    // The paste handler loads asynchronously; wait for the document to change.
+    const deadline = Date.now() + 5000;
+    while (element.editor.document.source.width !== 120 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return { called, source: element.editor.document.source.width };
+  });
+
+  expect(outcome.called).toBe(1);
+  // Halved by the hook, so the picture the editor holds is the hook's.
+  expect(outcome.source).toBe(120);
+});
+
+/**
  * A ceiling that scales the picture instead of refusing it.
  *
  * What a browser will really allocate is far below what the specification

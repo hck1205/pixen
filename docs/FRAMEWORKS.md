@@ -258,6 +258,35 @@ Pixen ships no HEIC decoder. Every recent iPhone produces the format and no
 browser reads it, but bundling a decoder would put a megabyte in the build of
 every application that never sees one. The hook is where a host puts its own.
 
+`afterDecode` is the other side of it: `beforeDecode` takes bytes no browser
+reads, and this takes the decoded pixels before anyone edits them — a colour
+profile the browser ignored, a denoiser or upscaler compiled to WebAssembly, a
+white background composited under a transparent PNG. Going through
+`beforeDecode` for any of that would mean decoding and re-encoding to reach the
+pixels, which is slower and, for a lossy format, lossy.
+
+```js
+await editor.load(file, {
+  afterDecode: (image) => denoise(image.source, image.width, image.height),
+});
+```
+
+The picture arrives upright, so a hook never has to think about EXIF. Draw onto
+the surface you were handed and return it and nothing is copied; return a
+different one and the old is released for you.
+
+**Through the element**, set them once rather than per call:
+
+```js
+editorElement.decodeOptions = { beforeDecode: heicToJpeg };
+```
+
+That matters more than it looks. A format no browser reads arrives by being
+dropped or pasted far more often than through a `load()` you wrote, and every
+one of those paths — the file picker, a drop, a paste, the `src` attribute —
+goes through this. Options passed to `element.load(input, options)` win over it
+for that one call.
+
 **Writing.** `export` takes `hooks`, at the five points an export has:
 
 | Hook | Gets | For |

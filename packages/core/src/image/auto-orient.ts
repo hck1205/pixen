@@ -18,7 +18,9 @@
  * the same request of the same engine, and a worker's decoder is not a
  * different decoder.
  */
-import { createSurface, releaseSurface } from "./canvas.js";
+import { assertDrawableSize, createSurface, releaseSurface, sourceSize } from "./canvas.js";
+import { applyOrientationToSize, orientationTransform, type ExifOrientation } from "./exif.js";
+import type { Size } from "../geometry/types.js";
 import { encodeSurface } from "./encode.js";
 import { withExifSegment } from "./jpeg.js";
 
@@ -86,3 +88,46 @@ async function probe(decode: (blob: Blob) => Promise<CanvasImageSource>): Promis
   return height > width;
 }
 
+
+export interface UprightImage extends Size {
+  source: CanvasImageSource;
+}
+
+/**
+ * A decoded picture, the right way up.
+ *
+ * The turn owed to it is the file's orientation, or none at all because the
+ * decoder has already done it. The probe is only reached for when there is
+ * something to decide, so a library of upright images never pays for it.
+ */
+export async function uprightImage(
+  decoded: CanvasImageSource,
+  orientation: ExifOrientation,
+  decode: (blob: Blob) => Promise<CanvasImageSource>,
+): Promise<UprightImage> {
+  const size = sourceSize(decoded);
+  if (orientation === 1 || (await decoderAppliesOrientation(decode))) return { source: decoded, ...size };
+  return turn(decoded, size, orientation);
+}
+
+/**
+ * Bakes an orientation into pixels so nothing downstream has to know about it.
+ * The size travels beside the source rather than being written onto it:
+ * `ImageBitmap.width` is a read-only accessor, and assigning to it throws.
+ */
+function turn(source: CanvasImageSource, size: Size, orientation: ExifOrientation): UprightImage {
+  const upright = applyOrientationToSize(size, orientation);
+  assertDrawableSize(upright, "image");
+  const surface = createSurface(upright.width, upright.height);
+  const { rotation, flipX, flipY } = orientationTransform(orientation);
+
+  const context = surface.context;
+  context.translate(upright.width / 2, upright.height / 2);
+  context.rotate(rotation);
+  context.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+  context.drawImage(source, -size.width / 2, -size.height / 2, size.width, size.height);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+
+  if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) source.close();
+  return { source: surface.canvas, ...upright };
+}

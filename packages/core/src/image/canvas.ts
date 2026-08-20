@@ -9,6 +9,15 @@ export interface CanvasSurface {
   context: Canvas2D;
 }
 
+/** Intrinsic pixel size of any drawable source. */
+export function sourceSize(source: CanvasImageSource): Size {
+  if (typeof HTMLImageElement !== "undefined" && source instanceof HTMLImageElement) {
+    return { width: source.naturalWidth, height: source.naturalHeight };
+  }
+  const candidate = source as unknown as Size;
+  return { width: Number(candidate.width), height: Number(candidate.height) };
+}
+
 /** Guard against decompression bombs and canvases the platform silently refuses. */
 export const MAX_CANVAS_PIXELS = 268_435_456; // 16384 x 16384
 
