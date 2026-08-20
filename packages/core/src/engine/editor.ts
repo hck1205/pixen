@@ -19,16 +19,14 @@ import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from ".
 import { exportDocument, resolveOutputFormat, type ExportOptions, type ExportResult } from "../export/pipeline.js";
 import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
 import {
+  createStickerLayer,
   createTextWatermarkLayer,
   createWatermarkLayer,
-  stickerFrame,
+  type StickerOptions,
   type TextWatermarkOptions,
   type WatermarkOptions,
-} from "../export/watermark.js";
-import { invert } from "../geometry/matrix.js";
-import { transformBounds } from "../geometry/rect.js";
-import { imageToStage } from "../geometry/spaces.js";
-import { createImageLayer, findLayer } from "../model/layers.js";
+} from "../export/placement.js";
+import { findLayer } from "../model/layers.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
 import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
 import {
@@ -63,6 +61,9 @@ export interface MutateOptions {
  * delegated to `session.reduce`, so the interesting behaviour is unit-testable
  * without constructing an editor at all — see `engine/session.ts`.
  */
+/** One failure, two entry points: `export` and `exportVariants` fail alike. */
+const EXPORT_FAILURE = { code: "EXPORT_FAILED", message: "The image could not be exported" } as const;
+
 export class Editor {
   readonly resources: ResourceManager;
   readonly #emitter = new Emitter<EditorEvents>();
@@ -620,16 +621,8 @@ export class Editor {
    * Selected on arrival, because the next thing anyone does with a sticker is
    * move or resize it, and its handles are how.
    */
-  addSticker(options: { resourceId: string; size: Size; scale?: number; name?: string }): this {
-    const region = transformBounds(
-      invert(imageToStage(this.document.source, this.document.transform)),
-      effectiveCrop(this.document),
-    );
-    const frame = stickerFrame(region, options.size, options.scale);
-    return this.addLayer(
-      createImageLayer(options.resourceId, frame, { name: options.name ?? "sticker" }),
-      { select: true },
-    );
+  addSticker(options: StickerOptions): this {
+    return this.addLayer(createStickerLayer(this.document, options), { select: true });
   }
 
   /** Sets or clears the border drawn over the finished picture. */
@@ -652,7 +645,7 @@ export class Editor {
     this.#assertAlive();
     return this.#exportTask.run(
       { format: resolveOutputFormat(this.document, options.format) },
-      { signal: options.signal, code: "EXPORT_FAILED", message: "The image could not be exported" },
+      { ...EXPORT_FAILURE, signal: options.signal },
       async (attempt) => {
         const result = await exportDocument(this.document, this.resources, tracked(options, attempt));
         this.#emitter.emit("export", result);
@@ -681,7 +674,7 @@ export class Editor {
     this.#assertAlive();
     return this.#exportTask.run(
       { format: resolveOutputFormat(this.document, options.format) },
-      { signal: options.signal, code: "EXPORT_FAILED", message: "The image could not be exported" },
+      { ...EXPORT_FAILURE, signal: options.signal },
       (attempt) =>
         exportVariants(this.document, this.resources, specs, tracked(options, attempt)),
     );

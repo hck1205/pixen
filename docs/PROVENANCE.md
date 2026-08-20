@@ -51,7 +51,7 @@ was supplied to an AI tool as input at any point.
 | `render/adjustments.ts` | The adjustment chain, plus a pixel fallback | W3C **Filter Effects Module Level 1**: the `brightness()`, `contrast()` and `saturate()` definitions, and the luminance coefficients `0.213 / 0.715 / 0.072` from the `saturate` colour matrix, the `sepia` colour matrix, and the luminance-preserving `hue-rotate` matrix, all written out from that specification |
 | `render/ops/` | Scene to draw-operation list: paths, arrow heads, text layout | Greedy line breaking; quadratic midpoint smoothing for free-draw; arrow heads from trigonometry |
 | `render/canvas2d/` | Executes a draw-operation list | Canvas2D API. Redaction: `ctx.filter = blur(...)` is the W3C **Filter Effects Module Level 1** `blur()` function as exposed on the canvas context; pixelation is a downscale-then-upscale with `imageSmoothingEnabled = false`, which is what nearest-neighbour resampling means |
-| `export/watermark.ts` | Placing a watermark image in one of nine positions | First principles: a fraction of the longest edge, inset by a margin |
+| `export/placement.ts` | Placing a watermark in one of nine positions, and a sticker in the middle of the crop | First principles: a fraction of the longest edge, inset by a margin; the crop brought back through `stageToImage` before anything is placed in it |
 | `export/*` | Full-resolution export, headless processing, policies | Original design for this project |
 | `web/viewport/gestures/*` | Pointer gestures as a state machine | Original design for this project |
 | `web/viewport/overlay.ts` | Crop chrome geometry | Rule-of-thirds guides and corner brackets, laid out here |

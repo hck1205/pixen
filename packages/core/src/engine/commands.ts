@@ -7,7 +7,7 @@ import {
 } from "../geometry/crop.js";
 import { PixenError } from "../errors/index.js";
 import { QUARTER_TURN, positiveAngle } from "../geometry/angles.js";
-import { compose, invert } from "../geometry/matrix.js";
+import { compose } from "../geometry/matrix.js";
 import { center, clampInside, constrainRect, transformBounds } from "../geometry/rect.js";
 import {
   centredRect,
@@ -17,7 +17,7 @@ import {
   rectIsAllImage,
   straightenAngleOf,
 } from "../geometry/straighten.js";
-import { imageToStage } from "../geometry/spaces.js";
+import { imageToStage, stageToImage } from "../geometry/spaces.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { effectiveCrop, stageRect } from "../model/document.js";
 import { clampAdjustments } from "../model/adjustments.js";
@@ -69,7 +69,7 @@ export function remapCrop(
     return { crop: null, aspectRatio };
   }
 
-  const previousToImage = invert(imageToStage(document.source, document.transform));
+  const previousToImage = stageToImage(document.source, document.transform);
   const imageToNext = imageToStage(document.source, nextTransform);
   const mapped = transformBounds(compose(imageToNext, previousToImage), document.crop);
 
@@ -129,7 +129,7 @@ export function straighten(document: EditorDocument, radians: number): EditorDoc
   // Keep the framing where it was when the straightened image still covers it.
   // The largest allowed crop is centred by construction, so the image centre is
   // always an answer when it does not.
-  const imageFromStage = invert(imageToStage(rotated.source, rotated.transform));
+  const imageFromStage = stageToImage(rotated.source, rotated.transform);
   const atCropCentre = centredRect(center(effectiveCrop(rotated)), size);
   const crop = rectIsAllImage(atCropCentre, imageFromStage, rotated.source)
     ? atCropCentre

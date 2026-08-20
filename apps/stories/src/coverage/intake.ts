@@ -67,7 +67,12 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
         capability: "Task events",
         layer: "Engine",
         detail: list(TASK_EVENTS),
-        evidence: [unit("editor-events.test.ts"), browser("editor.spec.ts"), doc("docs/FRAMEWORKS.md")],
+        evidence: [
+          unit("editor-events.test.ts"),
+          unit("observe.test.ts"),
+          browser("editor.spec.ts"),
+          doc("docs/FRAMEWORKS.md"),
+        ],
       },
       {
         capability: "Honest progress",
@@ -95,7 +100,13 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
         detail:
           "A settable status message over the picture, a disabled state that blocks input without hiding it, " +
           "and a pill that shows a percentage only where one was measured",
-        evidence: [unit("busy-label.test.ts"), story("RoundTrip"), story("Progress"), doc("docs/FRAMEWORKS.md")],
+        evidence: [
+          unit("busy.test.ts"),
+          unit("busy-label.test.ts"),
+          story("RoundTrip"),
+          story("Progress"),
+          doc("docs/FRAMEWORKS.md"),
+        ],
       },
       {
         capability: "Capability probe",

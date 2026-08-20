@@ -1,15 +1,20 @@
+import { transformBounds } from "../geometry/rect.js";
+import { stageToImage } from "../geometry/spaces.js";
 import type { Rect, Size } from "../geometry/types.js";
+import { effectiveCrop } from "../model/document.js";
 import { createImageLayer, createTextLayer, layerBounds, translateLayer } from "../model/layers.js";
 import { DEFAULT_TEXT_COLOUR } from "../model/defaults.js";
-import type { ImageLayer, TextLayer } from "../model/types.js";
+import type { EditorDocument, ImageLayer, TextLayer } from "../model/types.js";
 
 /**
- * Watermarks, as placement maths over an image layer.
+ * Layers placed by arithmetic rather than by a pointer.
  *
  * A watermark is not a new kind of thing — it is a bitmap in a corner, at an
- * opacity, possibly tiled. Expressing it that way means it undoes, serialises,
- * exports and survives a rotate exactly like every other layer, and leaves this
- * module with nothing but the arithmetic of where it goes.
+ * opacity, possibly tiled — and neither is a sticker, which is a bitmap in the
+ * middle of what the person can currently see. Expressing them that way means
+ * they undo, serialise, export and survive a rotate exactly like every other
+ * layer, and leaves this module with nothing but the arithmetic of where each
+ * one goes.
  */
 /**
  * Every placement, in reading order, as the list rather than as a union — the
@@ -138,6 +143,35 @@ export function stickerFrame(region: Rect, size: Size, scale = DEFAULT_STICKER_S
   const width = Math.max(1, scale * Math.max(region.width, region.height));
   const ratio = size.height / Math.max(1, size.width);
   return placeWithin(region, { width, height: Math.max(1, width * ratio) }, "centre", 0);
+}
+
+export interface StickerOptions {
+  resourceId: string;
+  /** The bitmap's own pixels, which set the aspect ratio it is placed at. */
+  size: Size;
+  scale?: number;
+  name?: string;
+}
+
+/** What an unnamed sticker is called in the layer list. */
+const DEFAULT_STICKER_NAME = "sticker";
+
+/**
+ * A sticker placed in the middle of what is currently cropped.
+ *
+ * The crop is a stage rectangle and a layer lives in image coordinates, so the
+ * region has to come back through `stageToImage` before anything is placed in
+ * it — otherwise a sticker added to a rotated picture lands beside the frame
+ * rather than inside it.
+ */
+export function createStickerLayer(document: EditorDocument, options: StickerOptions): ImageLayer {
+  const region = transformBounds(
+    stageToImage(document.source, document.transform),
+    effectiveCrop(document),
+  );
+  return createImageLayer(options.resourceId, stickerFrame(region, options.size, options.scale), {
+    name: options.name ?? DEFAULT_STICKER_NAME,
+  });
 }
 
 /** Text is measured in type size, so it needs a smaller default than a logo. */

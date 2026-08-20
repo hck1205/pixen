@@ -36,7 +36,7 @@ agreement into a failing test rather than a good intention:
 | `check:independence` | A third-party name, dependency or vendored code |
 | `check:exports` | An export nothing imports |
 | `check:duplication` | The same four meaningful lines in three places |
-| `check:size` | A source file past 300 lines with no recorded reason |
+| `check:size` | A source file past 300 lines with no recorded reason, or an exemption the file has since shrunk well below |
 
 ### Why four lines, and why three copies
 
@@ -59,11 +59,14 @@ point is not the number — it is that "this one is fine" stops being a private
 judgement and becomes a recorded one the next reader can disagree with.
 
 An exemption is pinned to the size it was written at, so a file that is exempt
-still cannot grow without someone deciding again.
+still cannot grow without someone deciding again. It ratchets the other way too:
+split an exempt file and the scan asks for the entry to come down to the new
+size, give or take `EXEMPT_SLACK` lines of room for ordinary editing. Otherwise
+every split quietly buys headroom to grow back into.
 
 ## The coverage page
 
-`apps/stories/src/coverage.ts` lists every capability, what it is today, and
+`apps/stories/src/coverage/` lists every capability, what it is today, and
 what proves it. It is not prose: where a capability is a set of things — tools,
 formats, adjustment presets, locales — the description is generated from the
 export that defines them, so deleting a preset deletes it from the page. The

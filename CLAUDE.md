@@ -63,7 +63,7 @@ Three of these are enforced mechanically, and the rest are read for:
 | --- | --- |
 | `pnpm check:exports` | Delete rather than deprecate |
 | `pnpm check:duplication` | Commonise the third occurrence |
-| `pnpm check:size` | A file past 300 lines is split, or its reason is written down |
+| `pnpm check:size` | A file past 300 lines is split, or its reason is written down, and an exemption ratchets down as the file shrinks |
 
 The checks are a floor, not the standard. They cannot see a file answering two
 questions, a decision buried in an effect, or a literal that wants a name — so
@@ -74,7 +74,8 @@ Two rules the size budget is *not*: it is not a cap, and length is not a smell
 on its own. A long file that is one concern — a facade of one-line delegations,
 a table of data — stays long and says why in `scripts/module-budget.mjs`. But
 an exemption is pinned to the size it was written at, so it cannot become a
-licence to keep growing.
+licence to keep growing — and when a split makes the file smaller, the pin is
+asked to come down with it, so the slack is not banked as future headroom.
 
 The public API is the exception: `@pixen/*` exports, custom element attributes,
 `part` names and slot names are contracts. Changing one is a decision, not
