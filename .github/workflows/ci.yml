@@ -29,6 +29,15 @@ jobs:
       - name: Unused-export scan
         run: pnpm check:exports
 
+      # The two halves of "refactor continuously" that a person was doing by
+      # reading: the third copy of a block, and a file that has grown past the
+      # size where it owes an explanation.
+      - name: Duplicate-block scan
+        run: pnpm check:duplication
+
+      - name: Module-size budget
+        run: pnpm check:size
+
       - name: Build packages
         run: pnpm build
 

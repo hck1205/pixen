@@ -57,6 +57,25 @@ than you found it, and act on these the moment you notice them:
   `pnpm check:exports` fails on one, so this is a check rather than an intention;
   a genuine host-facing seam goes in that script's short allowlist with a reason.
 
+Three of these are enforced mechanically, and the rest are read for:
+
+| Check | Enforces |
+| --- | --- |
+| `pnpm check:exports` | Delete rather than deprecate |
+| `pnpm check:duplication` | Commonise the third occurrence |
+| `pnpm check:size` | A file past 300 lines is split, or its reason is written down |
+
+The checks are a floor, not the standard. They cannot see a file answering two
+questions, a decision buried in an effect, or a literal that wants a name — so
+a refactor pass still means reading. What they buy is that the mistakes a
+person makes twice, a machine now makes never.
+
+Two rules the size budget is *not*: it is not a cap, and length is not a smell
+on its own. A long file that is one concern — a facade of one-line delegations,
+a table of data — stays long and says why in `scripts/module-budget.mjs`. But
+an exemption is pinned to the size it was written at, so it cannot become a
+licence to keep growing.
+
 The public API is the exception: `@pixen/*` exports, custom element attributes,
 `part` names and slot names are contracts. Changing one is a decision, not
 cleanup.
@@ -83,7 +102,7 @@ Application → framework wrapper → <pixen-image-editor> → Viewport → Edit
 
 ```bash
 pnpm build              # typecheck and build every package
-pnpm test               # unit tests, including the independence scan
+pnpm test               # unit tests, including every scan above
 pnpm test:browser       # Playwright against the built playground
 pnpm stories            # visual review; UI changes need a story
 ```

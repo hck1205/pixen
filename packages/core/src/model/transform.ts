@@ -1,5 +1,5 @@
 import { QUARTER_TURN, normaliseAngle } from "../geometry/angles.js";
-import { handlePosition, type CropHandle } from "../geometry/crop.js";
+import { CROP_HANDLES, handlePosition, type CropHandle } from "../geometry/crop.js";
 import { center } from "../geometry/rect.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { layerBounds } from "./layers.js";
@@ -15,18 +15,14 @@ import type { EditorLayer } from "./types.js";
  */
 export type LayerHandle = CropHandle | "rotate";
 
-/** The eight resize handles, then the rotate handle above the top edge. */
-export const LAYER_HANDLES: readonly LayerHandle[] = [
-  "top-left",
-  "top",
-  "top-right",
-  "right",
-  "bottom-right",
-  "bottom",
-  "bottom-left",
-  "left",
-  "rotate",
-];
+/**
+ * The eight resize handles, then the rotate handle above the top edge.
+ *
+ * Built from `CROP_HANDLES` rather than restating them: the type already says a
+ * layer handle is a crop handle or the rotate grip, and a hand-written copy is
+ * a second place for the order to be wrong in.
+ */
+export const LAYER_HANDLES: readonly LayerHandle[] = [...CROP_HANDLES, "rotate"];
 
 /** Smallest extent a resize may leave, in image pixels. */
 const DEFAULT_MIN_LAYER_SIZE = 4;
