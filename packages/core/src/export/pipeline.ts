@@ -2,6 +2,8 @@ import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import { assertDrawableSize, createSurface, releaseSurface, type CanvasSurface } from "../image/canvas.js";
 import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTransparency } from "../image/encode.js";
+import { withExifSegment } from "../image/jpeg.js";
+import { portableExif, type MetadataPolicy } from "../image/metadata.js";
 import { standInSize } from "../image/resize.js";
 import { roundedSize } from "../geometry/rect.js";
 import { effectiveCrop, outputSize as documentOutputSize } from "../model/document.js";
@@ -34,6 +36,11 @@ export interface ExportOptions {
   /** Re-encodes at lower quality until the result fits. */
   maxBytes?: number | null;
   filename?: string;
+  /**
+   * What to do with the source's own EXIF record. `strip` by default — see
+   * `METADATA_POLICIES`. Only JPEG to JPEG carries anything.
+   */
+  metadata?: MetadataPolicy;
   signal?: AbortSignal;
   /** Called as the picture is rendered and encoded. See `ExportStage`. */
   onProgress?: StepReporter<ExportStage>;
@@ -56,6 +63,8 @@ export interface ExportResult {
 }
 
 const DEFAULT_FORMAT: ImageFormat = "image/png";
+/** The one format on both sides of a metadata copy. */
+const JPEG: ImageFormat = "image/jpeg";
 
 /**
  * The format an export will actually use.
@@ -135,7 +144,8 @@ export async function exportDocument(
           })
         : await encodeOnce(surface.canvas, format, quality, onProgress);
 
-    const blob = hooks.bytes ? await hooks.bytes(encoded.blob, { format, size: target }) : encoded.blob;
+    const carried = await carryMetadata(encoded.blob, resource.blob, format, options.metadata);
+    const blob = hooks.bytes ? await hooks.bytes(carried, { format, size: target }) : carried;
 
     // An encode in progress cannot be interrupted — no browser exposes that —
     // so a cancel arriving mid-encode is honoured at the only point it can be:
@@ -201,6 +211,34 @@ async function standIn(
   if (to === null) return whole;
 
   return { source: await resample(resource.source, from, to), scale: to.width / from.width };
+}
+
+/**
+ * The exported file with the source's own record of itself put back, when a
+ * host asked for it.
+ *
+ * Only JPEG to JPEG: PNG has no EXIF worth the name, and the browser's WebP
+ * encoder writes a container Pixen would have to learn to edit for no clear
+ * gain. Anything that does not apply — the wrong format, a source with no EXIF,
+ * a block too large to be a segment — leaves the file exactly as encoded, which
+ * is the same thing `strip` does.
+ *
+ * It runs before the `bytes` hook rather than after, so a host replacing the
+ * bytes outright is not handed a segment spliced into a format it no longer is.
+ */
+async function carryMetadata(
+  encoded: Blob,
+  source: Blob | null,
+  format: ImageFormat,
+  policy: MetadataPolicy | undefined,
+): Promise<Blob> {
+  if (policy !== "copy" || format !== JPEG || source === null || source.type !== JPEG) return encoded;
+
+  const segment = portableExif(await source.arrayBuffer());
+  if (!segment) return encoded;
+
+  const withMetadata = withExifSegment(new Uint8Array(await encoded.arrayBuffer()), segment);
+  return new Blob([withMetadata as BlobPart], { type: format });
 }
 
 /** The single-attempt encode, reported as the one step it is. */

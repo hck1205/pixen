@@ -63,6 +63,41 @@ Two implementation notes that matter for the guarantee:
 - The original file the user picked is untouched. If your application uploads
   both, redaction has bought you nothing.
 
+## Metadata on the way out
+
+A re-encoded canvas carries no EXIF, so **an export strips the source's metadata
+by default** and that is the recommended setting. Most pictures are shared rather
+than archived, and a photograph's own record of itself says more than the person
+sharing it usually means to.
+
+`export({ metadata: "copy" })` carries it across, for an archive or a
+photographer's workflow where losing the camera, the lens, the exposure and the
+copyright is a real loss. It is a rewrite rather than a copy, and three things
+never travel:
+
+| Not carried | Why |
+| --- | --- |
+| The orientation | Already spent — Pixen turned the pixels upright at decode, so copying the tag would turn them again |
+| The location | A person sharing an edited photograph is not thereby offering their home address |
+| The embedded thumbnail | It is a copy of the **original** picture, from before the crop, the redaction or the sticker |
+
+The thumbnail is the one worth stopping at. EXIF can embed a small copy of the
+picture as the camera wrote it, which predates every edit — so an export with a
+face redacted would hand the unredacted face back inside its own metadata. That
+is the edit undone by the file it is stored in.
+
+The location and the thumbnail are **erased, not unlinked**: the bytes are
+overwritten and then the directory entry that pointed at them is dropped.
+Removing only the pointer would leave the coordinates sitting in the file for
+anything that reads it with something other than an EXIF parser, which is not
+what "the location is not in this file" should mean.
+
+Two limits worth knowing. Only JPEG to JPEG carries anything — PNG has no EXIF
+worth the name. And this covers the EXIF block only: a source carrying XMP or
+IPTC keeps neither, because those are not copied in the first place. If you want
+the block copied verbatim, with everything above included, `hooks.bytes` hands
+you the encoded file to do it yourself — deliberately, rather than by default.
+
 ## Privacy
 
 - No telemetry, no analytics, no phone-home.

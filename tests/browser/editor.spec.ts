@@ -1671,6 +1671,117 @@ test("all eight EXIF orientations open upright, whatever the browser did first",
 });
 
 /**
+ * The camera's own record of the picture, carried across a re-encode.
+ *
+ * Only a real encoder produces a JPEG to splice a block into and a real decoder
+ * proves the result still opens, so this is the one place the whole path can be
+ * checked: a source with EXIF goes in, an edited file comes out, and the right
+ * parts of the record are on it. The rewriting itself is unit tested against
+ * hand-built directories; what is checked here is that it is wired up, that the
+ * default is still to strip, and that a file with metadata spliced in front of
+ * it is a file the browser will still decode.
+ */
+test("metadata travels only when asked, and leaves the location behind", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      load(input: unknown): Promise<void>;
+    };
+
+    // A JPEG the browser really encoded, with an EXIF block put in front of it
+    // by hand — assembled here rather than through Pixen's own splicer, so this
+    // is not the code under test vouching for itself.
+    const canvas = document.createElement("canvas");
+    canvas.width = 400;
+    canvas.height = 300;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#3060a0";
+    context.fillRect(0, 0, 400, 300);
+    const plain: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.9));
+
+    const ascii = (value: string) => [...new TextEncoder().encode(value)];
+    const short = (value: number) => [value >> 8, value & 0xff];
+    const long = (value: number) => [value >>> 24, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+    const entry = (tag: number, type: number, count: number, value: number[]) => [
+      ...short(tag),
+      ...short(type),
+      ...long(count),
+      ...value,
+    ];
+
+    const make = "PIXEN-CAMERA-MARK";
+    const place = "PIXEN-LOCATION-MARK";
+    // TIFF header, one directory of three entries, then the values they point at.
+    const ifd0At = 8;
+    const entriesEnd = ifd0At + 2 + 3 * 12 + 4;
+    const makeAt = entriesEnd;
+    const gpsAt = makeAt + make.length + 1;
+    const placeAt = gpsAt + 2 + 12 + 4;
+    const tiff = [
+      ...ascii("MM"),
+      ...short(0x002a),
+      ...long(ifd0At),
+      ...short(3),
+      ...entry(0x010f, 2, make.length + 1, long(makeAt)), // Make
+      ...entry(0x0112, 3, 1, [...short(6), 0, 0]), // Orientation: a quarter turn
+      ...entry(0x8825, 4, 1, long(gpsAt)), // GPS directory
+      ...long(0),
+      ...ascii(`${make}\0`),
+      ...short(1),
+      ...entry(0x0001, 2, place.length, long(placeAt)),
+      ...long(0),
+      ...ascii(place),
+    ];
+    const payload = [...ascii("Exif"), 0, 0, ...tiff];
+    const app1 = [0xff, 0xe1, ...short(payload.length + 2), ...payload];
+
+    const encoded = new Uint8Array(await plain.arrayBuffer());
+    const withExif = new Uint8Array([0xff, 0xd8, ...app1, ...encoded.subarray(2)]);
+    await element.load(new Blob([withExif as BlobPart], { type: "image/jpeg" }));
+
+    const read = async (options: Record<string, unknown>) => {
+      const result = await element.export({ format: "image/jpeg", ...options } as never);
+      const text = new TextDecoder("latin1").decode(new Uint8Array(await result.blob.arrayBuffer()));
+      // Decoding it proves the spliced file is still a JPEG a browser will open.
+      const bitmap = await createImageBitmap(result.blob);
+      return {
+        make: text.includes(make),
+        place: text.includes(place),
+        width: bitmap.width,
+        height: bitmap.height,
+      };
+    };
+
+    return {
+      source: { width: element.editor.document.source.width, height: element.editor.document.source.height },
+      byDefault: await read({}),
+      stripped: await read({ metadata: "strip" }),
+      copied: await read({ metadata: "copy" }),
+      asPng: await read({ metadata: "copy", format: "image/png" }),
+    };
+  });
+
+  // Orientation 6 turns a quarter, so the 400x300 source is upright at 300x400 —
+  // proof the pixels really were rotated, which is why the tag must not travel.
+  expect(outcome.source).toEqual({ width: 300, height: 400 });
+
+  // Nothing rides along unless a host asks for it.
+  expect(outcome.byDefault).toMatchObject({ make: false, place: false });
+  expect(outcome.stripped).toMatchObject({ make: false, place: false });
+
+  // Asked for: the camera, never the location.
+  expect(outcome.copied.make).toBe(true);
+  expect(outcome.copied.place).toBe(false);
+  // And still a picture, the right way up, after the splice.
+  expect(outcome.copied).toMatchObject({ width: 300, height: 400 });
+
+  // PNG has no EXIF worth the name, so there is nowhere for it to go.
+  expect(outcome.asPng).toMatchObject({ make: false, place: false });
+});
+
+/**
  * The resampling seam, and the rule for when it opens.
  *
  * A host only reaches for its own downscaler because it does not trust the

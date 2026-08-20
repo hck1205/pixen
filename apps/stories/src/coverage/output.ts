@@ -65,6 +65,15 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
         evidence: [unit("processing.test.ts"), story("Transparency")],
       },
       {
+        capability: "Metadata",
+        layer: "Engine",
+        detail:
+          "Stripped by default; metadata: \"copy\" carries the camera's own record across, minus the " +
+          "orientation the pixels already spent, the location, and the embedded thumbnail — which is a " +
+          "copy of the picture from before it was edited. Both are erased rather than unlinked",
+        evidence: [unit("metadata.test.ts"), browser("editor.spec.ts"), doc("docs/SECURITY.md")],
+      },
+      {
         capability: "Export hooks",
         layer: "Engine",
         detail:

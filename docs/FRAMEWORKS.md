@@ -319,6 +319,19 @@ is safe — the picture lands in the same place regardless — it only changes t
 resolution the resampling happened at. See
 [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md) for the measurement.
 
+**Metadata.** A re-encode loses the camera's own record of the picture, which for
+an archive is a real loss and for a shared photograph is usually the point. It is
+stripped by default; ask for it and it comes across:
+
+```js
+const { blob } = await editor.export({ format: "image/jpeg", metadata: "copy" });
+```
+
+What arrives is the source's EXIF minus three things: the orientation (already
+spent — the pixels were turned upright at decode), the location, and the embedded
+thumbnail, which is a copy of the picture from before it was edited. JPEG to JPEG
+only. [SECURITY.md](SECURITY.md) has the reasoning and the limits.
+
 **Delivery.** `exportTo` draws, encodes and uploads as one task, so
 `pixen-export-progress` covers all three and one cancel calls off whichever is
 running. The bytes on the wire are the one step whose length a server declares,
