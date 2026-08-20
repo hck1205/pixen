@@ -61,7 +61,10 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
       {
         capability: "Transparency",
         layer: "Engine",
-        detail: "Alpha kept where the format has it, and a background painted where it does not",
+        detail:
+          "Alpha kept where the format has it, and a background painted where it does not — with a " +
+          "caller asking for none beating a document that named one, which is the case a nullish " +
+          "fallback would quietly paint over",
         evidence: [unit("processing.test.ts"), story("Transparency")],
       },
       {

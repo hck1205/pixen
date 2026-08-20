@@ -97,7 +97,7 @@ export function readLong(block: TiffBlock, at: number): number {
   return block.view.getUint32(at, block.littleEndian);
 }
 
-export function withinBlock(block: TiffBlock, at: number, length: number): boolean {
+function withinBlock(block: TiffBlock, at: number, length: number): boolean {
   return at >= block.start && length >= 0 && at + length <= block.end;
 }
 
@@ -125,7 +125,7 @@ export function directoryAt(block: TiffBlock, pointer: number): number | null {
 }
 
 /** The entries of one directory, or none at all if its count reaches outside the block. */
-export function entriesOf(block: TiffBlock, directory: number): TiffEntry[] {
+function entriesOf(block: TiffBlock, directory: number): TiffEntry[] {
   if (!withinBlock(block, directory, ENTRY_COUNT_BYTES)) return [];
   const count = readShort(block, directory);
   if (!withinBlock(block, directory, directoryBytes(count))) return [];

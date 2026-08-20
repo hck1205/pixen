@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkPolicy,
+  exportBackground,
   extensionForFormat,
   isLossy,
   policyToProcessOptions,
@@ -106,6 +107,36 @@ describe("standInSize", () => {
       width: 1,
       height: 300,
     });
+  });
+});
+
+describe("exportBackground", () => {
+  const document = { output: { background: null as string | null } } as never;
+  const withBackground = (background: string | null) => ({ output: { background } }) as never;
+
+  it("paints white under a format that cannot keep transparency", () => {
+    expect(exportBackground(document, {}, "image/jpeg")).toBe("#ffffff");
+  });
+
+  it("leaves a format that can keep transparency transparent", () => {
+    expect(exportBackground(document, {}, "image/png")).toBeNull();
+    expect(exportBackground(document, {}, "image/webp")).toBeNull();
+  });
+
+  it("lets the document choose, whatever the format could have kept", () => {
+    expect(exportBackground(withBackground("#123456"), {}, "image/png")).toBe("#123456");
+    expect(exportBackground(withBackground("#123456"), {}, "image/jpeg")).toBe("#123456");
+  });
+
+  it("lets the caller override the document", () => {
+    expect(exportBackground(withBackground("#123456"), { background: "#abcdef" }, "image/png")).toBe("#abcdef");
+  });
+
+  it("honours a caller asking for no background at all", () => {
+    // The subtle one. `null` means "none", and a nullish fallback would read it
+    // as "unset" and paint white over a transparency the caller asked for.
+    expect(exportBackground(withBackground("#123456"), { background: null }, "image/png")).toBeNull();
+    expect(exportBackground(document, { background: null }, "image/jpeg")).toBeNull();
   });
 });
 

@@ -1,4 +1,4 @@
-import { PixenError, toPixenError } from "../errors/index.js";
+import { toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import { assertDrawableSize, createSurface, releaseSurface, type CanvasSurface } from "../image/canvas.js";
 import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTransparency } from "../image/encode.js";
@@ -10,6 +10,7 @@ import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../model/t
 import { renderScene } from "../render/canvas2d/index.js";
 import { createScene } from "../render/scene.js";
 import type { ImageResource, ResourceManager } from "../resources/manager.js";
+import { throwIfAborted } from "../util/abort.js";
 import type { StepReporter } from "../util/progress.js";
 import type { ExportHooks } from "./hooks.js";
 import { standIn } from "./source.js";
@@ -71,7 +72,11 @@ export interface ExportResult {
   encodeAttempts: number;
 }
 
+/** What a cancelled export calls itself, in one place so the three checks agree. */
+const EXPORT = "Export";
 const DEFAULT_FORMAT: ImageFormat = "image/png";
+/** Painted under a picture exported to a format that has no alpha to keep. */
+const OPAQUE_FALLBACK_BACKGROUND = "#ffffff";
 /** The one format on both sides of a metadata copy. */
 const JPEG: ImageFormat = "image/jpeg";
 
@@ -109,7 +114,7 @@ export async function exportDocument(
   resources: ResourceManager,
   options: ExportOptions = {},
 ): Promise<ExportResult> {
-  if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
+  throwIfAborted(options.signal, EXPORT);
 
   const hooks = options.hooks ?? {};
   // Read before anything else: the hook exists to change what is drawn, so
@@ -120,16 +125,9 @@ export async function exportDocument(
   const format = resolveOutputFormat(drawn, options.format);
   const quality = options.quality ?? drawn.output.quality;
 
-  const requested = resolveExportSize(drawn, options);
-  // Scaled before the guard, not after: `maxPixels` is a host saying what its
-  // device can allocate, and the point of saying so is to get a picture back.
-  const target = options.maxPixels == null ? requested : fitWithinPixels(requested, options.maxPixels);
+  const target = exportTarget(drawn, options);
   assertDrawableSize(target, "export");
-
-  const background =
-    options.background !== undefined
-      ? options.background
-      : drawn.output.background ?? (supportsTransparency(format) ? null : "#ffffff");
+  const background = exportBackground(drawn, options, format);
 
   let surface: CanvasSurface | null = null;
   try {
@@ -146,7 +144,7 @@ export async function exportDocument(
     renderScene(surface.context, scene);
     await hooks.pixels?.(surface, target);
 
-    if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
+    throwIfAborted(options.signal, EXPORT);
 
     const onProgress = options.onProgress;
     const encoded =
@@ -163,7 +161,7 @@ export async function exportDocument(
     // so a cancel arriving mid-encode is honoured at the only point it can be:
     // the result is thrown away rather than handed to a caller who said they no
     // longer wanted it.
-    if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
+    throwIfAborted(options.signal, EXPORT);
 
     const suggested = buildFilename(drawn, format, options.filename);
     return {
@@ -225,16 +223,46 @@ async function encodeOnce(
   return { blob, quality, attempts: 1 };
 }
 
-function resolveExportSize(document: EditorDocument, options: ExportOptions = {}): Size {
-  if (options.width == null && options.height == null) return documentOutputSize(document);
-  return documentOutputSize({
-    ...document,
-    output: {
-      ...document.output,
-      width: options.width ?? null,
-      height: options.height ?? null,
-    },
-  });
+/**
+ * How big the exported picture is: what the document says, overridden by what
+ * the caller asked for, then brought under whatever ceiling the caller set.
+ *
+ * The ceiling is applied before the drawable-size guard rather than after,
+ * because `maxPixels` is a host saying what its device can really allocate, and
+ * the point of saying so is to get a picture back rather than an error.
+ */
+function exportTarget(document: EditorDocument, options: ExportOptions): Size {
+  const requested =
+    options.width == null && options.height == null
+      ? documentOutputSize(document)
+      : documentOutputSize({
+          ...document,
+          output: { ...document.output, width: options.width ?? null, height: options.height ?? null },
+        });
+
+  return options.maxPixels == null ? requested : fitWithinPixels(requested, options.maxPixels);
+}
+
+/**
+ * What is painted under the picture.
+ *
+ * The caller wins, including when it says `null` for none — hence the check
+ * against `undefined` rather than a nullish fallback. Failing that the document
+ * decides, and failing that a format with no alpha gets white rather than the
+ * black that an unpainted opaque canvas would otherwise be.
+ *
+ * Exported for the same reason `resolveOutputFormat` is: an interface offering
+ * a transparent background has to be able to say what will actually happen when
+ * the format cannot keep one, and a second implementation of that rule would be
+ * a second answer.
+ */
+export function exportBackground(
+  document: EditorDocument,
+  options: ExportOptions,
+  format: ImageFormat,
+): string | null {
+  if (options.background !== undefined) return options.background;
+  return document.output.background ?? (supportsTransparency(format) ? null : OPAQUE_FALLBACK_BACKGROUND);
 }
 
 /**

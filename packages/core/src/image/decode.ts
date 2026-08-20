@@ -2,6 +2,7 @@ import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import type { StepReporter } from "../util/progress.js";
 import { assertDrawableSize, disposeImageSource, sourceSize } from "./canvas.js";
+import { throwIfAborted } from "../util/abort.js";
 import { toBlob } from "./bytes.js";
 import { imageWorker } from "./worker/client.js";
 import { uprightImage, type UprightImage } from "./auto-orient.js";
@@ -88,10 +89,8 @@ export interface DecodeOptions {
 }
 
 const EXIF_SCAN_BYTES = 256 * 1024;
-
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new PixenError("ABORTED", "Image decoding was aborted");
-}
+/** What a cancelled decode calls itself, wherever it is noticed. */
+const DECODE = "Image decoding";
 
 async function readOrientation(blob: Blob): Promise<ExifOrientation> {
   if (blob.type && blob.type !== "image/jpeg" && blob.type !== "image/tiff") return 1;
@@ -110,13 +109,13 @@ async function readOrientation(blob: Blob): Promise<ExifOrientation> {
 const WORKER_DECODE_MIN_BYTES = 512 * 1024;
 
 async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<CanvasImageSource> {
-  throwIfAborted(signal);
+  throwIfAborted(signal, DECODE);
 
   if (blob.size >= WORKER_DECODE_MIN_BYTES) {
     // Null when the environment has no worker, or a policy forbids one; the
     // main-thread path below is then exactly what ran before.
     const offloaded = await imageWorker().decode(blob);
-    throwIfAborted(signal);
+    throwIfAborted(signal, DECODE);
     if (offloaded) return offloaded.bitmap;
   }
 
@@ -144,7 +143,7 @@ function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Pr
     image.onload = () => {
       cleanup();
       if (signal?.aborted) {
-        reject(new PixenError("ABORTED", "Image decoding was aborted"));
+        reject(new PixenError("ABORTED", `${DECODE} was aborted`));
         return;
       }
       resolve(image);
@@ -165,7 +164,7 @@ function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Pr
  * engine ignore where an image came from.
  */
 export async function decodeImage(input: ImageInput, options: DecodeOptions = {}): Promise<DecodedImage> {
-  throwIfAborted(options.signal);
+  throwIfAborted(options.signal, DECODE);
 
   const blob = await toBlob(input, options);
   const name = typeof File !== "undefined" && input instanceof File ? input.name : undefined;
@@ -187,7 +186,7 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
   // Before the format checks, not after: the point of the hook is to hand back
   // something those checks will accept.
   const decodable = options.beforeDecode ? await options.beforeDecode(blob, options.signal) : blob;
-  throwIfAborted(options.signal);
+  throwIfAborted(options.signal, DECODE);
 
   if (decodable.type && !decodable.type.startsWith("image/")) {
     throw new PixenError("UNSUPPORTED_FORMAT", `"${decodable.type}" is not an image type`, {
@@ -232,7 +231,7 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
  */
 async function runAfterDecode(image: UprightImage, options: DecodeOptions): Promise<UprightImage> {
   const replacement = await options.afterDecode!(image, options.signal);
-  throwIfAborted(options.signal);
+  throwIfAborted(options.signal, DECODE);
 
   const size = sourceSize(replacement);
   assertDrawableSize(size, "image");
