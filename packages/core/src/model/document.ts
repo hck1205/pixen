@@ -1,4 +1,4 @@
-import { rectFromSize } from "../geometry/rect.js";
+import { rectFromSize, roundedSize } from "../geometry/rect.js";
 import { stageSizeFor } from "../geometry/spaces.js";
 import type { Rect, Size } from "../geometry/types.js";
 import { deepClone } from "../util/clone.js";
@@ -57,18 +57,10 @@ export function outputSize(document: EditorDocument): Size {
   const crop = effectiveCrop(document);
   const { width, height } = document.output;
 
-  if (width != null && height != null) {
-    return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
-  }
-  if (width != null) {
-    const scale = width / crop.width;
-    return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(crop.height * scale)) };
-  }
-  if (height != null) {
-    const scale = height / crop.height;
-    return { width: Math.max(1, Math.round(crop.width * scale)), height: Math.max(1, Math.round(height)) };
-  }
-  return { width: Math.max(1, Math.round(crop.width)), height: Math.max(1, Math.round(crop.height)) };
+  if (width != null && height != null) return roundedSize(width, height);
+  if (width != null) return roundedSize(width, crop.height * (width / crop.width));
+  if (height != null) return roundedSize(crop.width * (height / crop.height), height);
+  return roundedSize(crop.width, crop.height);
 }
 
 

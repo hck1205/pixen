@@ -1,6 +1,7 @@
 import {
   applyToPoint,
   CROP_HANDLES,
+  distance,
   findLayer,
   LAYER_HANDLES,
   layerBounds,
@@ -27,9 +28,9 @@ export function hitCropHandle(context: GestureContext, point: Point): CropHandle
   let best: { handle: CropHandle; distance: number } | null = null;
   for (const handle of CROP_HANDLES) {
     const screen = stageToScreen(context, cropHandlePosition(context.crop, handle));
-    const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
-    if (distance <= HANDLE_HIT_RADIUS && (!best || distance < best.distance)) {
-      best = { handle, distance };
+    const away = distance(screen, point);
+    if (away <= HANDLE_HIT_RADIUS && (!best || away < best.distance)) {
+      best = { handle, distance: away };
     }
   }
   return best?.handle ?? null;
@@ -84,9 +85,9 @@ export function hitLayerHandle(context: GestureContext, point: Point): LayerHand
   for (const handle of LAYER_HANDLES) {
     const image = layerHandlePosition(layer, handle);
     const screen = stageToScreen(context, applyToPoint(context.stageFromImage, image));
-    const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
-    if (distance <= LAYER_HANDLE_HIT_RADIUS && (!best || distance < best.distance)) {
-      best = { handle, distance };
+    const away = distance(screen, point);
+    if (away <= LAYER_HANDLE_HIT_RADIUS && (!best || away < best.distance)) {
+      best = { handle, distance: away };
     }
   }
   return best?.handle ?? null;

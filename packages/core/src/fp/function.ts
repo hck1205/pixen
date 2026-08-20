@@ -19,6 +19,17 @@ export function flow<T>(...steps: ReadonlyArray<(value: T) => T>): (value: T) =>
   return (value) => steps.reduce((acc, step) => step(acc), value);
 }
 
+/**
+ * Holds `value` between `low` and `high`.
+ *
+ * Six places wrote `Math.min(high, Math.max(low, value))` out by hand, which is
+ * two calls whose order has to be right and reads as neither of the two words
+ * it means. It is one line either way; the difference is that this one says so.
+ */
+export function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value));
+}
+
 export function identity<T>(value: T): T {
   return value;
 }
@@ -40,7 +51,7 @@ export function updateAt<T>(items: readonly T[], index: number, transform: (item
 
 /** Inserts `item` at `index`, clamping the index into range. */
 export function insertAt<T>(items: readonly T[], index: number, item: T): T[] {
-  const at = Math.min(Math.max(index, 0), items.length);
+  const at = clamp(index, 0, items.length);
   return [...items.slice(0, at), item, ...items.slice(at)];
 }
 

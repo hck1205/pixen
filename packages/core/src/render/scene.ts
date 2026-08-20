@@ -1,5 +1,6 @@
+import { clamp } from "../fp/function.js";
 import { compose, IDENTITY, meanScale, scaling, translation } from "../geometry/matrix.js";
-import { transformBounds } from "../geometry/rect.js";
+import { roundedSize, transformBounds } from "../geometry/rect.js";
 import { imageToStage, stageToOutput } from "../geometry/spaces.js";
 import type { Matrix, Rect, Size } from "../geometry/types.js";
 import { effectiveCrop, outputSize, stageRect } from "../model/document.js";
@@ -132,7 +133,7 @@ export function createScene(document: EditorDocument, input: SceneInput, options
 }
 
 function sizeOf(rect: Rect): Size {
-  return { width: Math.max(1, Math.round(rect.width)), height: Math.max(1, Math.round(rect.height)) };
+  return roundedSize(rect.width, rect.height);
 }
 
 /**
@@ -166,7 +167,7 @@ const MAX_FILTER_FACTOR = 4;
 const FILTER_PRECISION = 1000;
 
 function clampFactor(value: number): number {
-  const clamped = Math.min(MAX_FILTER_FACTOR, Math.max(0, value));
+  const clamped = clamp(value, 0, MAX_FILTER_FACTOR);
   return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
 }
 

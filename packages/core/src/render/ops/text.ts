@@ -1,3 +1,4 @@
+import { AVERAGE_GLYPH_RATIO } from "../../model/text-metrics.js";
 import type { TextLayer } from "../../model/types.js";
 import type { TextMeasurer } from "./types.js";
 
@@ -9,19 +10,18 @@ import type { TextMeasurer } from "./types.js";
  * see it. The renderer and the export share this, which is why a wrapped
  * caption cannot come out differently in the two.
  */
+/** The font size a measurer falls back to when a font string carries none. */
+const FALLBACK_FONT_SIZE = 16;
+
 /** Rough fallback: enough for layout when no real measurer is available. */
 export const estimateTextWidth: TextMeasurer = (text, font) => {
-  const size = Number.parseFloat(font) || 16;
-  return text.length * size * 0.55;
+  const size = Number.parseFloat(font) || FALLBACK_FONT_SIZE;
+  return text.length * size * AVERAGE_GLYPH_RATIO;
 };
 
 export function fontFor(layer: TextLayer): string {
   return `${layer.fontSize}px ${layer.fontFamily}`;
 }
-
-/** Rotation happens around the shape's own centre, in image space. */
-
-export const LINE_HEIGHT_RATIO = 1.25;
 
 /** Greedy word wrap. Explicit newlines always break; `maxWidth` is optional. */
 export function wrapLines(

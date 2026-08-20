@@ -1,4 +1,5 @@
 import { PixenError, toPixenError } from "../errors/index.js";
+import { clamp } from "../fp/function.js";
 import type { ImageFormat } from "../model/types.js";
 import type { AnyCanvas } from "./canvas.js";
 import { imageWorker } from "./worker/client.js";
@@ -25,6 +26,8 @@ const MIN_BUDGET_QUALITY = 0.4;
  * browser handed one produces an image nobody asked for.
  */
 const MIN_QUALITY = 0.01;
+/** Above this a browser stops compressing at all, so it is the ceiling. */
+const MAX_QUALITY = 1;
 /** Anything encodes at this; the probe is about the format, not the picture. */
 const FORMAT_PROBE_QUALITY = 0.5;
 const MAX_BUDGET_ATTEMPTS = 5;
@@ -74,7 +77,7 @@ export async function encodeSurface(
   quality: number,
   options: EncodeSurfaceOptions = {},
 ): Promise<Blob> {
-  const clampedQuality = Math.min(1, Math.max(MIN_QUALITY, quality));
+  const clampedQuality = clamp(quality, MIN_QUALITY, MAX_QUALITY);
 
   if (options.offload !== false) {
     const offloaded = await encodeOnWorker(canvas, format, clampedQuality);

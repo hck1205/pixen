@@ -1,4 +1,4 @@
-import { fitScale } from "../geometry/rect.js";
+import { fitScale, roundedSize } from "../geometry/rect.js";
 import type { Size } from "../geometry/types.js";
 import { createSurface, releaseSurface, type Canvas2D } from "./canvas.js";
 
@@ -77,7 +77,7 @@ export function resolveSize(source: Size, intent: ResizeIntent = {}): Size {
     height *= shrink;
   }
 
-  return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
+  return roundedSize(width, height);
 }
 
 /** Number of halvings to use before the final draw, for a given downscale factor. */

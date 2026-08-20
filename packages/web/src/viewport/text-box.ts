@@ -1,4 +1,11 @@
-import { applyToPoint, meanScale, type Matrix, type TextLayer } from "@pixen/core";
+import {
+  applyToPoint,
+  AVERAGE_GLYPH_RATIO,
+  LINE_HEIGHT_RATIO,
+  meanScale,
+  type Matrix,
+  type TextLayer,
+} from "@pixen/core";
 
 /**
  * Where an on-canvas text editor has to sit to look like the text it replaces.
@@ -24,9 +31,6 @@ export interface TextBoxPlacement {
   maxWidth: number | null;
 }
 
-/** Matches the renderer's line spacing, or the caret would drift down a paragraph. */
-export const LINE_HEIGHT_RATIO = 1.2;
-
 /** Enough room to see a caret in an empty layer. */
 export const MIN_TEXT_BOX_WIDTH = 24;
 
@@ -38,7 +42,7 @@ export function textBoxPlacement(layer: TextLayer, imageToScreen: Matrix): TextB
   // The renderer turns a text layer about the centre of the box it lays out, so
   // the editor has to turn about the same point rather than about its corner.
   const lines = layer.text.split("\n");
-  const width = layer.maxWidth ?? Math.max(...lines.map((line) => line.length)) * layer.fontSize * 0.55;
+  const width = layer.maxWidth ?? Math.max(...lines.map((line) => line.length)) * layer.fontSize * AVERAGE_GLYPH_RATIO;
   const height = lines.length * layer.fontSize * LINE_HEIGHT_RATIO;
 
   return {

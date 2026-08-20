@@ -1,5 +1,6 @@
 import { last } from "../../fp/function.js";
 import { compose, rotation, translation } from "../../geometry/matrix.js";
+import { distance, midpoint } from "../../geometry/point.js";
 import { boundsOf } from "../../geometry/rect.js";
 import type { Matrix, Point, Rect } from "../../geometry/types.js";
 import type {
@@ -15,7 +16,8 @@ import type {
 } from "../../model/types.js";
 import { seedFrom } from "../scramble.js";
 import type { SceneLayerNode } from "../scene.js";
-import { fontFor, LINE_HEIGHT_RATIO, wrapLines } from "./text.js";
+import { LINE_HEIGHT_RATIO } from "../../model/text-metrics.js";
+import { fontFor, wrapLines } from "./text.js";
 import type { DrawOp, PathCommand, StrokeStyle, TextMeasurer } from "./types.js";
 
 /**
@@ -103,7 +105,7 @@ export function arrowHeadCommands(tip: Point, angle: number, length: number): Pa
 export function lineLayerOps(layer: LineLayer): DrawOp[] {
   const headLength = layer.stroke.width * ARROW_HEAD_RATIO;
   const angle = Math.atan2(layer.to.y - layer.from.y, layer.to.x - layer.from.x);
-  const length = Math.hypot(layer.to.x - layer.from.x, layer.to.y - layer.from.y);
+  const length = distance(layer.from, layer.to);
 
   // The shaft is pulled back so it does not poke through an arrow head.
   const startInset = layer.arrowStart ? Math.min(headLength * 0.8, length / 2) : 0;
@@ -242,7 +244,7 @@ export function layerRotationCentre(layer: EditorLayer, measure: TextMeasurer): 
     case "ellipse":
       return rectCentre(layer.frame);
     case "line":
-      return { x: (layer.from.x + layer.to.x) / 2, y: (layer.from.y + layer.to.y) / 2 };
+      return midpoint(layer.from, layer.to);
     case "path":
       return rectCentre(boundsOf(layer.points));
     case "image":

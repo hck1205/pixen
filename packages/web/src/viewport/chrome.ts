@@ -1,4 +1,4 @@
-import { toArray, type CropHandle, type Matrix, type Point, type Rect } from "@pixen/core";
+import { midpoint, toArray, type CropHandle, type Matrix, type Point, type Rect } from "@pixen/core";
 import { CORNER_ARM, cornerSegments, gridSegments, type Segment } from "./overlay.js";
 
 /**
@@ -144,9 +144,6 @@ export function drawLayerSelection(context: CanvasRenderingContext2D, chrome: La
   for (const handle of handles) drawGrip(context, handle, colour, dpr, "square");
 }
 
-function midpoint(a: Point, b: Point): Point {
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
 
 /** A filled grip with a light rim, so it reads on both a dark and a pale image. */
 function drawGrip(

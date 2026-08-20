@@ -6,8 +6,9 @@ import {
   type CropHandle,
 } from "../geometry/crop.js";
 import { PixenError } from "../errors/index.js";
+import { clamp } from "../fp/function.js";
 import { QUARTER_TURN, positiveAngle } from "../geometry/angles.js";
-import { compose } from "../geometry/matrix.js";
+import { compose, scaling } from "../geometry/matrix.js";
 import { center, clampInside, constrainRect, transformBounds } from "../geometry/rect.js";
 import {
   centredRect,
@@ -190,7 +191,7 @@ export function setAdjustments(document: EditorDocument, adjustments: Partial<Ad
  */
 export function setFrame(document: EditorDocument, frame: Partial<FrameSettings> | null): EditorDocument {
   if (frame === null) return { ...document, frame: null };
-  const width = Math.min(MAX_FRAME_WIDTH, Math.max(MIN_FRAME_WIDTH, frame.width ?? document.frame?.width ?? DEFAULT_FRAME.width));
+  const width = clamp(frame.width ?? document.frame?.width ?? DEFAULT_FRAME.width, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH);
   return { ...document, frame: { ...DEFAULT_FRAME, ...document.frame, ...frame, width } };
 }
 
@@ -255,7 +256,7 @@ export function reorderLayer(document: EditorDocument, id: string, index: number
   if (from === -1) return document;
   const [layer] = layers.splice(from, 1);
   if (!layer) return document;
-  const to = Math.min(Math.max(index, 0), layers.length);
+  const to = clamp(index, 0, layers.length);
   layers.splice(to, 0, layer);
   return { ...document, layers };
 }
@@ -300,20 +301,16 @@ export function replaceSource(document: EditorDocument, source: SourceDescriptor
 
   if (scaleX === 1 && scaleY === 1) return { ...document, source };
 
-  const scaleRect = (rect: Rect): Rect => ({
-    x: rect.x * scaleX,
-    y: rect.y * scaleY,
-    width: rect.width * scaleX,
-    height: rect.height * scaleY,
-  });
-
+  // Through the matrix rather than by hand: a rescale is a transform, and the
+  // one place that knows what transforming a rectangle means is `geometry`.
+  const rescale = scaling(scaleX, scaleY);
   return {
     ...document,
     source,
-    crop: document.crop ? scaleRect(document.crop) : null,
+    crop: document.crop ? transformBounds(rescale, document.crop) : null,
     layers: document.layers.map((layer) => {
       const from = layerBounds(layer);
-      return scaleLayerToBounds(layer, from, scaleRect(from));
+      return scaleLayerToBounds(layer, from, transformBounds(rescale, from));
     }),
   };
 }

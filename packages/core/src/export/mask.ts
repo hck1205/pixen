@@ -116,7 +116,7 @@ export function maskOps(ops: readonly DrawOp[], foreground: string, padding = 0)
         break;
       case "path":
         // Filled whether or not it was: an outline marks what it encloses.
-        marked.push({ ...op, fill: foreground, ...(grow ? { stroke: grow } : { stroke: undefined }) });
+        marked.push({ ...op, fill: foreground, stroke: grow });
         break;
       case "layer-image":
       case "obscure":
@@ -135,11 +135,6 @@ export function maskOps(ops: readonly DrawOp[], foreground: string, padding = 0)
   return marked;
 }
 
-function filledRect(rect: Rect, colour: string, grow?: StrokeStyle): DrawOp {
-  return {
-    op: "path",
-    commands: [{ op: "rect", rect }],
-    fill: colour,
-    ...(grow ? { stroke: grow } : {}),
-  };
+function filledRect(rect: Rect, colour: string, grow: StrokeStyle | undefined): DrawOp {
+  return { op: "path", commands: [{ op: "rect", rect }], fill: colour, stroke: grow };
 }

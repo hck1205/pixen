@@ -1,3 +1,4 @@
+import { clamp } from "../fp/function.js";
 import { ADJUSTMENT_KEYS, type AdjustmentKey, type Adjustments } from "./types.js";
 
 /**
@@ -38,7 +39,7 @@ export function clampAdjustments(adjustments: Adjustments): Adjustments {
   for (const key of ADJUSTMENT_KEYS) {
     const range = ADJUSTMENT_RANGES[key];
     const value = adjustments[key];
-    clamped[key] = Number.isFinite(value) ? Math.min(Math.max(value, range.min), range.max) : range.neutral;
+    clamped[key] = Number.isFinite(value) ? clamp(value, range.min, range.max) : range.neutral;
   }
   return clamped;
 }

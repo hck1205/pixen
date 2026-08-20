@@ -159,7 +159,18 @@ export function constrainRect(
 /** Scales a size to fit inside `limit`, never scaling up. */
 export function scaleToFit(size: Size, limit: Size): Size {
   const scale = Math.min(1, fitScale(size, limit, "contain"));
-  return { width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)) };
+  return roundedSize(size.width * scale, size.height * scale);
+}
+
+/**
+ * A size a canvas can actually be: whole pixels, and never nothing.
+ *
+ * Seven places rounded and floored a pair of numbers by hand. A zero-width
+ * surface is not an error anyone reports — it is a blank export — so the floor
+ * matters more than the rounding does.
+ */
+export function roundedSize(width: number, height: number): Size {
+  return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
 }
 
 /**

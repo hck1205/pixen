@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTextLayer, IDENTITY, compose, scaling, translation } from "@pixen/core";
-import { LINE_HEIGHT_RATIO, MIN_TEXT_BOX_WIDTH, textBoxPlacement, textBoxStyle } from "../src/viewport/text-box.js";
+import { LINE_HEIGHT_RATIO } from "@pixen/core";
+import { MIN_TEXT_BOX_WIDTH, textBoxPlacement, textBoxStyle } from "../src/viewport/text-box.js";
 
 const layer = () =>
   createTextLayer({ x: 100, y: 50 }, "one\ntwo", { fontSize: 40, color: "#ff0000", fontFamily: "serif" });
@@ -28,8 +29,10 @@ describe("textBoxPlacement", () => {
     const rotated = { ...layer(), rotation: Math.PI / 4 };
     const placement = textBoxPlacement(rotated, IDENTITY);
     expect(placement.rotation).toBeCloseTo(Math.PI / 4);
-    // Two lines of 40px at 1.2 line height is 96 tall, so the centre is 48 down.
-    expect(placement.origin.y).toBeCloseTo(48);
+    // Two lines at the renderer's own spacing, so the centre is one line down.
+    // Read from the constant, not written out: a number copied here is how the
+    // editor and the renderer came to space paragraphs differently.
+    expect(placement.origin.y).toBeCloseTo(40 * LINE_HEIGHT_RATIO);
     expect(placement.origin.x).toBeGreaterThan(0);
   });
 

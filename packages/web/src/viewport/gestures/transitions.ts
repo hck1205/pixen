@@ -1,6 +1,8 @@
 import {
   createPathLayer,
   createTextLayer,
+  delta,
+  distance,
   findLayer,
   last,
   layerBounds,
@@ -172,16 +174,15 @@ export function moveGesture(
       return { state, effects: [] };
 
     case "view-pan": {
-      const delta = { x: sample.point.x - state.last.x, y: sample.point.y - state.last.y };
-      return { state: { ...state, last: sample.point }, effects: [{ kind: "view-pan", delta }] };
+      const moved = delta(state.last, sample.point);
+      return { state: { ...state, last: sample.point }, effects: [{ kind: "view-pan", delta: moved }] };
     }
 
     case "crop-move": {
-      const from = screenToStage(context, state.last);
-      const to = screenToStage(context, sample.point);
+      const moved = delta(screenToStage(context, state.last), screenToStage(context, sample.point));
       return {
         state: { ...state, last: sample.point },
-        effects: [intent({ kind: "pan-crop", delta: { x: to.x - from.x, y: to.y - from.y } })],
+        effects: [intent({ kind: "pan-crop", delta: moved })],
       };
     }
 
@@ -199,13 +200,10 @@ export function moveGesture(
       };
 
     case "layer-move": {
-      const from = screenToImage(context, state.last);
-      const to = screenToImage(context, sample.point);
+      const moved = delta(screenToImage(context, state.last), screenToImage(context, sample.point));
       return {
         state: { ...state, last: sample.point },
-        effects: [
-          intent({ kind: "move-layer", id: state.id, delta: { x: to.x - from.x, y: to.y - from.y } }),
-        ],
+        effects: [intent({ kind: "move-layer", id: state.id, delta: moved })],
       };
     }
 
@@ -254,7 +252,7 @@ export function moveGesture(
       const previous = last(state.points)!;
       // Samples the smoothing would not notice are dropped, so a long stroke
       // stays a small document.
-      if (Math.hypot(point.x - previous.x, point.y - previous.y) < context.imageLongestEdge * PATH_SAMPLE_RATIO) {
+      if (distance(previous, point) < context.imageLongestEdge * PATH_SAMPLE_RATIO) {
         return { state, effects: [] };
       }
       const points = [...state.points, point];

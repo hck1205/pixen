@@ -1,5 +1,6 @@
 import {
   createArrowLayer,
+  distance,
   createEllipseLayer,
   createRectLayer,
   createRedactLayer,
@@ -80,7 +81,7 @@ export function isDegenerate(layer: EditorLayer, imageLongestEdge: number): bool
     case "image":
       return layer.frame.width < minimum && layer.frame.height < minimum;
     case "line":
-      return Math.hypot(layer.to.x - layer.from.x, layer.to.y - layer.from.y) < minimum;
+      return distance(layer.from, layer.to) < minimum;
     case "path":
       return layer.points.length < 2;
     default:

@@ -16,6 +16,7 @@ import {
   DEFAULT_TEXT_COLOUR,
 } from "./defaults.js";
 import { REDACTION_COLOUR } from "./palette.js";
+import { AVERAGE_GLYPH_RATIO, LINE_HEIGHT_RATIO } from "./text-metrics.js";
 import type {
   EditorLayer,
   ImageLayer,
@@ -191,8 +192,8 @@ export function layerBounds(layer: EditorLayer): Rect {
       return {
         x: layer.position.x,
         y: layer.position.y,
-        width: layer.maxWidth ?? longest * layer.fontSize * 0.55,
-        height: lines.length * layer.fontSize * 1.2,
+        width: layer.maxWidth ?? longest * layer.fontSize * AVERAGE_GLYPH_RATIO,
+        height: lines.length * layer.fontSize * LINE_HEIGHT_RATIO,
       };
     }
   }
