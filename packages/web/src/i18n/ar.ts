@@ -23,6 +23,7 @@ export const ar: PixenStrings = {
   reset: "إعادة تعيين",
   export: "تصدير",
   exporting: "جارٍ التصدير…",
+  loading: "جارٍ التحميل…",
   freeform: "حر",
   original: "الأصلي",
   aspectRatio: "نسبة الأبعاد",

@@ -5,8 +5,18 @@ import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTranspar
 import { outputSize as documentOutputSize } from "../model/document.js";
 import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../model/types.js";
 import { createScene } from "../render/scene.js";
+import type { StepReporter } from "../util/progress.js";
 import { renderScene } from "../render/canvas2d/index.js";
 import type { ResourceManager } from "../resources/manager.js";
+
+/**
+ * The steps of producing a file that are worth reporting.
+ *
+ * `render` is a single pass over the scene and cannot be counted; `encode` can,
+ * because a byte budget encodes up to a known number of times. `variant` counts
+ * the files in a multi-size export — see `exportVariants`.
+ */
+export type ExportStage = "render" | "encode" | "variant";
 
 export interface ExportOptions {
   format?: ImageFormat;
@@ -21,6 +31,8 @@ export interface ExportOptions {
   maxBytes?: number | null;
   filename?: string;
   signal?: AbortSignal;
+  /** Called as the picture is rendered and encoded. See `ExportStage`. */
+  onProgress?: StepReporter<ExportStage>;
 }
 
 export interface ExportResult {
@@ -89,6 +101,7 @@ export async function exportDocument(
 
   let surface: CanvasSurface | null = null;
   try {
+    options.onProgress?.({ stage: "render", loaded: 0, total: null });
     surface = createSurface(target.width, target.height, supportsTransparency(format));
     const scene = createScene(
       { ...document, output: { ...document.output, background } },
@@ -99,10 +112,19 @@ export async function exportDocument(
 
     if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
 
+    const onProgress = options.onProgress;
     const encoded =
       options.maxBytes != null
-        ? await encodeWithinBudget(surface.canvas, format, quality, options.maxBytes)
-        : { blob: await encodeSurface(surface.canvas, format, quality), quality, attempts: 1 };
+        ? await encodeWithinBudget(surface.canvas, format, quality, options.maxBytes, {
+            onAttempt: (attempt, steps) => onProgress?.({ stage: "encode", loaded: attempt, total: steps }),
+          })
+        : await encodeOnce(surface.canvas, format, quality, onProgress);
+
+    // An encode in progress cannot be interrupted — no browser exposes that —
+    // so a cancel arriving mid-encode is honoured at the only point it can be:
+    // the result is thrown away rather than handed to a caller who said they no
+    // longer wanted it.
+    if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
 
     return {
       blob: encoded.blob,
@@ -120,6 +142,19 @@ export async function exportDocument(
   } finally {
     releaseSurface(surface);
   }
+}
+
+/** The single-attempt encode, reported as the one step it is. */
+async function encodeOnce(
+  canvas: CanvasSurface["canvas"],
+  format: ImageFormat,
+  quality: number,
+  onProgress: StepReporter<ExportStage> | undefined,
+): Promise<{ blob: Blob; quality: number; attempts: number }> {
+  onProgress?.({ stage: "encode", loaded: 0, total: 1 });
+  const blob = await encodeSurface(canvas, format, quality);
+  onProgress?.({ stage: "encode", loaded: 1, total: 1 });
+  return { blob, quality, attempts: 1 };
 }
 
 function resolveExportSize(document: EditorDocument, options: ExportOptions = {}): Size {

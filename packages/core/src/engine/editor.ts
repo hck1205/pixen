@@ -1,5 +1,4 @@
-import { PixenError, toPixenError, type PixenErrorCode } from "../errors/index.js";
-import { chainAbort } from "../util/abort.js";
+import { PixenError, toPixenError } from "../errors/index.js";
 import * as commands from "./commands.js";
 import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
@@ -17,7 +16,7 @@ import type {
   OutputSettings,
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
-import { exportDocument, type ExportOptions, type ExportResult } from "../export/pipeline.js";
+import { exportDocument, resolveOutputFormat, type ExportOptions, type ExportResult } from "../export/pipeline.js";
 import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
 import {
   createTextWatermarkLayer,
@@ -39,17 +38,8 @@ import {
   type SessionEvent,
   type SessionState,
 } from "./session/index.js";
-
-export interface EditorEvents {
-  load: { document: EditorDocument; resource: ImageResource };
-  change: { document: EditorDocument; reason: string; transient: boolean };
-  history: HistorySummary;
-  selection: { id: string | null };
-  error: PixenError;
-  /** The image was closed; the editor is back to holding nothing. */
-  close: void;
-  destroy: void;
-}
+import { TaskRunner, tracked } from "./tasks/index.js";
+import { editorEmissions, type EditorEvents } from "./events.js";
 
 export interface EditorOptions {
   /** Share a manager to reuse decoded bitmaps across editors. */
@@ -76,13 +66,42 @@ export interface MutateOptions {
 export class Editor {
   readonly resources: ResourceManager;
   readonly #emitter = new Emitter<EditorEvents>();
+  /**
+   * Announces a failure and hands it back to be thrown.
+   *
+   * Every async entry point owes the host the same two things when something
+   * goes wrong: an error on the event channel, for the interface that is
+   * listening, and a rejection, for the caller that is awaiting. Returning the
+   * error rather than throwing it keeps `throw this.#fail(...)` readable at the
+   * call site and makes it the same helper the task runners report through.
+   */
+  readonly #fail = (error: PixenError): PixenError => {
+    this.#emitter.emit("error", error);
+    return error;
+  };
   readonly #historyLimit: number;
   #session: SessionState | null = null;
   #ownsResources: boolean;
   #destroyed = false;
-  /** In-flight work, so a host can call it off. See `cancelLoad`/`cancelExport`. */
-  #loading: AbortController | null = null;
-  #exporting: AbortController | null = null;
+
+  /**
+   * The two long-running tasks, each owning its own cancellation and progress.
+   *
+   * See `TaskRunner`: the editor says what a load or an export *is*, and the
+   * runner says what happens around one.
+   */
+  readonly #loadTask = new TaskRunner<{ replace: boolean }>("load", {
+    start: (detail) => this.#emitter.emit("load-start", detail),
+    progress: (report) => this.#emitter.emit("load-progress", report),
+    abort: (reason) => this.#emitter.emit("load-abort", { reason }),
+    fail: this.#fail,
+  });
+  readonly #exportTask = new TaskRunner<{ format: ImageFormat }>("export", {
+    start: (detail) => this.#emitter.emit("export-start", detail),
+    progress: (report) => this.#emitter.emit("export-progress", report),
+    abort: (reason) => this.#emitter.emit("export-abort", { reason }),
+    fail: this.#fail,
+  });
 
   constructor(options: EditorOptions = {}) {
     this.resources =
@@ -166,24 +185,6 @@ export class Editor {
     return this.#emitter.on(event, listener);
   }
 
-  /**
-   * Runs asynchronous work, and makes any failure of it an editor error.
-   *
-   * Every async entry point owes the host the same two things when something
-   * goes wrong: an error on the event channel, for the interface that is
-   * listening, and a rejection, for the caller that is awaiting. Five of them
-   * had their own copy of that pair, which is five chances to announce a
-   * failure to only half the audience.
-   */
-  async #attempt<T>(code: PixenErrorCode, message: string, work: () => Promise<T>): Promise<T> {
-    try {
-      return await work();
-    } catch (cause) {
-      const error = toPixenError(cause, code, message);
-      this.#emitter.emit("error", error);
-      throw error;
-    }
-  }
 
   // --- loading -------------------------------------------------------------
 
@@ -196,26 +197,19 @@ export class Editor {
    */
   async load(input: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     this.#assertAlive();
-    this.#loading?.abort();
-    const attempt = chainAbort(options.signal);
-    this.#loading = attempt;
-
-    try {
-      return await this.#attempt("INVALID_IMAGE", "The image could not be loaded", async () => {
-        const resource = await this.resources.load(input, { ...options, signal: attempt.signal });
+    return this.#loadTask.run(
+      { replace: false },
+      { signal: options.signal, code: "INVALID_IMAGE", message: "The image could not be loaded" },
+      async (attempt) => {
+        const resource = await this.resources.load(input, tracked(options, attempt));
         return this.open(resource);
-      });
-    } finally {
-      if (this.#loading === attempt) this.#loading = null;
-    }
+      },
+    );
   }
 
   /** Calls off a load in flight. True when there was one. */
   cancelLoad(): boolean {
-    if (!this.#loading) return false;
-    this.#loading.abort();
-    this.#loading = null;
-    return true;
+    return this.#loadTask.cancel();
   }
 
   /**
@@ -230,27 +224,31 @@ export class Editor {
     this.#assertAlive();
     const previous = this.session.document.source.resourceId;
 
-    return this.#attempt("INVALID_IMAGE", "The image could not be replaced", async () => {
-      const resource = await this.resources.load(input, options);
-      this.dispatch({
-        kind: "transform",
-        reason: "replace-source",
-        label: "Replace image",
-        transform: (document) =>
-          commands.replaceSource(document, {
-            resourceId: resource.id,
-            width: resource.width,
-            height: resource.height,
-            ...(resource.name ? { name: resource.name } : {}),
-            ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-          }),
-      });
+    return this.#loadTask.run(
+      { replace: true },
+      { signal: options.signal, code: "INVALID_IMAGE", message: "The image could not be replaced" },
+      async (attempt) => {
+        const resource = await this.resources.load(input, tracked(options, attempt));
+        this.dispatch({
+          kind: "transform",
+          reason: "replace-source",
+          label: "Replace image",
+          transform: (document) =>
+            commands.replaceSource(document, {
+              resourceId: resource.id,
+              width: resource.width,
+              height: resource.height,
+              ...(resource.name ? { name: resource.name } : {}),
+              ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+            }),
+        });
 
-      // Released after the swap, not before: until the document points at the
-      // new bitmap, the old one is still the one being drawn.
-      if (this.document.source.resourceId !== previous) this.resources.release(previous);
-      return this.document;
-    });
+        // Released after the swap, not before: until the document points at the
+        // new bitmap, the old one is still the one being drawn.
+        if (this.document.source.resourceId !== previous) this.resources.release(previous);
+        return this.document;
+      },
+    );
   }
 
   /**
@@ -301,10 +299,19 @@ export class Editor {
    */
   async restore(input: unknown, image?: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     this.#assertAlive();
-    return this.#attempt("INVALID_DOCUMENT", "The document could not be restored", async () => {
-      const document = deserializeDocument(input);
+    // A restore that carries bytes is a load wearing a document: it decodes,
+    // it can be called off, and it ends in the same `load` event. Running it
+    // through the same task is what makes those three true without repeating
+    // the machinery that makes them true.
+    return this.#loadTask.run(
+      { replace: false },
+      { signal: options.signal, code: "INVALID_DOCUMENT", message: "The document could not be restored" },
+      async (attempt) => {
+        const document = deserializeDocument(input);
 
-      if (!this.resources.has(document.source.resourceId)) {
+        if (this.resources.has(document.source.resourceId)) {
+          return this.#start(document, this.resources.require(document.source.resourceId));
+        }
         if (image === undefined) {
           throw new PixenError(
             "RESOURCE_MISSING",
@@ -312,7 +319,8 @@ export class Editor {
             { details: { resourceId: document.source.resourceId } },
           );
         }
-        const resource = await this.resources.load(image, options);
+
+        const resource = await this.resources.load(image, tracked(options, attempt));
         return this.#start(
           {
             ...document,
@@ -325,10 +333,8 @@ export class Editor {
           },
           resource,
         );
-      }
-
-      return this.#start(document, this.resources.require(document.source.resourceId));
-    });
+      },
+    );
   }
 
   #start(document: EditorDocument, resource: ImageResource): EditorDocument {
@@ -377,22 +383,10 @@ export class Editor {
   }
 
   #emitEvents(events: readonly SessionEvent[]): void {
-    for (const event of events) {
-      switch (event.type) {
-        case "change":
-          this.#emitter.emit("change", {
-            document: event.document,
-            reason: event.reason,
-            transient: event.transient,
-          });
-          break;
-        case "history":
-          this.#emitter.emit("history", event.summary);
-          break;
-        case "selection":
-          this.#emitter.emit("selection", { id: event.id });
-          break;
-      }
+    for (const emission of editorEmissions(events)) {
+      // The union is discriminated on `type`, but TypeScript cannot see that
+      // the payload still matches once the pair is packed into one value.
+      this.#emitter.emit(emission.type, emission.payload as never);
     }
   }
 
@@ -656,16 +650,15 @@ export class Editor {
 
   async export(options: ExportOptions = {}): Promise<ExportResult> {
     this.#assertAlive();
-    const attempt = chainAbort(options.signal);
-    this.#exporting = attempt;
-
-    try {
-      return await this.#attempt("EXPORT_FAILED", "The image could not be exported", () =>
-        exportDocument(this.document, this.resources, { ...options, signal: attempt.signal }),
-      );
-    } finally {
-      if (this.#exporting === attempt) this.#exporting = null;
-    }
+    return this.#exportTask.run(
+      { format: resolveOutputFormat(this.document, options.format) },
+      { signal: options.signal, code: "EXPORT_FAILED", message: "The image could not be exported" },
+      async (attempt) => {
+        const result = await exportDocument(this.document, this.resources, tracked(options, attempt));
+        this.#emitter.emit("export", result);
+        return result;
+      },
+    );
   }
 
   /**
@@ -675,10 +668,7 @@ export class Editor {
    * and a host that has navigated away should not have to wait for it.
    */
   cancelExport(): boolean {
-    if (!this.#exporting) return false;
-    this.#exporting.abort();
-    this.#exporting = null;
-    return true;
+    return this.#exportTask.cancel();
   }
 
   /**
@@ -689,8 +679,11 @@ export class Editor {
    */
   async exportVariants(specs: readonly VariantSpec[], options: ExportOptions = {}): Promise<ExportVariant[]> {
     this.#assertAlive();
-    return this.#attempt("EXPORT_FAILED", "The image could not be exported", () =>
-      exportVariants(this.document, this.resources, specs, options),
+    return this.#exportTask.run(
+      { format: resolveOutputFormat(this.document, options.format) },
+      { signal: options.signal, code: "EXPORT_FAILED", message: "The image could not be exported" },
+      (attempt) =>
+        exportVariants(this.document, this.resources, specs, tracked(options, attempt)),
     );
   }
 
@@ -704,6 +697,10 @@ export class Editor {
   destroy(): void {
     if (this.#destroyed) return;
     this.#destroyed = true;
+    // Both tasks, unlike `close`, which spares an export on purpose: there is
+    // no editor left for a finished export to hand its blob back to.
+    this.#loadTask.cancel();
+    this.#exportTask.cancel();
     if (this.#ownsResources) this.resources.disposeAll();
     else if (this.#session) this.resources.release(this.#session.document.source.resourceId);
     this.#session = null;

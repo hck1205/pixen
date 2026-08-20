@@ -16,6 +16,13 @@ export const OBSERVED_ATTRIBUTES = ["src", "theme", "locale", "format", "quality
 /** Adding one here without handling it in the element fails to compile. */
 export type ObservedAttribute = (typeof OBSERVED_ATTRIBUTES)[number];
 
+/**
+ * The attributes that describe the file coming out rather than the picture
+ * going in. They are re-applied after every load, because they mean nothing
+ * until there is a document to apply them to.
+ */
+export const OUTPUT_ATTRIBUTES = ["format", "quality"] as const satisfies readonly ObservedAttribute[];
+
 /** The inspector shows one of these at a time. */
 export type PanelId = "tool" | "adjust" | "layers" | "output";
 

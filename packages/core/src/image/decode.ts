@@ -1,5 +1,6 @@
 import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
+import type { StepReporter } from "../util/progress.js";
 import { assertDrawableSize, createSurface, releaseSurface } from "./canvas.js";
 import { imageWorker } from "./worker/client.js";
 import {
@@ -31,8 +32,20 @@ export interface DecodedImage {
   name?: string;
 }
 
+/**
+ * The steps of turning an input into pixels that are worth reporting.
+ *
+ * Only `fetch` can be counted: it is bytes over a network, and the server
+ * usually says how many. A decode is one call into the browser that returns
+ * when it returns, so it reports its start and nothing else rather than
+ * inventing a percentage.
+ */
+export type DecodeStage = "fetch" | "decode";
+
 export interface DecodeOptions {
   signal?: AbortSignal;
+  /** Called as the input is fetched and decoded. See `DecodeStage`. */
+  onProgress?: StepReporter<DecodeStage>;
   /** Skip EXIF normalisation when the caller knows the bytes are already upright. */
   respectExifOrientation?: boolean;
   /** Passed to `fetch` for string inputs. */
@@ -62,7 +75,7 @@ export async function toBlob(input: ImageInput, options: DecodeOptions = {}): Pr
           details: { status: response.status, url: input },
         });
       }
-      return await response.blob();
+      return await readResponse(response, options.onProgress);
     } catch (cause) {
       if (cause instanceof PixenError) throw cause;
       throw new PixenError(
@@ -73,6 +86,38 @@ export async function toBlob(input: ImageInput, options: DecodeOptions = {}): Pr
     }
   }
   return null;
+}
+
+/**
+ * Reads a response, counting bytes when anyone is listening.
+ *
+ * `response.blob()` is the fast path and stays the default: streaming exists
+ * only to answer "how far along is this download", so it is not paid for when
+ * nothing asked. `Content-Length` describes the bytes on the wire, which for a
+ * compressed response is fewer than the ones that arrive — `progressRatio`
+ * clamps rather than reporting 130% of a download.
+ */
+async function readResponse(response: Response, onProgress?: StepReporter<DecodeStage>): Promise<Blob> {
+  const body = response.body;
+  if (!onProgress || !body) return response.blob();
+
+  const declared = Number(response.headers.get("content-length"));
+  const total = Number.isFinite(declared) && declared > 0 ? declared : null;
+  const type = response.headers.get("content-type") ?? "";
+
+  const reader = body.getReader();
+  const chunks: BlobPart[] = [];
+  let loaded = 0;
+  onProgress({ stage: "fetch", loaded, total });
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value as BlobPart);
+    loaded += value.byteLength;
+    onProgress({ stage: "fetch", loaded, total });
+  }
+  return new Blob(chunks, { type });
 }
 
 async function readOrientation(blob: Blob): Promise<ExifOrientation> {
@@ -214,6 +259,7 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
   }
 
   const orientation = options.respectExifOrientation === false ? 1 : await readOrientation(blob);
+  options.onProgress?.({ stage: "decode", loaded: 0, total: null });
   const decoded = await decodeBlob(blob, options.signal);
   assertDrawableSize(sourceSize(decoded), "image");
   const upright = normaliseOrientation(decoded, orientation);

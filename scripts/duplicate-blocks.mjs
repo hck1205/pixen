@@ -56,10 +56,36 @@ const TRIVIAL = /^([)\]}>;,]+|else\s*{|try\s*{|return;|break;|continue;|\/\/.*|)
  * indentation and the width of the gaps between tokens.
  */
 function normalise(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .map((line) => line.replace(/\/\/.*$/, "").trim().replace(/\s+/g, " "));
+  return withoutImports(
+    source
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .map((line) => line.replace(/\/\/.*$/, "").trim().replace(/\s+/g, " ")),
+  );
+}
+
+/**
+ * An import list is not a decision.
+ *
+ * Three packages that bind to the same engine name the same types, and that
+ * sameness is the point rather than a clone: there is no module an `import`
+ * statement can be factored into. They are blanked rather than dropped, so the
+ * line numbers a report prints still match the file a person opens.
+ */
+function withoutImports(lines) {
+  const blanked = [];
+  let inside = false;
+
+  for (const line of lines) {
+    const opens = !inside && (/^import\s/.test(line) || /^(import|export)\b.*\bfrom\b/.test(line));
+    if (opens || inside) {
+      inside = !line.endsWith(";");
+      blanked.push("");
+      continue;
+    }
+    blanked.push(line);
+  }
+  return blanked;
 }
 
 /**

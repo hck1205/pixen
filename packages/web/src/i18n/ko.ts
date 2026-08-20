@@ -18,6 +18,7 @@ export const ko: PixenStrings = {
   reset: "초기화",
   export: "내보내기",
   exporting: "내보내는 중…",
+  loading: "불러오는 중…",
   freeform: "자유 비율",
   original: "원본 비율",
   aspectRatio: "비율",

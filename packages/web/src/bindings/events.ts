@@ -1,4 +1,13 @@
-import type { Editor, EditorDocument, ExportResult, HistorySummary, PixenError } from "@pixen/core";
+import type {
+  AbortReason,
+  Editor,
+  EditorDocument,
+  ExportResult,
+  HistorySummary,
+  ImageFormat,
+  PixenError,
+  ProgressReport,
+} from "@pixen/core";
 import type { PixenImageEditorElement } from "../element/index.js";
 
 /**
@@ -9,15 +18,35 @@ import type { PixenImageEditorElement } from "../element/index.js";
  * wrappers subscribe through here instead, so adding an event means adding it
  * once.
  */
-export const PIXEN_EVENTS = ["ready", "load", "change", "history", "export", "error"] as const;
+export const PIXEN_EVENTS = [
+  "ready",
+  "load-start",
+  "load-progress",
+  "load-abort",
+  "load",
+  "change",
+  "history",
+  "export-start",
+  "export-progress",
+  "export-abort",
+  "export",
+  "error",
+] as const;
 
 export type PixenEventName = (typeof PIXEN_EVENTS)[number];
 
 export interface PixenEventDetail {
   ready: { editor: Editor };
+  /** `replace` is true for `replaceSource`: the edit survives, the pixels do not. */
+  "load-start": { replace: boolean };
+  "load-progress": ProgressReport;
+  "load-abort": { reason: AbortReason };
   load: { document: EditorDocument };
   change: { document: EditorDocument; reason: string; transient: boolean };
   history: HistorySummary;
+  "export-start": { format: ImageFormat };
+  "export-progress": ProgressReport;
+  "export-abort": { reason: AbortReason };
   export: ExportResult;
   error: { error: PixenError };
 }

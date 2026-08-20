@@ -21,6 +21,7 @@ export const zh: PixenStrings = {
   reset: "重置",
   export: "导出",
   exporting: "正在导出…",
+  loading: "正在加载…",
   freeform: "自由",
   original: "原始",
   aspectRatio: "宽高比",

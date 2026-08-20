@@ -19,6 +19,7 @@ export const en: PixenStrings = {
   reset: "Reset",
   export: "Export",
   exporting: "Exporting…",
+  loading: "Loading…",
   freeform: "Freeform",
   original: "Original",
   aspectRatio: "Aspect ratio",

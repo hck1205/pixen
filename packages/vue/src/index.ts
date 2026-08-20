@@ -1,5 +1,6 @@
 import { defineComponent, h, onBeforeUnmount, ref, watch, type PropType, type Ref } from "vue";
 import type {
+  AbortReason,
   Editor,
   EditorDocument,
   ExportOptions,
@@ -9,6 +10,7 @@ import type {
   ImagePolicy,
   PixenError,
   PresetName,
+  ProgressReport,
 } from "@pixen/core";
 import {
   applyProperties,
@@ -67,9 +69,15 @@ export const PixenImageEditor = defineComponent({
 
   emits: {
     ready: (_editor: Editor) => true,
+    "load-start": (_detail: { replace: boolean }) => true,
+    "load-progress": (_report: ProgressReport) => true,
+    "load-abort": (_detail: { reason: AbortReason }) => true,
     load: (_document: EditorDocument) => true,
     change: (_document: EditorDocument, _meta: { reason: string; transient: boolean }) => true,
     history: (_state: HistorySummary) => true,
+    "export-start": (_detail: { format: ImageFormat }) => true,
+    "export-progress": (_report: ProgressReport) => true,
+    "export-abort": (_detail: { reason: AbortReason }) => true,
     export: (_result: ExportResult) => true,
     error: (_error: PixenError) => true,
   },
@@ -85,9 +93,15 @@ export const PixenImageEditor = defineComponent({
       detach?.();
       detach = attachEvents(instance, {
         ready: () => emit("ready", instance.editor),
+        "load-start": (detail) => emit("load-start", detail),
+        "load-progress": (detail) => emit("load-progress", detail),
+        "load-abort": (detail) => emit("load-abort", detail),
         load: (detail) => emit("load", detail.document),
         change: (detail) => emit("change", detail.document, { reason: detail.reason, transient: detail.transient }),
         history: (detail) => emit("history", detail),
+        "export-start": (detail) => emit("export-start", detail),
+        "export-progress": (detail) => emit("export-progress", detail),
+        "export-abort": (detail) => emit("export-abort", detail),
         export: (detail) => emit("export", detail),
         error: (detail) => emit("error", detail.error),
       });

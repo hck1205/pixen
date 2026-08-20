@@ -22,6 +22,9 @@ describe("Vue wrapper on a server", () => {
   it("declares the events it forwards", async () => {
     const { PixenImageEditor } = await import("../src/index.js");
     const emits = Object.keys((PixenImageEditor as { emits: Record<string, unknown> }).emits);
-    expect(emits).toEqual(["ready", "load", "change", "history", "export", "error"]);
+    // Against the shared list rather than a copy of it: the point of the list
+    // is that a wrapper cannot quietly forward fewer events than it declares.
+    const { PIXEN_EVENTS } = await import("@pixen/web");
+    expect(emits).toEqual([...PIXEN_EVENTS]);
   });
 });

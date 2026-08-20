@@ -6,9 +6,10 @@ import {
   type EditorDocument,
   type ExportOptions,
   type ExportResult,
-  type ImageFormat,
   type ImagePolicy,
   type PresetName,
+  type ProgressReport,
+  type ProgressTask,
 } from "@pixen/core";
 import { directionFor, resolveStrings, type PixenStrings } from "../i18n/index.js";
 import {
@@ -32,7 +33,10 @@ import {
   type ChromeContext,
   type Readouts,
 } from "./chrome/index.js";
+import { applyAttribute, type AttributePorts } from "./attributes.js";
+import { busyLabel } from "./busy-label.js";
 import { isTypingTarget } from "./dom/index.js";
+import { forwardEditorEvents } from "./events.js";
 import { ImageIntake } from "./input/image-intake.js";
 import { resolveKeyboardAction } from "./input/keyboard.js";
 import { runKeyboardAction, type ActionPorts } from "./input/run-action.js";
@@ -40,6 +44,7 @@ import { isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
 import { normaliseAspectRatios } from "./ratios.js";
 import {
   OBSERVED_ATTRIBUTES,
+  OUTPUT_ATTRIBUTES,
   TOOL_META,
   ZOOM_STEP,
   type AspectRatioOption,
@@ -105,7 +110,9 @@ export class PixenImageEditorElement extends ElementBase {
   #policy: ImagePolicy | PresetName | null = null;
   #strings: PixenStrings = resolveStrings("en");
   #panel: PanelId = "tool";
-  #busy = false;
+  /** What the editor is doing, and how far into it. Null means idle. */
+  #task: ProgressTask | null = null;
+  #progress: ProgressReport | null = null;
   #status: string | null = null;
   #disabled = false;
   /** True when the host set `dir` itself, which then outranks the locale. */
@@ -179,7 +186,14 @@ export class PixenImageEditorElement extends ElementBase {
         if (event.transient) this.#updateReadouts();
         else this.#syncUI();
       }),
-      this.editor.on("history", (state) => this.#emit("pixen-history", state)),
+      ...forwardEditorEvents(this.editor, (type, detail) => this.#emit(type, detail)),
+      // The engine knows when a task really begins — a host may call
+      // editor.export() straight through — so the pill follows it rather than
+      // only the calls that came through this element.
+      this.editor.on("load-start", () => this.#trackProgress(null)),
+      this.editor.on("export-start", () => this.#trackProgress(null)),
+      this.editor.on("load-progress", (report) => this.#trackProgress(report)),
+      this.editor.on("export-progress", (report) => this.#trackProgress(report)),
       this.editor.on("selection", () => this.#syncUI()),
       // The engine is the source of truth, so the element observes a close
       // rather than only knowing about the ones it started itself.
@@ -208,13 +222,9 @@ export class PixenImageEditorElement extends ElementBase {
     this.#renderChrome();
     this.#syncUI();
 
-    if (this.#pendingSrc) {
-      const src = this.#pendingSrc;
-      this.#pendingSrc = null;
-      void this.load(src);
-    } else if (this.hasAttribute("src")) {
-      void this.load(this.getAttribute("src")!);
-    }
+    const src = this.#pendingSrc ?? this.getAttribute("src");
+    this.#pendingSrc = null;
+    if (src) void this.load(src);
     this.#emit("pixen-ready", { editor: this.editor });
   }
 
@@ -232,45 +242,30 @@ export class PixenImageEditorElement extends ElementBase {
 
   attributeChangedCallback(name: string, previous: string | null, value: string | null): void {
     if (previous === value) return;
-    this.#applyAttribute(name as ObservedAttribute, value);
+    applyAttribute(name as ObservedAttribute, value, this.#attributePorts);
   }
 
-  /** One place that knows what each observed attribute means. */
-  #applyAttribute(name: ObservedAttribute, value: string | null): void {
-    switch (name) {
-      case "src":
-        if (!value) return;
-        // Before the viewport exists there is nothing to render into, so the
-        // source waits for connectedCallback.
-        if (this.#viewport) void this.load(value);
-        else this.#pendingSrc = value;
-        return;
-      case "locale":
-        this.#strings = resolveStrings(value);
-        this.#applyDirection(value);
-        this.#renderChrome();
-        this.#syncUI();
-        return;
-      case "format":
-        if (this.editor.ready && value) this.editor.setFormat(value as ImageFormat);
-        return;
-      case "quality":
-        if (this.editor.ready && value) this.editor.setQuality(Number(value));
-        return;
-      case "preset":
-        this.policy = (value as PresetName) || null;
-        return;
-      case "theme":
-        // Themes are pure CSS; the chrome only needs to re-read its state.
-        this.#syncUI();
-        return;
-      default: {
-        // Adding an observed attribute without handling it fails to compile.
-        const unhandled: never = name;
-        void unhandled;
-      }
-    }
-  }
+  /** The effects each observed attribute maps to. See `applyAttribute`. */
+  readonly #attributePorts: AttributePorts = {
+    mounted: () => this.#viewport !== null,
+    ready: () => this.editor.ready,
+    load: (src) => void this.load(src),
+    defer: (src) => {
+      this.#pendingSrc = src;
+    },
+    setFormat: (format) => this.editor.setFormat(format),
+    setQuality: (quality) => this.editor.setQuality(quality),
+    setLocale: (locale) => {
+      this.#strings = resolveStrings(locale);
+      this.#applyDirection(locale);
+      this.#renderChrome();
+      this.#syncUI();
+    },
+    setPreset: (preset) => {
+      this.policy = preset;
+    },
+    refresh: () => this.#syncUI(),
+  };
 
   /** Releases decoded bitmaps. Call it when the host is done with the editor. */
   destroy(): void {
@@ -370,7 +365,7 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   get busy(): boolean {
-    return this.#busy;
+    return this.#task !== null;
   }
 
   /**
@@ -420,16 +415,14 @@ export class PixenImageEditorElement extends ElementBase {
    */
   async load(input: Parameters<Editor["load"]>[0]): Promise<void> {
     const token = ++this.#loadToken;
-    this.#setBusy(true);
+    this.#setBusy("load");
     try {
       await this.editor.load(input);
       // A newer load started while this one was decoding: drop the stale result.
       if (token !== this.#loadToken) return;
       if (this.#policy) applyPolicy(this.editor, this.#policy);
-      const format = this.getAttribute("format");
-      if (format) this.editor.setFormat(format as ImageFormat);
-      const quality = this.getAttribute("quality");
-      if (quality) this.editor.setQuality(Number(quality));
+      // The rules the attributes carry, not a second copy of them.
+      for (const name of OUTPUT_ATTRIBUTES) applyAttribute(name, this.getAttribute(name), this.#attributePorts);
       this.#emit("pixen-load", { document: this.editor.toJSON() });
     } catch (error) {
       // The editor already emitted this failure; only surface errors raised
@@ -441,28 +434,27 @@ export class PixenImageEditorElement extends ElementBase {
       }
     } finally {
       if (token === this.#loadToken) {
-        this.#setBusy(false);
+        this.#setBusy(null);
         this.#syncUI();
       }
     }
   }
 
   /**
-   * Swaps the pixels under the current edit, keeping the edit.
-   *
-   * The host round trip this exists for — a background remover, an upscaler —
-   * is slow and invisible, so the busy state is held for its duration.
+   * Swaps the pixels under the current edit, keeping the edit. The host round
+   * trip this exists for — a background remover, an upscaler — is slow and
+   * invisible, so the busy state is held for its duration.
    */
   async replaceSource(input: Parameters<Editor["replaceSource"]>[0]): Promise<void> {
-    this.#setBusy(true);
+    this.#setBusy("load");
     try {
       await this.editor.replaceSource(input);
       this.#viewport?.invalidate();
       this.#syncUI();
-    } catch (error) {
-      this.#emit("pixen-error", { error });
+    } catch {
+      // Already on the engine's error channel; a second one would double-count.
     } finally {
-      this.#setBusy(false);
+      this.#setBusy(null);
     }
   }
 
@@ -472,13 +464,13 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   async export(options: ExportOptions = {}): Promise<ExportResult> {
-    this.#setBusy(true);
+    // `pixen-export` is forwarded from the engine, so a host's own export
+    // reaches the same listeners as this one.
+    this.#setBusy("export");
     try {
-      const result = await this.editor.export(options);
-      this.#emit("pixen-export", result);
-      return result;
+      return await this.editor.export(options);
     } finally {
-      this.#setBusy(false);
+      this.#setBusy(null);
     }
   }
 
@@ -528,7 +520,7 @@ export class PixenImageEditorElement extends ElementBase {
       tool: this.tool,
       zoom: this.#viewport?.zoom ?? 1,
       apple: this.#apple,
-      busy: this.#busy,
+      busy: this.busy,
       stickers: this.#stickers,
       plugins: this.#plugins,
       actions: this.#actions,
@@ -695,21 +687,27 @@ export class PixenImageEditorElement extends ElementBase {
     this.#syncUI();
   }
 
-  #setBusy(busy: boolean): void {
-    this.#busy = busy;
-    this.toggleAttribute("busy", busy);
-    this.setAttribute("aria-busy", String(busy));
+  #setBusy(task: ProgressTask | null): void {
+    this.#task = task;
+    if (task === null) this.#progress = null;
+    this.toggleAttribute("busy", task !== null);
+    this.setAttribute("aria-busy", String(task !== null));
     this.#refreshOverlay();
     refreshActions(this.#actionsHost, this.#context());
   }
 
-  /**
-   * One pill, two reasons to show it: the editor's own work, and the host's.
-   * A host message wins, because it is the more specific thing to say.
-   */
+  #trackProgress(report: ProgressReport | null): void {
+    this.#progress = report;
+    this.#refreshOverlay();
+  }
+
+  /** One pill, two reasons to show it: the editor's work, and the host's. */
   #refreshOverlay(): void {
     if (!this.#busyHost) return;
-    const message = this.#status ?? (this.#busy ? this.#strings.exporting : null);
+    const message = busyLabel(
+      { status: this.#status, task: this.#task, progress: this.#progress },
+      this.#strings,
+    );
     this.#busyHost.hidden = message === null;
     this.#busyHost.textContent = message ?? "";
   }

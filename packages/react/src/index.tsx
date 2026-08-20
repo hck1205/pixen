@@ -1,5 +1,6 @@
 import { createElement, forwardRef, useEffect, useImperativeHandle, useRef, type CSSProperties } from "react";
 import type {
+  AbortReason,
   Editor,
   EditorDocument,
   ExportOptions,
@@ -9,6 +10,7 @@ import type {
   ImagePolicy,
   PixenError,
   PresetName,
+  ProgressReport,
 } from "@pixen/core";
 import {
   applyProperty,
@@ -30,10 +32,16 @@ export interface PixenImageEditorProps extends PixenElementProperties {
   style?: CSSProperties;
 
   onReady?: (editor: Editor) => void;
+  onLoadStart?: (detail: { replace: boolean }) => void;
+  onLoadProgress?: (report: ProgressReport) => void;
+  onLoadAbort?: (detail: { reason: AbortReason }) => void;
   onLoad?: (document: EditorDocument) => void;
   /** Fires for every state change, including mid-gesture ones (`transient`). */
   onChange?: (document: EditorDocument, meta: { reason: string; transient: boolean }) => void;
   onHistoryChange?: (state: HistorySummary) => void;
+  onExportStart?: (detail: { format: ImageFormat }) => void;
+  onExportProgress?: (report: ProgressReport) => void;
+  onExportAbort?: (detail: { reason: AbortReason }) => void;
   onExport?: (result: ExportResult) => void;
   onError?: (error: PixenError) => void;
 }
@@ -98,6 +106,9 @@ export const PixenImageEditor = forwardRef<PixenImageEditorHandle, PixenImageEdi
       // forces a re-subscribe — a common source of dropped events in wrappers.
       return attachEvents(element, {
         ready: () => handlers.current.onReady?.(element.editor),
+        "load-start": (detail) => handlers.current.onLoadStart?.(detail),
+        "load-progress": (detail) => handlers.current.onLoadProgress?.(detail),
+        "load-abort": (detail) => handlers.current.onLoadAbort?.(detail),
         load: (detail) => handlers.current.onLoad?.(detail.document),
         change: (detail) =>
           handlers.current.onChange?.(detail.document, {
@@ -105,6 +116,9 @@ export const PixenImageEditor = forwardRef<PixenImageEditorHandle, PixenImageEdi
             transient: detail.transient,
           }),
         history: (detail) => handlers.current.onHistoryChange?.(detail),
+        "export-start": (detail) => handlers.current.onExportStart?.(detail),
+        "export-progress": (detail) => handlers.current.onExportProgress?.(detail),
+        "export-abort": (detail) => handlers.current.onExportAbort?.(detail),
         export: (detail) => handlers.current.onExport?.(detail),
         error: (detail) => handlers.current.onError?.(detail.error),
       });

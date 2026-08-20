@@ -42,7 +42,8 @@ was supplied to an AI tool as input at any point.
 | `image/exif.ts` | JPEG APP1 / TIFF IFD orientation parsing | The Exif and TIFF 6.0 specifications: `FFD8` SOI, `FFE1` APP1, the `Exif\0\0` header, `II`/`MM` byte order, magic `0x002A`, IFD entry layout, orientation tag `0x0112`. Written from the specified byte layout |
 | `image/worker/*` | Decode and encode on a worker thread | MDN/WHATWG: `Worker`, `postMessage` transferables, `OffscreenCanvas.convertToBlob`. Shipping the body as a serialised function in a blob URL is our own choice, for the reason recorded in the module |
 | `image/canvas.ts`, `image/encode.ts` | Surface allocation, encoding, byte budgets | MDN/WHATWG: `OffscreenCanvas.convertToBlob`, `HTMLCanvasElement.toBlob`. The quality-reduction loop is our own |
-| `image/decode.ts` | Decode from blob/URL/bitmap, EXIF normalisation | MDN/WHATWG: `createImageBitmap`, `fetch`, `HTMLImageElement` |
+| `image/decode.ts` | Decode from blob/URL/bitmap, EXIF normalisation, byte counting while fetching | MDN/WHATWG: `createImageBitmap`, `fetch`, `HTMLImageElement`; the byte count reads `Content-Length` (RFC 9110) and drains `Response.body` through the Streams `ReadableStreamDefaultReader` |
+| `engine/tasks/` | Start, progress, cancel and end of a long-running task | Original design for this project. `AbortController`/`AbortSignal` are the platform's own cancellation contract; `loaded`/`total`/"length computable" mirrors the vocabulary of the DOM `ProgressEvent` interface, which is a specification rather than anyone's code |
 | `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
 | `render/scene.ts` | Document → draw list projection | Original design for this project |
 | `render/presets.ts` | Nine named looks | Values chosen here by eye against this project's own sample image |

@@ -30,10 +30,36 @@ dance is needed. See [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md#server-side-renderi
    message over the picture while a round trip runs, and `disabled` blocks
    input without hiding anything. Both are properties; `disabled` also reflects
    to an attribute so CSS can see it.
-2. **Events are DOM `CustomEvent`s** named `pixen-load`, `pixen-change`,
-   `pixen-history`, `pixen-export`, `pixen-error` and `pixen-ready`. Each detail
-   is on `event.detail`. Frameworks with their own event syntax need their usual
-   escape hatch for custom events, shown below.
+2. **Events are DOM `CustomEvent`s.** Each detail is on `event.detail`.
+   Frameworks with their own event syntax need their usual escape hatch for
+   custom events, shown below.
+
+   | Event | Detail | When |
+   | --- | --- | --- |
+   | `pixen-ready` | `{ editor }` | The element is connected and the engine exists |
+   | `pixen-load-start` | `{ replace }` | A load began; `replace` is true for `replaceSource` |
+   | `pixen-load-progress` | `ProgressReport` | A step of the load reported itself |
+   | `pixen-load-abort` | `{ reason }` | The load was called off — `"cancelled"` or `"superseded"` |
+   | `pixen-load` | `{ document }` | The picture is loaded and the element's attributes are applied |
+   | `pixen-change` | `{ document, reason, transient }` | Any state change, including mid-gesture ones |
+   | `pixen-history` | `HistorySummary` | Undo or redo availability changed |
+   | `pixen-export-start` | `{ format }` | An export began, in the format it will produce |
+   | `pixen-export-progress` | `ProgressReport` | A step of the export reported itself |
+   | `pixen-export-abort` | `{ reason }` | The export was called off |
+   | `pixen-export` | `ExportResult` | A file was produced |
+   | `pixen-error` | `{ error }` | Something failed. A cancellation is not a failure and never arrives here |
+
+   Every start is followed by exactly one of its completion, its abort or an
+   error, so a host can turn a busy state on at the start and be certain
+   something turns it off.
+
+3. **Progress is counted or it is null.** `ProgressReport` carries
+   `{ task, stage, loaded, total, ratio }`. `ratio` is `null` whenever the step
+   has nothing countable in it — a decode is one call into the browser, and a
+   render is one pass over the scene. It is a real fraction where something was
+   genuinely measured: bytes arriving over the network, re-encode attempts under
+   a `maxBytes` budget, and files in a multi-size export. Bind a determinate bar
+   to `ratio` and fall back to a spinner when it is null; nothing here estimates.
 
 ## React
 

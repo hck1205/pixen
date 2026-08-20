@@ -5,7 +5,7 @@
  * editor, and this one reads the codebase. The title matches the rest, so the
  * story keeps its id.
  */
-import { COVERAGE, coverageCount, evidenceLabel } from "./coverage.js";
+import { COVERAGE, coverageCount, evidenceLabel } from "./coverage/index.js";
 import { capabilityCell, evidenceCell, note, panelTitle, tableCell, tableHeader, wideTable } from "./styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 

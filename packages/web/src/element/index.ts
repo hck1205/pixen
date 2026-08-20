@@ -2,6 +2,7 @@ export { PixenImageEditorElement } from "./pixen-image-editor.js";
 export * from "./constants.js";
 export * from "./ratios.js";
 export * from "./labels.js";
+export * from "./busy-label.js";
 export { template, SELECTORS } from "./template.js";
 export * from "./input/index.js";
 export * from "./chrome/index.js";

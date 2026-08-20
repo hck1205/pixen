@@ -21,6 +21,7 @@ export const de: PixenStrings = {
   reset: "Zurücksetzen",
   export: "Exportieren",
   exporting: "Wird exportiert…",
+  loading: "Wird geladen…",
   freeform: "Frei",
   original: "Original",
   aspectRatio: "Seitenverhältnis",

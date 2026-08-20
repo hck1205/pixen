@@ -16,6 +16,7 @@ export interface PixenStrings {
   reset: string;
   export: string;
   exporting: string;
+  loading: string;
   freeform: string;
   original: string;
   aspectRatio: string;

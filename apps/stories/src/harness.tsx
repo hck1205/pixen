@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Editor } from "@pixen/core";
@@ -137,6 +138,12 @@ export interface SeededEditorProps {
   image: Blob | null;
   /** Runs once the image is loaded, with the engine behind the element. */
   seed: (editor: Editor) => void;
+  /**
+   * A ref the story keeps, for the stories that seed the document *and* drive
+   * the editor themselves. Without one the wiring is identical either way, and
+   * a story that needed the handle used to copy the whole element out.
+   */
+  handle?: RefObject<PixenImageEditorHandle | null>;
   /** Tool to switch to after seeding, for stories about a particular tool. */
   tool?: ToolId;
   /** Inspector panel to open, for stories about a panel rather than a tool. */
@@ -150,17 +157,18 @@ export interface SeededEditorProps {
  * Several stories differ only in what they seed, so the wiring — ref, load
  * callback, null guard — lives here rather than being repeated in each of them.
  */
-export function SeededEditor({ image, seed, tool, panel, height = "100%" }: SeededEditorProps) {
-  const handle = useRef<PixenImageEditorHandle>(null);
+export function SeededEditor({ image, seed, handle, tool, panel, height = "100%" }: SeededEditorProps) {
+  const own = useRef<PixenImageEditorHandle>(null);
+  const ref = handle ?? own;
   return (
     <PixenImageEditor
-      ref={handle}
+      ref={ref}
       src={image}
       onLoad={() => {
-        const editor = handle.current?.editor;
+        const editor = ref.current?.editor;
         if (editor) seed(editor);
-        if (tool) handle.current?.setTool(tool);
-        if (panel && handle.current?.element) handle.current.element.panel = panel;
+        if (tool) ref.current?.setTool(tool);
+        if (panel && ref.current?.element) ref.current.element.panel = panel;
       }}
       style={{ height }}
     />

@@ -1394,3 +1394,98 @@ test("the status message never covers the actions, at any width", async ({ page 
     expect(measurement.overlaps, `status overlaps the actions at ${measurement.width}px`).toBe(false);
   }
 });
+
+/**
+ * The event surface a host integrates against.
+ *
+ * Progress is the part a unit test cannot check honestly: whether a fetch
+ * really reports bytes depends on the browser's streams and on what the server
+ * says its length is, and both are only true in a browser.
+ */
+test("a load announces itself, counts the bytes it can, and ends in a load event", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const timeline = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      load(input: string): Promise<void>;
+    };
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 900;
+    canvas.height = 600;
+    const context = canvas.getContext("2d")!;
+    // Noise, so the encoder produces a file big enough to arrive in pieces.
+    for (let x = 0; x < 900; x += 3) {
+      context.fillStyle = `hsl(${x % 360} 80% ${30 + (x % 40)}%)`;
+      context.fillRect(x, 0, 3, 600);
+    }
+    const blob: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/png"));
+    const url = URL.createObjectURL(blob);
+
+    const events: string[] = [];
+    const reports: Array<{ stage: string; loaded: number; total: number | null; ratio: number | null }> = [];
+    const record = (name: string) => (event: Event) => {
+      events.push(name);
+      if (name === "load-progress") reports.push((event as CustomEvent).detail);
+    };
+    for (const name of ["load-start", "load-progress", "load-abort", "error"]) {
+      element.addEventListener(`pixen-${name}`, record(name));
+    }
+    element.addEventListener("pixen-load", record("load"));
+
+    await element.load(url);
+    URL.revokeObjectURL(url);
+    return { events, reports, bytes: blob.size };
+  });
+
+  expect(timeline.events.filter((name) => name === "error")).toEqual([]);
+  expect(timeline.events.filter((name) => name === "load-abort")).toEqual([]);
+  expect(timeline.events[0]).toBe("load-start");
+  expect(timeline.events.at(-1)).toBe("load");
+
+  const fetched = timeline.reports.filter((report) => report.stage === "fetch");
+  expect(fetched.length).toBeGreaterThan(0);
+  expect(fetched.at(-1)!.loaded).toBe(timeline.bytes);
+  // Every report is either a real fraction or an honest null. Nothing invents.
+  for (const report of timeline.reports) {
+    if (report.ratio !== null) expect(report.ratio).toBeGreaterThanOrEqual(0);
+    if (report.ratio !== null) expect(report.ratio).toBeLessThanOrEqual(1);
+  }
+  // The decode cannot be counted, and says so rather than guessing.
+  expect(timeline.reports.some((report) => report.stage === "decode" && report.total === null)).toBe(true);
+});
+
+test("a cancelled export is an abort rather than an error", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      editor: { cancelExport(): boolean };
+      export(options?: Record<string, unknown>): Promise<unknown>;
+    };
+
+    const events: string[] = [];
+    for (const name of ["export-start", "export-progress", "export-abort", "error", "export"]) {
+      element.addEventListener(`pixen-${name}`, () => events.push(name));
+    }
+
+    const running = element.export({ format: "image/jpeg", quality: 0.9 });
+    const cancelled = element.editor.cancelExport();
+    const code = await running.then(
+      () => "resolved",
+      (error: { code?: string }) => error.code ?? "unknown",
+    );
+    return { events, cancelled, code, busy: element.hasAttribute("busy") };
+  });
+
+  expect(outcome.cancelled).toBe(true);
+  expect(outcome.code).toBe("ABORTED");
+  expect(outcome.events).toContain("export-start");
+  expect(outcome.events).toContain("export-abort");
+  // A cancel is not a failure, and the result of one is never handed over.
+  expect(outcome.events).not.toContain("error");
+  expect(outcome.events).not.toContain("export");
+  expect(outcome.busy).toBe(false);
+});

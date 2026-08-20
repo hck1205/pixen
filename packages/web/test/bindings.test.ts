@@ -35,7 +35,20 @@ function fakeElement() {
 describe("event names", () => {
   it("namespaces the bare names for the DOM", () => {
     expect(eventTypeFor("export")).toBe("pixen-export");
-    expect(PIXEN_EVENTS).toEqual(["ready", "load", "change", "history", "export", "error"]);
+    expect(PIXEN_EVENTS).toEqual([
+      "ready",
+      "load-start",
+      "load-progress",
+      "load-abort",
+      "load",
+      "change",
+      "history",
+      "export-start",
+      "export-progress",
+      "export-abort",
+      "export",
+      "error",
+    ]);
   });
 });
 

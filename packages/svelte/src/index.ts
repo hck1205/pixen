@@ -2,6 +2,7 @@ import "@pixen/web";
 import {
   applyProperties,
   attachEvents,
+  PIXEN_EVENTS,
   type PixenElementProperties,
   type PixenEventHandlers,
   type PixenImageEditorElement,
@@ -47,14 +48,12 @@ export function pixen(node: Element, options: PixenActionOptions = {}): PixenAct
   // can replace handlers — or add one that was absent at first — without
   // detaching and re-attaching listeners on every reactive change.
   let handlers: PixenEventHandlers = options;
-  const detach = attachEvents(element, {
-    ready: (detail) => handlers.ready?.(detail),
-    load: (detail) => handlers.load?.(detail),
-    change: (detail) => handlers.change?.(detail),
-    history: (detail) => handlers.history?.(detail),
-    export: (detail) => handlers.export?.(detail),
-    error: (detail) => handlers.error?.(detail),
-  });
+  // Built from the shared list rather than written out: an event added to
+  // `PIXEN_EVENTS` reaches Svelte without anyone remembering to come here.
+  const forwarding = Object.fromEntries(
+    PIXEN_EVENTS.map((name) => [name, (detail: unknown) => (handlers[name] as ((d: never) => void) | undefined)?.(detail as never)]),
+  ) as PixenEventHandlers;
+  const detach = attachEvents(element, forwarding);
 
   applyProperties(element, options);
 

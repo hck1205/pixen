@@ -75,10 +75,16 @@ export async function exportVariants(
 ): Promise<ExportVariant[]> {
   const plans = planVariants(documentOutputSize(document), specs);
   const variants: ExportVariant[] = [];
+  // The per-export render and encode steps are deliberately not forwarded: a
+  // bar that jumps between "file 2 of 3" and "encode attempt 1 of 5" tells the
+  // reader less than the plain count does. The count is also the only number
+  // here that is known in advance.
+  const { onProgress, ...each } = options;
 
-  for (const plan of plans) {
+  for (const [index, plan] of plans.entries()) {
+    onProgress?.({ stage: "variant", loaded: index, total: plans.length });
     const result = await exportDocument(document, resources, {
-      ...options,
+      ...each,
       width: plan.size.width,
       height: plan.size.height,
       ...(plan.format ? { format: plan.format } : {}),
@@ -86,6 +92,7 @@ export async function exportVariants(
     });
     variants.push({ ...result, label: plan.label, filename: labelledFilename(result.filename, plan.label) });
   }
+  onProgress?.({ stage: "variant", loaded: plans.length, total: plans.length });
   return variants;
 }
 

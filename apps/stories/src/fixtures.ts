@@ -1,6 +1,7 @@
 import {
   createArrowLayer,
   createEllipseLayer,
+  createLineLayer,
   createPathLayer,
   createRectLayer,
   createRedactLayer,
@@ -239,3 +240,58 @@ export async function createStickers(): Promise<Array<{ id: string; src: Blob; l
     }),
   );
 }
+
+/**
+ * One shape per styling axis, so a reviewer can see what the inspector can
+ * reach: fill, dash, corner radius, arrowheads, alignment and a text plate.
+ */
+export function seedStyling(editor: Editor): void {
+  const { width, height } = editor.document.source;
+  const stroke = { color: "#ef3e36", width: Math.max(2, width * 0.005) };
+
+  editor.addLayer(
+    createRectLayer(
+      { x: width * 0.05, y: height * 0.1, width: width * 0.24, height: height * 0.2 },
+      { stroke, fill: "rgba(239, 62, 54, 0.25)", name: "Filled" },
+    ),
+    { select: false },
+  );
+  editor.addLayer(
+    createRectLayer(
+      { x: width * 0.33, y: height * 0.1, width: width * 0.24, height: height * 0.2 },
+      { stroke: { ...stroke, color: "#f2a007" }, cornerRadius: height * 0.05, name: "Rounded" },
+    ),
+    { select: false },
+  );
+  editor.addLayer(
+    createEllipseLayer(
+      { x: width * 0.61, y: height * 0.1, width: width * 0.24, height: height * 0.2 },
+      {
+        // The dash is measured in stroke widths, so it looks the same at any size.
+        stroke: { ...stroke, color: "#2fb673", dash: [stroke.width * 2.5, stroke.width * 2] },
+        name: "Dashed",
+      },
+    ),
+    { select: false },
+  );
+  editor.addLayer(
+    createLineLayer(
+      { x: width * 0.1, y: height * 0.45 },
+      { x: width * 0.45, y: height * 0.45 },
+      { stroke: { ...stroke, color: "#8b5cf0" }, arrowStart: true, arrowEnd: true, name: "Both heads" },
+    ),
+    { select: false },
+  );
+  editor.addLayer(
+    createTextLayer({ x: width * 0.5, y: height * 0.62 }, "Centred, on a plate", {
+      fontSize: Math.round(height * 0.055),
+      color: "#fbfcfe",
+      align: "center",
+      backgroundColor: "rgba(18, 22, 28, 0.6)",
+      name: "Caption",
+    }),
+    { select: false },
+  );
+}
+
+/** Every axis the annotation style controls can reach, in one picture. */

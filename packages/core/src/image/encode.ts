@@ -127,6 +127,19 @@ async function encodeOnWorker(canvas: AnyCanvas, format: ImageFormat, quality: n
   }
 }
 
+export interface BudgetOptions {
+  minQuality?: number;
+  steps?: number;
+  /**
+   * Called after each attempt with the attempt number and the ceiling.
+   *
+   * The ceiling is a limit rather than an estimate: most pictures fit on the
+   * first or second try and the search stops there, so a bar driven by this
+   * finishes early rather than crawling.
+   */
+  onAttempt?: (attempt: number, steps: number) => void;
+}
+
 /**
  * Encodes repeatedly, lowering quality until the blob fits `maxBytes`.
  * Returns the smallest attempt when even the lowest quality overshoots.
@@ -136,7 +149,7 @@ export async function encodeWithinBudget(
   format: ImageFormat,
   quality: number,
   maxBytes: number,
-  options: { minQuality?: number; steps?: number } = {},
+  options: BudgetOptions = {},
 ): Promise<{ blob: Blob; quality: number; attempts: number }> {
   const minQuality = options.minQuality ?? MIN_BUDGET_QUALITY;
   const steps = options.steps ?? MAX_BUDGET_ATTEMPTS;
@@ -149,6 +162,7 @@ export async function encodeWithinBudget(
   while (attempt < steps) {
     attempt += 1;
     const blob = await encodeSurface(canvas, format, currentQuality, { offload: false });
+    options.onAttempt?.(attempt, steps);
     if (!best || blob.size < best.size) {
       best = blob;
       bestQuality = currentQuality;

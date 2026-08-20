@@ -37,9 +37,6 @@ export const EXEMPT = {
   // an intent and handing it to `dispatch`. Splitting it would scatter the
   // surface a host reads as one thing, and the decisions are already elsewhere.
   "packages/core/src/engine/editor.ts": 728,
-  // Data, not logic: one entry per capability, generated from the exports that
-  // define each set. It is long because the product does a lot.
-  "apps/stories/src/coverage.ts": 503,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door. The class holds state, effects and subscribers, which is what the
   // working agreement says a class is for.

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/coverage.js";
+import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/coverage/index.js";
 
 /**
  * The coverage page claims things. This checks the claims can be followed.

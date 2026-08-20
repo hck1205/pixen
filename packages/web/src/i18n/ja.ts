@@ -21,6 +21,7 @@ export const ja: PixenStrings = {
   reset: "リセット",
   export: "書き出し",
   exporting: "書き出し中…",
+  loading: "読み込み中…",
   freeform: "自由",
   original: "元のサイズ",
   aspectRatio: "縦横比",
