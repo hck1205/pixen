@@ -1818,3 +1818,40 @@ test("a mask marks where the annotations are and nothing else", async ({ page })
   // Everywhere else is background, and the photograph is not in it.
   expect(sampled.elsewhere).toMatchObject({ r: 0, g: 0, b: 0, a: 255 });
 });
+
+/**
+ * Every button in the chrome has to be announceable.
+ *
+ * The text buttons — a ratio, a preset, a format, a redaction mode — each used
+ * to repeat their visible text as their accessible name by hand, which is one
+ * copy per button that can be forgotten. `textButton` fills it in, and this is
+ * the assertion that the filling in actually happens.
+ */
+test("every button carries an accessible name and a tooltip", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const buttons = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    // Open the panels that build the rest of the buttons, so this covers more
+    // than whichever tool happens to be armed at load.
+    const shadow = element.shadowRoot!;
+    return [...shadow.querySelectorAll("button")].map((node) => ({
+      text: node.textContent?.trim() ?? "",
+      label: node.getAttribute("aria-label"),
+      title: node.title,
+      pressed: node.getAttribute("aria-pressed"),
+    }));
+  });
+
+  expect(buttons.length).toBeGreaterThan(8);
+  for (const button of buttons) {
+    expect(button.label, `aria-label for "${button.text}"`).toBeTruthy();
+    expect(button.title, `title for "${button.text}"`).toBe(button.label);
+    // A visible label must be part of its accessible name, or a voice user
+    // saying what they see does not reach the control they are looking at.
+    if (button.text) expect(button.label).toContain(button.text);
+  }
+  // A toggle says whether it is on, not merely that it exists.
+  expect(buttons.some((button) => button.pressed === "true")).toBe(true);
+});

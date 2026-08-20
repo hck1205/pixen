@@ -10,6 +10,7 @@ import {
   multiply,
   rotation,
   boundsOf,
+  longestEdge,
   resolveSize,
   rotatedBounds,
   scaling,
@@ -191,5 +192,20 @@ describe("boundsOf", () => {
 
   it("calls an empty set the zero rect, which is what every caller means by it", () => {
     expect(boundsOf([])).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+  });
+});
+
+describe("longestEdge", () => {
+  it("is the longer side, whichever it is", () => {
+    expect(longestEdge({ width: 1600, height: 1067 })).toBe(1600);
+    expect(longestEdge({ width: 900, height: 1600 })).toBe(1600);
+  });
+
+  it("is that side for a square too", () => {
+    expect(longestEdge({ width: 512, height: 512 })).toBe(512);
+  });
+
+  it("reads a rect as the size it is, since every fraction is against the longer edge", () => {
+    expect(longestEdge({ x: 40, y: 90, width: 30, height: 80 })).toBe(80);
   });
 });

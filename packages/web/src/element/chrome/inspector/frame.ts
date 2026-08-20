@@ -5,7 +5,7 @@ import {
   MIN_FRAME_WIDTH,
   type FrameStyle,
 } from "@pixen/core";
-import { button, field, input } from "../../dom/index.js";
+import { field, input, textButton } from "../../dom/index.js";
 import { transactedSlider } from "./slider.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
@@ -31,18 +31,16 @@ export function buildFrameControls(context: ChromeContext): Node[] {
   const frame = editor.document.frame;
 
   const nodes: Node[] = [
-    button({
+    textButton({
       label: `${strings.frame}: ${strings.frameNone}`,
       text: strings.frameNone,
-      className: "text",
       active: frame === null,
       onClick: () => editor.setFrame(null),
     }),
     ...FRAME_STYLES.map((style) =>
-      button({
+      textButton({
         label: `${strings.frame}: ${strings[STYLE_KEYS[style]]}`,
         text: strings[STYLE_KEYS[style]],
-        className: "text",
         active: frame?.style === style,
         onClick: () => editor.setFrame({ style }),
       }),

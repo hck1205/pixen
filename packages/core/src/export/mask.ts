@@ -1,5 +1,6 @@
 import { assertDrawableSize, createSurface, releaseSurface, type CanvasSurface } from "../image/canvas.js";
 import { encodeSurface } from "../image/encode.js";
+import { longestEdge } from "../geometry/rect.js";
 import type { Rect, Size } from "../geometry/types.js";
 import { outputSize as documentOutputSize } from "../model/document.js";
 import type { EditorDocument, EditorLayer, ImageFormat } from "../model/types.js";
@@ -74,8 +75,8 @@ export function renderMask(
     surface.context.fillRect(0, 0, target.width, target.height);
   }
 
-  const longestEdge = Math.max(target.width, target.height);
-  executeOps(surface.context, maskOps(buildSceneOps(scene), foreground, (options.padding ?? 0) * longestEdge));
+  const grow = (options.padding ?? 0) * longestEdge(target);
+  executeOps(surface.context, maskOps(buildSceneOps(scene), foreground, grow));
   return surface;
 }
 

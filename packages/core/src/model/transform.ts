@@ -1,6 +1,6 @@
 import { QUARTER_TURN, normaliseAngle } from "../geometry/angles.js";
 import { CROP_HANDLES, handlePosition, type CropHandle } from "../geometry/crop.js";
-import { center } from "../geometry/rect.js";
+import { center, longestEdge } from "../geometry/rect.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { layerBounds } from "./layers.js";
 import type { EditorLayer } from "./types.js";
@@ -79,7 +79,7 @@ export function layerHandlePosition(layer: EditorLayer, handle: LayerHandle): Po
   const centre = center(bounds);
   const local =
     handle === "rotate"
-      ? { x: centre.x, y: bounds.y - Math.max(bounds.width, bounds.height) * ROTATE_HANDLE_OFFSET_RATIO }
+      ? { x: centre.x, y: bounds.y - longestEdge(bounds) * ROTATE_HANDLE_OFFSET_RATIO }
       : handlePosition(bounds, handle);
   return rotatePoint(local, centre, layer.rotation);
 }

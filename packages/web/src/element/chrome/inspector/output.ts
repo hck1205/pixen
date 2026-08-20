@@ -1,5 +1,5 @@
 import { isLossy, resolveOutputFormat, type ImageFormat } from "@pixen/core";
-import { button, field, input } from "../../dom/index.js";
+import { field, input, textButton } from "../../dom/index.js";
 import { OUTPUT_QUALITY_RANGE } from "../../constants.js";
 import type { ChromeContext } from "../context.js";
 import {
@@ -32,18 +32,14 @@ export function buildOutputControls(context: ChromeContext): Node[] {
   const nodes: Node[] = [
     sizeField(context, "width", strings.outputWidth, size.width),
     sizeField(context, "height", strings.outputHeight, size.height),
-    button({
-      label: strings.linkRatio,
+    textButton({
       text: strings.linkRatio,
-      className: "text",
       active: linked,
       dataset: { field: "link-ratio" },
       onClick: () => editor.setOutput(linkTogglePatch(output, size)),
     }),
-    button({
-      label: strings.sizeNatural,
+    textButton({
       text: strings.sizeNatural,
-      className: "text",
       disabled: !isResized(output),
       dataset: { field: "natural-size" },
       onClick: () => editor.setOutput(NATURAL_SIZE),
@@ -85,10 +81,9 @@ export function buildOutputControls(context: ChromeContext): Node[] {
   // remove it would be offering something that cannot happen.
   if (!backgroundRequired(format)) {
     nodes.push(
-      button({
+      textButton({
         label: `${strings.background}: ${strings.backgroundNone}`,
         text: strings.backgroundNone,
-        className: "text",
         active: output.background === null,
         dataset: { field: "background-none" },
         onClick: () => editor.setOutput({ background: null }),
@@ -126,10 +121,9 @@ function formatButton(context: ChromeContext, option: ImageFormat | null, active
   const { strings, editor } = context;
   const chosen = editor.document.output.format;
   const label = option === null ? `${strings.formatAuto} (${formatLabel(active)})` : formatLabel(option);
-  return button({
+  return textButton({
     label,
     text: option === null ? strings.formatAuto : formatLabel(option),
-    className: "text",
     active: chosen === option,
     dataset: { field: `format-${option === null ? "auto" : formatLabel(option).toLowerCase()}` },
     onClick: () => editor.setFormat(option),

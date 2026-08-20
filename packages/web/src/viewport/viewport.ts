@@ -6,13 +6,13 @@ import {
   Editor,
   imageToStage,
   layerHandlePosition,
+  longestEdge,
   renderScene,
   scaling,
   stageToView,
   type LayerHandle,
   type Matrix,
   type Point,
-  type Rect,
   type Size,
 } from "@pixen/core";
 import {
@@ -228,7 +228,7 @@ export class Viewport {
       selectedId: this.#editor.selectedLayer?.id ?? null,
       viewMatrix: this.#viewMatrix(),
       stageFromImage: this.#stageFromImage(),
-      imageLongestEdge: Math.max(document.source.width, document.source.height),
+      imageLongestEdge: longestEdge(document.source),
       style: this.#style,
       minCropSize: this.#minCropSize,
       createId,
@@ -324,7 +324,8 @@ export class Viewport {
       const crop = this.#editor.cropRect;
       drawCropScrim(context, { stage: this.#editor.stageRect, crop, matrix, colour: palette.scrim });
       context.setTransform(1, 0, 0, 1, 0, 0);
-      drawCropFrame(context, { rect: this.#toScreenRect(crop, dpr), palette, dpr });
+      const frame = projectRect(crop, (point) => this.stageToScreen(point), dpr);
+      drawCropFrame(context, { rect: frame, palette, dpr });
       return;
     }
     if (!selected) return;
@@ -343,11 +344,6 @@ export class Viewport {
       colour: palette.selection,
       dpr,
     });
-  }
-
-  /** stage rect -> device pixels, through the current view transform. */
-  #toScreenRect(rect: Rect, dpr: number): Rect {
-    return projectRect(rect, (point) => this.stageToScreen(point), dpr);
   }
 
   // --- pointer input -------------------------------------------------------

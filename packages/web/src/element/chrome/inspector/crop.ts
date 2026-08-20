@@ -1,5 +1,5 @@
 import { straightenAngleOf, toDegrees, toRadians } from "@pixen/core";
-import { button, divider } from "../../dom/index.js";
+import { button, divider, textButton } from "../../dom/index.js";
 import { STRAIGHTEN_RANGE } from "../../constants.js";
 import { ratiosEqual } from "../../ratios.js";
 import { transactedSlider } from "./slider.js";
@@ -17,10 +17,9 @@ export function buildCropControls(context: ChromeContext): Node[] {
   const current = editor.document.aspectRatio;
 
   const ratioButtons = context.ratios.map((ratio) =>
-    button({
+    textButton({
       label: `${strings.aspectRatio}: ${ratio.label}`,
       text: ratio.label,
-      className: "text",
       active: ratiosEqual(current, ratio.value),
       onClick: () => editor.setAspectRatio(ratio.value),
     }),

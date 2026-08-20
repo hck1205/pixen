@@ -39,6 +39,24 @@ export function button(spec: ButtonSpec): HTMLButtonElement {
   return node;
 }
 
+export interface TextButtonSpec extends Omit<ButtonSpec, "className" | "icon" | "label"> {
+  text: string;
+  /** The accessible name, when the visible text is not enough on its own. */
+  label?: string;
+}
+
+/**
+ * A button that is its own label.
+ *
+ * Seventeen of them across the inspector — a ratio, a preset, a format, a
+ * redaction mode — and every one repeated the class name and repeated its text
+ * as its accessible name. That is two chances per button for the two to
+ * disagree, and a screen reader reads the one nobody looks at.
+ */
+export function textButton(spec: TextButtonSpec): HTMLButtonElement {
+  return button({ ...spec, className: "text", label: spec.label ?? spec.text });
+}
+
 export interface InputSpec {
   type: string;
   value: string;

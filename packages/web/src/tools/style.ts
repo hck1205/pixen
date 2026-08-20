@@ -76,6 +76,9 @@ export function cornerRadiusFor(style: AnnotationStyle, frame: { width: number; 
   return style.cornerRatio * Math.min(frame.width, frame.height);
 }
 
+/** Below this, text is drawn but cannot be read; a slider must not reach it. */
+const MIN_FONT_SIZE = 8;
+
 export function fontSizeFor(style: AnnotationStyle, imageLongestEdge: number): number {
-  return Math.max(8, imageLongestEdge * style.fontRatio);
+  return Math.max(MIN_FONT_SIZE, imageLongestEdge * style.fontRatio);
 }

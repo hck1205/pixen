@@ -1,3 +1,4 @@
+import { longestEdge } from "../../geometry/rect.js";
 import type { Rect, Size } from "../../geometry/types.js";
 import type { FrameSettings } from "../../model/types.js";
 import type { Scene } from "../scene.js";
@@ -20,14 +21,14 @@ import type { BuildOptions, DrawOp } from "./types.js";
  * resolved here so the executor only ever sees pixels.
  */
 export function frameOp(frame: FrameSettings, region: Rect): Extract<DrawOp, { op: "frame" }> {
-  const longestEdge = Math.max(region.width, region.height);
+  const edge = longestEdge(region);
   return {
     op: "frame",
     rect: region,
     style: frame.style,
-    width: Math.max(1, frame.width * longestEdge),
-    radius: Math.max(0, frame.radius * longestEdge),
-    inset: Math.max(0, frame.inset * longestEdge),
+    width: Math.max(1, frame.width * edge),
+    radius: Math.max(0, frame.radius * edge),
+    inset: Math.max(0, frame.inset * edge),
     colour: frame.colour,
   };
 }
@@ -86,8 +87,8 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   if (options.skipLayers !== true) {
     // Redaction strengths are fractions of the image, so the builder needs to
     // know how big the image is.
-    const longestEdge = Math.max(scene.image.size.width, scene.image.size.height);
-    for (const node of scene.layers) ops.push(...layerOps(node, measure, longestEdge));
+    const edge = longestEdge(scene.image.size);
+    for (const node of scene.layers) ops.push(...layerOps(node, measure, edge));
   }
 
   // Around the picture, not around the canvas: in the viewport those differ.

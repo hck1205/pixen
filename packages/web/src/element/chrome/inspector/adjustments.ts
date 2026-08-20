@@ -8,7 +8,7 @@ import {
   type AdjustmentKey,
   type AdjustmentPreset,
 } from "@pixen/core";
-import { button, divider } from "../../dom/index.js";
+import { button, divider, textButton } from "../../dom/index.js";
 import { transactedSlider } from "./slider.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
@@ -45,10 +45,8 @@ export function buildAdjustmentControls(context: ChromeContext): Node[] {
   };
 
   const presets = ADJUSTMENT_PRESETS.map((preset) =>
-    button({
-      label: preset.label,
+    textButton({
       text: preset.label,
-      className: "text",
       active: active?.id === preset.id,
       onClick: () => applyPreset(preset),
     }),

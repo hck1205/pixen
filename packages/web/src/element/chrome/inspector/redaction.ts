@@ -6,7 +6,7 @@ import {
   type RedactLayer,
 } from "@pixen/core";
 import type { PixenStrings } from "../../../i18n/index.js";
-import { button } from "../../dom/index.js";
+import { textButton } from "../../dom/index.js";
 import type { ChromeContext } from "../context.js";
 import { transactedSlider } from "./slider.js";
 import { styleWriter } from "./style-writer.js";
@@ -40,10 +40,8 @@ export function buildRedactionControls(context: ChromeContext, selected: RedactL
 
   const nodes: Node[] = REDACTION_MODES.map((candidate) => {
     const label = strings[MODE_STRING_KEYS[candidate]];
-    return button({
-      label,
+    return textButton({
       text: label,
-      className: "text",
       active: mode === candidate,
       onClick: () => apply({ redactionMode: candidate }, { mode: candidate }),
     });

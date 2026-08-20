@@ -1,4 +1,4 @@
-import { transformBounds } from "../geometry/rect.js";
+import { longestEdge, transformBounds } from "../geometry/rect.js";
 import { stageToImage } from "../geometry/spaces.js";
 import type { Rect, Size } from "../geometry/types.js";
 import { effectiveCrop } from "../model/document.js";
@@ -66,7 +66,7 @@ export function placeWithin(
   position: Exclude<WatermarkPosition, "tile">,
   margin: number,
 ): Rect {
-  const inset = margin * Math.max(region.width, region.height);
+  const inset = margin * longestEdge(region);
 
   const left = region.x + inset;
   const centreX = region.x + (region.width - size.width) / 2;
@@ -93,7 +93,7 @@ export function watermarkFrame(image: Size, options: WatermarkOptions): Rect {
   const position = options.position ?? DEFAULT_WATERMARK_POSITION;
   if (position === "tile") return { x: 0, y: 0, width: image.width, height: image.height };
 
-  const width = Math.max(1, (options.scale ?? DEFAULT_WATERMARK_SCALE) * Math.max(image.width, image.height));
+  const width = Math.max(1, (options.scale ?? DEFAULT_WATERMARK_SCALE) * longestEdge(image));
   const ratio = options.size.height / Math.max(1, options.size.width);
   return placeWithin(
     wholeOf(image),
@@ -140,7 +140,7 @@ export interface TextWatermarkOptions {
 const DEFAULT_STICKER_SCALE = 0.3;
 
 export function stickerFrame(region: Rect, size: Size, scale = DEFAULT_STICKER_SCALE): Rect {
-  const width = Math.max(1, scale * Math.max(region.width, region.height));
+  const width = Math.max(1, scale * longestEdge(region));
   const ratio = size.height / Math.max(1, size.width);
   return placeWithin(region, { width, height: Math.max(1, width * ratio) }, "centre", 0);
 }
@@ -178,7 +178,7 @@ export function createStickerLayer(document: EditorDocument, options: StickerOpt
 export const DEFAULT_TEXT_WATERMARK_SCALE = 0.045;
 
 export function createTextWatermarkLayer(image: Size, options: TextWatermarkOptions): TextLayer {
-  const fontSize = Math.max(1, (options.scale ?? DEFAULT_TEXT_WATERMARK_SCALE) * Math.max(image.width, image.height));
+  const fontSize = Math.max(1, (options.scale ?? DEFAULT_TEXT_WATERMARK_SCALE) * longestEdge(image));
   const draft = createTextLayer({ x: 0, y: 0 }, options.text, {
     fontSize,
     color: options.colour ?? DEFAULT_TEXT_COLOUR,

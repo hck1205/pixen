@@ -1,3 +1,4 @@
+import { longestEdge } from "../../geometry/rect.js";
 import type { Canvas2D } from "../../image/canvas.js";
 import type { DrawOp } from "../ops/index.js";
 
@@ -28,7 +29,7 @@ export function drawVignette(context: Canvas2D, op: Extract<DrawOp, { op: "vigne
   const centreY = rect.y + rect.height / 2;
   // The gradient is circular, so it is drawn on a squared-up canvas and scaled
   // back to the rect — otherwise a wide image gets an oval.
-  const radius = Math.max(rect.width, rect.height) / 2;
+  const radius = longestEdge(rect) / 2;
 
   context.save();
   context.setTransform(1, 0, 0, 1, 0, 0);

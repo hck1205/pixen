@@ -1,11 +1,11 @@
-import type { EditorLayer, TextLayer } from "@pixen/core";
-import { button, field, input } from "../../dom/index.js";
+import { longestEdge, type EditorLayer, type TextLayer } from "@pixen/core";
+import { field, input, textButton } from "../../dom/index.js";
 import {
   CORNER_RATIO_RANGE,
   FONT_RATIO_RANGE,
   STROKE_WIDTH_RANGE,
 } from "../../constants.js";
-import { TEXT_PLATE_COLOUR, type AnnotationStyle } from "../../../tools/index.js";
+import { cornerRadiusFor, fontSizeFor, TEXT_PLATE_COLOUR, type AnnotationStyle } from "../../../tools/index.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
 import { styleControlsFor, type StyleControl, type StyleSubject } from "./style-controls.js";
@@ -44,10 +44,7 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             type: "color",
             value: style.colour,
             dataset: { field: "colour" },
-            onInput: (value) => {
-              context.actions.setAnnotationStyle({ colour: value });
-              if (selected) editor.updateLayer(selected.id, recolourPatch(selected, value));
-            },
+            onInput: (value) => apply({ colour: value }, selected ? recolourPatch(selected, value) : undefined),
           }),
         ),
       ];
@@ -65,10 +62,9 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             onInput: (value) => apply({ fill: value }, { fill: value }),
           }),
         ),
-        button({
+        textButton({
           label: `${strings.fillColour}: ${strings.fillNone}`,
           text: strings.fillNone,
-          className: "text",
           active: style.fill === null,
           onClick: () => apply({ fill: null }, { fill: null }),
         }),
@@ -90,10 +86,8 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 
     case "dash":
       return [
-        button({
-          label: strings.dash,
+        textButton({
           text: strings.dash,
-          className: "text",
           active: style.dashed,
           onClick: () => context.actions.setAnnotationStyle({ dashed: !style.dashed }),
         }),
@@ -108,13 +102,16 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             ...CORNER_RATIO_RANGE,
             value: String(style.cornerRatio),
             dataset: { field: "corner" },
+            // Through the same resolver the drawing gesture uses: a rectangle
+            // drawn and a rectangle edited must round by the same rule.
             onInput: (value) => {
-              const ratio = Number(value);
-              context.actions.setAnnotationStyle({ cornerRatio: ratio });
-              if (selected?.type === "rect") {
-                const shorter = Math.min(selected.frame.width, selected.frame.height);
-                editor.updateLayer(selected.id, { cornerRadius: ratio * shorter });
-              }
+              const cornerRatio = Number(value);
+              apply(
+                { cornerRatio },
+                selected?.type === "rect"
+                  ? { cornerRadius: cornerRadiusFor({ ...style, cornerRatio }, selected.frame) }
+                  : undefined,
+              );
             },
           }),
         ),
@@ -130,12 +127,13 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             value: String(style.fontRatio),
             dataset: { field: "font-size" },
             onInput: (value) => {
-              const ratio = Number(value);
-              context.actions.setAnnotationStyle({ fontRatio: ratio });
-              if (selected?.type === "text") {
-                const longestEdge = Math.max(editor.document.source.width, editor.document.source.height);
-                editor.updateLayer(selected.id, { fontSize: Math.max(8, longestEdge * ratio) });
-              }
+              const fontRatio = Number(value);
+              apply(
+                { fontRatio },
+                selected?.type === "text"
+                  ? { fontSize: fontSizeFor({ ...style, fontRatio }, longestEdge(editor.document.source)) }
+                  : undefined,
+              );
             },
           }),
         ),
@@ -143,10 +141,8 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 
     case "align":
       return ALIGNMENTS.map((alignment) =>
-        button({
-          label: strings[alignment.key],
+        textButton({
           text: strings[alignment.key],
-          className: "text",
           active: style.textAlign === alignment.value,
           onClick: () =>
             apply({ textAlign: alignment.value }, { align: alignment.value }),
@@ -155,10 +151,8 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 
     case "textPlate":
       return [
-        button({
-          label: strings.textPlate,
+        textButton({
           text: strings.textPlate,
-          className: "text",
           active: style.textPlate,
           onClick: () => {
             const next = !style.textPlate;
@@ -171,18 +165,14 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 
     case "arrowEnds":
       return [
-        button({
-          label: strings.arrowStart,
+        textButton({
           text: strings.arrowStart,
-          className: "text",
           active: style.arrowStart,
           onClick: () =>
             apply({ arrowStart: !style.arrowStart }, { arrowStart: !style.arrowStart }),
         }),
-        button({
-          label: strings.arrowEnd,
+        textButton({
           text: strings.arrowEnd,
-          className: "text",
           active: style.arrowEnd,
           onClick: () =>
             apply({ arrowEnd: !style.arrowEnd }, { arrowEnd: !style.arrowEnd }),

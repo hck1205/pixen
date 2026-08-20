@@ -163,6 +163,19 @@ export function scaleToFit(size: Size, limit: Size): Size {
 }
 
 /**
+ * The longer of a size's two edges.
+ *
+ * The measure almost every fraction in the model is expressed against — a
+ * stroke width, a frame inset, a watermark's scale, a redaction's strength —
+ * so that one setting suits a thumbnail and a 6000px export alike. Eleven
+ * places wrote the `Math.max` out, several of them into a variable already
+ * called `longestEdge`.
+ */
+export function longestEdge(size: Size): number {
+  return Math.max(size.width, size.height);
+}
+
+/**
  * A size a canvas can actually be: whole pixels, and never nothing.
  *
  * Seven places rounded and floored a pair of numbers by hand. A zero-width
