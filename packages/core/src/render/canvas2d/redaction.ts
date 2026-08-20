@@ -3,16 +3,17 @@ import { transformBounds } from "../../geometry/rect.js";
 import type { Matrix, Rect, Size } from "../../geometry/types.js";
 import { createSurface, releaseSurface, type Canvas2D, type CanvasSurface } from "../../image/canvas.js";
 import { supportsContextFilter } from "../adjustments.js";
+import { shuffleOrder } from "../scramble.js";
 import type { DrawOp } from "../ops/index.js";
 
 /**
  * Hiding what is already on the canvas.
  *
  * Unlike every other operation, these depend on what was drawn *before* them:
- * blur and pixelate read the pixels back. That is also why each of them can
- * fail — a tainted canvas cannot be read — and why every failure falls back to
- * the solid fill rather than to a hole. See docs/SECURITY.md for what each mode
- * does and does not promise.
+ * every mode but the solid fill reads the pixels back. That is also why each of
+ * them can fail — a tainted canvas cannot be read — and why every failure falls
+ * back to the solid fill rather than to a hole. See docs/SECURITY.md for what
+ * each mode does and does not promise.
  */
 export function obscureRegion(context: Canvas2D, op: Extract<DrawOp, { op: "obscure" }>, transform: Matrix): void {
   const { frame } = op;
@@ -35,7 +36,9 @@ export function obscureRegion(context: Canvas2D, op: Extract<DrawOp, { op: "obsc
   try {
     const strength = obscureStrength(op.strength, transform);
     const applied =
-      op.mode === "blur" ? blurRegion(context, clamped, strength) : pixelateRegion(context, clamped, strength);
+      op.mode === "blur"
+        ? blurRegion(context, clamped, strength)
+        : mosaicRegion(context, clamped, strength, op.mode === "scramble" ? op.seed : null);
     if (applied) return;
   } catch {
     // A tainted canvas cannot be read back; fall through to the solid fill.
@@ -137,16 +140,46 @@ function blurRegion(context: Canvas2D, region: Rect, radius: number): boolean {
   }
 }
 
-/** Averages each block down and draws it back with smoothing off. */
-function pixelateRegion(context: Canvas2D, region: Rect, blockSize: number): boolean {
+/**
+ * Averages each block down and draws it back — the whole of `pixelate`, and the
+ * first half of `scramble`.
+ *
+ * With a seed the mosaic is also shuffled before it goes back, and it goes back
+ * smoothed rather than hard-edged. Averaging destroys what was inside a block;
+ * shuffling destroys where each block was, which is what a brute force over a
+ * known font and layout otherwise still has to work with.
+ */
+function mosaicRegion(context: Canvas2D, region: Rect, blockSize: number, seed: number | null): boolean {
   const grid = blockGrid(region, blockSize);
   const surface = copyRegion(context, region, grid);
   try {
-    drawBack(context, surface, { x: 0, y: 0, ...grid }, region, false);
+    if (seed !== null) shuffleSurface(surface, seed);
+    drawBack(context, surface, { x: 0, y: 0, ...grid }, region, seed !== null);
     return true;
   } finally {
     releaseSurface(surface);
   }
+}
+
+/**
+ * Permutes the pixels of the mosaic, which are its blocks.
+ *
+ * Done at mosaic resolution on purpose: a few hundred pixels is one read and
+ * one write, where permuting the blocks at full size would be one `drawImage`
+ * per block on every frame of a drag.
+ */
+function shuffleSurface(surface: CanvasSurface, seed: number): void {
+  const { width, height } = surface.canvas;
+  const image = surface.context.getImageData(0, 0, width, height);
+  const order = shuffleOrder(width * height, seed);
+
+  // A copy, because the read and the write would otherwise overlap and each
+  // pixel moved would overwrite one not yet moved.
+  const source = new Uint32Array(image.data.buffer.slice(0));
+  const target = new Uint32Array(image.data.buffer);
+  for (let index = 0; index < order.length; index += 1) target[index] = source[order[index]!]!;
+
+  surface.context.putImageData(image, 0, 0);
 }
 
 /** How many blocks a region breaks into at this block size; at least one. */

@@ -45,6 +45,7 @@ export const en: PixenStrings = {
   redactSolid: "Solid",
   redactBlur: "Blur",
   redactPixelate: "Pixelate",
+  redactScramble: "Scramble",
   redactStrength: "Strength",
   opacity: "Opacity",
   rotation: "Rotation",

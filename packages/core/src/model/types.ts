@@ -96,7 +96,7 @@ export interface ImageLayer extends LayerBase {
  * the default; `blur` and `pixelate` obscure, and the difference matters when
  * the content is sensitive. See docs/SECURITY.md.
  */
-export const REDACTION_MODES = ["solid", "blur", "pixelate"] as const;
+export const REDACTION_MODES = ["solid", "blur", "pixelate", "scramble"] as const;
 export type RedactionMode = (typeof REDACTION_MODES)[number];
 
 export interface RedactLayer extends LayerBase {

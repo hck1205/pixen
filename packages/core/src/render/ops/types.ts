@@ -1,5 +1,5 @@
 import type { Matrix, Point, Rect } from "../../geometry/types.js";
-import type { Adjustments, FrameStyle } from "../../model/types.js";
+import type { Adjustments, FrameStyle, RedactionMode } from "../../model/types.js";
 
 /**
  * Drawing, expressed as data.
@@ -51,11 +51,17 @@ export type DrawOp =
        */
       op: "obscure";
       frame: Rect;
-      mode: "solid" | "blur" | "pixelate";
+      mode: RedactionMode;
       /** Blur radius or block size, in image-space units. */
       strength: number;
       /** Used by `solid`, and whenever the pixels cannot be read back. */
       colour: string;
+      /**
+       * Fixes the block order `scramble` uses. Derived from the layer, never
+       * from the moment of drawing: a preview that differs from the exported
+       * file is a bug, and both are rendered from the same document.
+       */
+      seed: number;
     }
   | { op: "clear"; width: number; height: number }
   | { op: "fill-viewport"; color: string; width: number; height: number }

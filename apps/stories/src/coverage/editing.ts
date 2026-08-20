@@ -129,6 +129,15 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
         evidence: [unit("layers.test.ts"), doc("docs/SECURITY.md")],
       },
       {
+        capability: "Scrambling",
+        layer: "Engine",
+        detail:
+          "Averages the region into blocks and then permutes them, so the arrangement a block-for-block " +
+          "comparison attack depends on is gone. The order comes from the layer's id, so preview and " +
+          "export always agree",
+        evidence: [unit("scramble.test.ts"), browser("editor.spec.ts"), doc("docs/SECURITY.md")],
+      },
+      {
         capability: "Strength survives a rotation",
         layer: "Engine",
         detail:

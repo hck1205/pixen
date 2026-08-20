@@ -7,9 +7,9 @@
  * Both are about the way out rather than the edit itself.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { srcset, type ExportHooks, type ExportVariant } from "@pixen/core";
+import { maskBlob, srcset, type ExportHooks, type ExportVariant } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
-import { seedStyling } from "./fixtures.js";
+import { seedAnnotations, seedStyling } from "./fixtures.js";
 import { Row, SeededEditor, Stage, formatBytes, useSampleImage } from "./harness.js";
 import { codeBlock, hostButton, logList, note, panelTitle, table, tableCell, tableHeader } from "./styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
@@ -206,3 +206,59 @@ export const Pipeline: Story = () => {
 
 /** A log that scrolls forever is a log nobody reads. */
 const PIPELINE_LOG_LIMIT = 8;
+
+/**
+ * The marked areas, as a picture of their own.
+ *
+ * A model outside the browser — inpainting, background removal, a selective
+ * adjustment — needs to be told which part of the image to work on, and the
+ * shapes for that already exist because someone drew them. Draw a rectangle or
+ * two over the picture and the mask follows, with the photograph taken out.
+ */
+export const Mask: Story = () => {
+  const image = useSampleImage();
+  const handle = useRef<PixenImageEditorHandle>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [padding, setPadding] = useState(0.01);
+
+  async function build(): Promise<void> {
+    const editor = handle.current?.editor;
+    if (!editor) return;
+    const blob = await maskBlob(editor.document, editor.resources, { padding });
+    setPreview((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return URL.createObjectURL(blob);
+    });
+  }
+
+  return (
+    <Row>
+      <Stage title="Mask" note="Draw a shape or two, then build the mask. An outline marks what it encloses.">
+        <SeededEditor image={image} seed={seedAnnotations} handle={handle} tool="rect" />
+      </Stage>
+      <section style={{ display: "grid", gap: 12, alignContent: "start" }}>
+        <h2 style={panelTitle}>Mask</h2>
+        <label style={note}>
+          Padding {(padding * 100).toFixed(1)}% of the longest edge
+          <input
+            type="range"
+            min={0}
+            max={0.05}
+            step={0.005}
+            value={padding}
+            onChange={(event) => setPadding(Number(event.target.value))}
+            style={{ display: "block", width: "100%" }}
+          />
+        </label>
+        <button type="button" onClick={() => void build()} style={{ ...hostButton, justifySelf: "start" }}>
+          Build the mask
+        </button>
+        {preview ? (
+          <img src={preview} alt="The mask" style={{ maxWidth: 260, justifySelf: "start" }} />
+        ) : (
+          <p style={note}>Nothing built yet.</p>
+        )}
+      </section>
+    </Row>
+  );
+};

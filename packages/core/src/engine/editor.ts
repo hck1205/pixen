@@ -25,6 +25,7 @@ import {
   type ExportOptions,
   type ExportResult,
 } from "../export/pipeline.js";
+import { renderMask, type MaskOptions } from "../export/mask.js";
 import { uploadExport, type UploadResponse, type UploadTarget } from "../export/upload.js";
 import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
 import {
@@ -42,7 +43,6 @@ import {
   createSession,
   reduce,
   type Intent,
-  type SessionEvent,
   type SessionState,
 } from "./session/index.js";
 import { TaskRunner, tracked, type TaskAttempt } from "./tasks/index.js";
@@ -335,7 +335,11 @@ export class Editor {
       throw outcome.error;
     }
     this.#session = outcome.value.state;
-    this.#emitEvents(outcome.value.events);
+    for (const emission of editorEmissions(outcome.value.events)) {
+      // The union is discriminated on `type`, but TypeScript cannot see that
+      // the payload still matches once the pair is packed into one value.
+      this.#emitter.emit(emission.type, emission.payload as never);
+    }
     return this;
   }
 
@@ -356,14 +360,6 @@ export class Editor {
       for (const intent of intents) this.dispatch(intent);
       return this;
     });
-  }
-
-  #emitEvents(events: readonly SessionEvent[]): void {
-    for (const emission of editorEmissions(events)) {
-      // The union is discriminated on `type`, but TypeScript cannot see that
-      // the payload still matches once the pair is packed into one value.
-      this.#emitter.emit(emission.type, emission.payload as never);
-    }
   }
 
   /** Escape hatch for a command this build's intent union does not model. */
@@ -682,6 +678,12 @@ export class Editor {
   renderToCanvas(options: { target?: Size; region?: "crop" | "stage" } = {}): CanvasSurface {
     this.#assertAlive();
     return renderDocumentToCanvas(this.document, this.resources, options);
+  }
+
+  /** The marked areas alone, for a model that works on part of a picture. */
+  renderMask(options: MaskOptions = {}): CanvasSurface {
+    this.#assertAlive();
+    return renderMask(this.document, this.resources, options);
   }
 
   /** JSON-safe snapshot; pair it with `restore` to resume a session. */

@@ -22,6 +22,7 @@ type EditorElement = HTMLElement & {
       body: string;
     }>;
     renderToCanvas(options?: Record<string, unknown>): { canvas: HTMLCanvasElement };
+    renderMask(options?: Record<string, unknown>): { canvas: HTMLCanvasElement };
   };
   viewport: { stageToScreen(point: { x: number; y: number }): { x: number; y: number } } | null;
   export(options?: Record<string, unknown>): Promise<{
@@ -263,7 +264,7 @@ test("blur and pixelate redactions really change the exported pixels", async ({ 
     const plain = await detailOf((await element.export({ format: "image/png" })).blob, region);
 
     const results: Record<string, number> = {};
-    for (const mode of ["blur", "pixelate", "solid"] as const) {
+    for (const mode of ["blur", "pixelate", "scramble", "solid"] as const) {
       const layer = { ...makeRedaction(frame), mode };
       element.editor.addLayer(layer, { select: false });
       results[mode] = await detailOf((await element.export({ format: "image/png" })).blob, region);
@@ -293,6 +294,7 @@ test("blur and pixelate redactions really change the exported pixels", async ({ 
   // Every mode has to destroy it.
   expect(measure.blur).toBeLessThan(measure.plain / 3);
   expect(measure.pixelate).toBeLessThan(measure.plain / 3);
+  expect(measure.scramble).toBeLessThan(measure.plain / 3);
   // A solid fill leaves nothing at all.
   expect(measure.solid).toBeLessThan(0.05);
 });
@@ -1693,4 +1695,126 @@ test("renderToCanvas hands over pixels without encoding them", async ({ page }) 
 
   expect(drawn.size).toEqual(drawn.output);
   expect(drawn.opaque).toBeGreaterThan(0);
+});
+
+/**
+ * A scrambled redaction has to be the same scramble every time.
+ *
+ * The preview and the exported file are drawn from the same document by the
+ * same code, so an order taken from the moment of drawing rather than from the
+ * document would give a host a file that does not match what its user approved.
+ */
+test("a scrambled redaction exports identically twice, and differs per layer", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+        removeLayer(id: string): void;
+      };
+    };
+
+    const bytesOf = async (blob: Blob) => new Uint8Array(await blob.arrayBuffer()).join(",");
+    const { width, height } = element.editor.document.source;
+    const frame = { x: width * 0.06, y: height * 0.12, width: width * 0.34, height: height * 0.2 };
+    const redaction = (id: string) => ({
+      id,
+      type: "redact" as const,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      frame,
+      mode: "scramble" as const,
+      strength: 0.03,
+      colour: "#12161c",
+    });
+
+    element.editor.addLayer(redaction("redact_one"), { select: false });
+    const first = await bytesOf((await element.export({ format: "image/png" })).blob);
+    const again = await bytesOf((await element.export({ format: "image/png" })).blob);
+    element.editor.removeLayer("redact_one");
+
+    element.editor.addLayer(redaction("redact_two"), { select: false });
+    const other = await bytesOf((await element.export({ format: "image/png" })).blob);
+    element.editor.removeLayer("redact_two");
+
+    return { repeatable: first === again, perLayer: first !== other };
+  });
+
+  expect(outcome.repeatable).toBe(true);
+  // A different layer gets a different arrangement, so two redactions side by
+  // side do not shuffle into the same pattern.
+  expect(outcome.perLayer).toBe(true);
+});
+
+/**
+ * A mask has to line up with the picture it came from.
+ *
+ * It is built by recolouring the same draw-op list the editor renders, so the
+ * crop, the output size and every layer's own rotation are already resolved —
+ * but "already resolved" is a claim about real pixels, and only a browser can
+ * check where they landed.
+ */
+test("a mask marks where the annotations are and nothing else", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const sampled = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+        renderMask(options?: Record<string, unknown>): { canvas: HTMLCanvasElement };
+      };
+    };
+
+    const { width, height } = element.editor.document.source;
+    // An outlined rectangle over the left third, nothing on the right.
+    element.editor.addLayer(
+      {
+        id: "marked",
+        type: "rect",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        rotation: 0,
+        frame: { x: width * 0.1, y: height * 0.2, width: width * 0.2, height: height * 0.3 },
+        stroke: { color: "#ef3e36", width: 6 },
+      },
+      { select: false },
+    );
+
+    const mask = element.editor.renderMask({ padding: 0.01 });
+    const context = mask.canvas.getContext("2d") as CanvasRenderingContext2D;
+    const at = (fx: number, fy: number) => {
+      const [r, g, b, a] = context.getImageData(
+        Math.round(mask.canvas.width * fx),
+        Math.round(mask.canvas.height * fy),
+        1,
+        1,
+      ).data;
+      return { r: r!, g: g!, b: b!, a: a! };
+    };
+
+    return {
+      size: { width: mask.canvas.width, height: mask.canvas.height },
+      output: element.editor.outputSize,
+      // Inside the rectangle, just outside it, and far away on the right.
+      inside: at(0.2, 0.35),
+      justOutside: at(0.305, 0.35),
+      elsewhere: at(0.85, 0.7),
+    };
+  });
+
+  expect(sampled.size).toEqual(sampled.output);
+  // An outline marks what it encloses, so the middle of the shape is white.
+  expect(sampled.inside).toMatchObject({ r: 255, g: 255, b: 255, a: 255 });
+  // The padding pushes the mark past the shape's own edge.
+  expect(sampled.justOutside.r).toBe(255);
+  // Everywhere else is background, and the photograph is not in it.
+  expect(sampled.elsewhere).toMatchObject({ r: 0, g: 0, b: 0, a: 255 });
 });

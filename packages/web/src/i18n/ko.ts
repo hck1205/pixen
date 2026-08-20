@@ -44,6 +44,7 @@ export const ko: PixenStrings = {
   redactSolid: "단색",
   redactBlur: "흐리게",
   redactPixelate: "모자이크",
+  redactScramble: "뒤섞기",
   redactStrength: "강도",
   opacity: "불투명도",
   rotation: "회전",

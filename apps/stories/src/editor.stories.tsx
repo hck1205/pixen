@@ -19,8 +19,9 @@ import type { Story, StoryDefault } from "@ladle/react";
 /** What each redaction mode actually promises, in the words the docs use. */
 const REDACTION_MODE_NOTES: Record<RedactionMode, string> = {
   solid: "Replaces the pixels. The only mode to use for an identifier.",
-  blur: "Obscures the pixels. Irreversible in the export, but not erasure.",
-  pixelate: "Averages blocks of pixels. Same caveat as blur.",
+  blur: "Softens the pixels. The weakest: a known radius can be partly undone.",
+  pixelate: "Averages blocks. Not invertible, but the arrangement is still there.",
+  scramble: "Averages blocks and shuffles them, so the arrangement goes too.",
 };
 
 /**

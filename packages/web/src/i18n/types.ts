@@ -42,6 +42,7 @@ export interface PixenStrings {
   redactSolid: string;
   redactBlur: string;
   redactPixelate: string;
+  redactScramble: string;
   redactStrength: string;
   opacity: string;
   rotation: string;

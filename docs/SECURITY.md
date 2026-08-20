@@ -23,25 +23,43 @@ Redaction rasterises into the exported pixels, not into an overlay: whatever a
 mode does, it does it to the file. The browser suite proves it by exporting a
 PNG, reading it back, and measuring the detail left in the region.
 
-The three modes do **not** make the same promise:
+The four modes do **not** make the same promise:
 
 | Mode | What it does | Safe for sensitive data |
 | --- | --- | --- |
 | `solid` (default) | Paints over the region. The original pixels are gone from the export | Yes |
+| `scramble` | Averages the region into blocks, then shuffles the blocks | No — obfuscation only |
 | `pixelate` | Averages the region into blocks | No — obfuscation only |
-| `blur` | Blurs the region | No — obfuscation only |
+| `blur` | Blurs the region | No — obfuscation only, and the weakest |
 
 `solid` is the default because it is the only one that removes information.
-Blurred and pixelated text can sometimes be recovered, especially when the
-attacker knows the font, the wording, or the block size; treat both as visual
-tidying, not as protection.
+Everything below it is ordered by how much work recovery takes, not by whether
+recovery is possible:
+
+- A **blur** is a linear filter with a known kernel. Given the radius, it can be
+  partly undone by deconvolution. It is the weakest of the three.
+- **Pixelating** averages each block, which is not invertible on its own — but
+  it leaves the *arrangement*. An attacker who knows the font and the wording
+  can render candidate text, pixelate it the same way, and compare block for
+  block until it matches. This is a published attack, not a theoretical one.
+- **Scrambling** averages the blocks and then permutes them, so a recovered
+  block has nowhere to go: the arrangement that the comparison attack depends on
+  is gone. The order is derived from the layer's own id, so the preview and the
+  exported file always agree — which also means it is not a secret. Someone with
+  the document can compute the same permutation and undo it.
+
+Treat all three as visual tidying. If the pixels must not leave the browser,
+use `solid`.
 
 Two implementation notes that matter for the guarantee:
 
-- `blur` and `pixelate` read the canvas back. A cross-origin source without CORS
-  taints the canvas, and an engine without canvas filters cannot blur — **both
-  fall back to the solid fill**, because a redaction that quietly does nothing is
-  the one outcome that must never happen.
+- Every mode except `solid` reads the canvas back. A cross-origin source without
+  CORS taints the canvas, and an engine without canvas filters cannot blur —
+  **all of them fall back to the solid fill**, because a redaction that quietly
+  does nothing is the one outcome that must never happen.
+- The strength is measured in image pixels and applied in device pixels, so it
+  travels through the render transform. A rotated picture is redacted exactly as
+  hard as an upright one.
 - The original file the user picked is untouched. If your application uploads
   both, redaction has bought you nothing.
 

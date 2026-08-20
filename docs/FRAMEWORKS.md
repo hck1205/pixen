@@ -310,6 +310,23 @@ the picture overflow). `preventUpscale` applies last and defaults to on.
 **Pixels without a file.** `renderToCanvas()` returns the drawn surface, for a
 texture upload, an `ImageData` read, or an encoder of your own.
 
+**Masks.** `renderMask()` returns the annotations alone, in two flat colours,
+with the photograph taken out — what a model outside the browser needs in order
+to work on part of an image:
+
+```js
+const mask = await maskBlob(editor.document, editor.resources, {
+  include: (layer) => layer.type === "rect",
+  padding: 0.01,
+});
+```
+
+It is built by recolouring the same draw-op list the editor renders, so the
+crop, the output size and every layer's rotation are already resolved. An
+outlined shape marks what it encloses rather than its outline, and `padding`
+grows every mark — inpainting wants a margin, or a halo of the original is left
+behind.
+
 ## Server rendering checklist
 
 | Framework | What to do |

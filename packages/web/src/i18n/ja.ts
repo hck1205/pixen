@@ -47,6 +47,7 @@ export const ja: PixenStrings = {
   redactSolid: "塗りつぶし",
   redactBlur: "ぼかし",
   redactPixelate: "モザイク",
+  redactScramble: "スクランブル",
   redactStrength: "強さ",
   opacity: "不透明度",
   rotation: "回転",

@@ -47,6 +47,7 @@ export const de: PixenStrings = {
   redactSolid: "Deckend",
   redactBlur: "Weichzeichnen",
   redactPixelate: "Verpixeln",
+  redactScramble: "Verwürfeln",
   redactStrength: "Stärke",
   opacity: "Deckkraft",
   rotation: "Drehung",

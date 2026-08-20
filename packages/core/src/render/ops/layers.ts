@@ -13,6 +13,7 @@ import type {
   Stroke,
   TextLayer,
 } from "../../model/types.js";
+import { seedFrom } from "../scramble.js";
 import type { SceneLayerNode } from "../scene.js";
 import { fontFor, LINE_HEIGHT_RATIO, wrapLines } from "./text.js";
 import type { DrawOp, PathCommand, StrokeStyle, TextMeasurer } from "./types.js";
@@ -186,6 +187,7 @@ export function redactLayerOps(layer: RedactLayer, imageLongestEdge: number): Dr
       mode: layer.mode,
       strength: Math.max(1, layer.strength * imageLongestEdge),
       colour: layer.colour,
+      seed: seedFrom(layer.id),
     },
   ];
 }

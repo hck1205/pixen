@@ -47,6 +47,7 @@ export const zh: PixenStrings = {
   redactSolid: "实心",
   redactBlur: "模糊",
   redactPixelate: "像素化",
+  redactScramble: "打乱",
   redactStrength: "强度",
   opacity: "不透明度",
   rotation: "旋转",

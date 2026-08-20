@@ -84,6 +84,14 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
         evidence: [unit("upload.test.ts"), browser("editor.spec.ts"), doc("docs/FRAMEWORKS.md")],
       },
       {
+        capability: "Masks from the marks",
+        layer: "Engine",
+        detail:
+          "renderMask draws the annotations alone in two flat colours, with padding, for an inpainting " +
+          "or background-removal round trip — built by recolouring the draw-op list, not by re-deriving it",
+        evidence: [unit("mask.test.ts"), browser("editor.spec.ts"), story("Mask"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
         capability: "Pixels without a file",
         layer: "Engine",
         detail: "renderToCanvas hands over the drawn surface, for a texture upload or an encoder of your own",

@@ -49,6 +49,7 @@ export const ar: PixenStrings = {
   redactSolid: "صلب",
   redactBlur: "تمويه",
   redactPixelate: "تبكسل",
+  redactScramble: "تشويش",
   redactStrength: "الشدة",
   opacity: "العتامة",
   rotation: "التدوير",
