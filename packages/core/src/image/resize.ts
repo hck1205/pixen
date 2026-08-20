@@ -87,6 +87,40 @@ export function stepDownPasses(source: Size, target: Size, maxPasses = 6): numbe
   return Math.min(maxPasses, Math.floor(Math.log2(factor)));
 }
 
+/**
+ * The size to pre-shrink a source to before a small export is drawn from it,
+ * or `null` when drawing from the source itself is already fine.
+ *
+ * An export draws a *region* of the source — the crop — onto the target, so how
+ * far the pixels are being shrunk is the crop's ratio to the target, not the
+ * whole bitmap's. But what gets pre-shrunk is the whole bitmap, because the
+ * scene still has to place the crop, the rotation and every annotation against
+ * it. So the shrink factor is read from the crop and applied to the source.
+ *
+ * `null` rather than "the source size" so the caller cannot accidentally make a
+ * pointless full-size copy of the bitmap, which on a large photograph is tens of
+ * megabytes for no change in the result.
+ */
+export function standInSize(source: Size, crop: Size, target: Size): Size | null {
+  if (stepDownPasses(crop, target) === 0) return null;
+
+  // Sized so the crop lands at the target's own pixels: any smaller and the
+  // stand-in would itself be the thing losing detail.
+  const fit = Math.min(1, target.width / crop.width, target.height / crop.height);
+  const width = Math.max(1, Math.round(source.width * fit));
+
+  // A stand-in that is not actually smaller is a full-size copy of the bitmap
+  // for no change in the result — tens of megabytes on a large photograph.
+  const scale = width / source.width;
+  if (scale >= 1) return null;
+
+  // The height follows the width's *rounded* scale rather than `fit`, because
+  // the scene is told a single number for both. Rounding the two independently
+  // would leave the stand-in a fraction off the source's aspect ratio, and the
+  // scene would draw that fraction as a stretch.
+  return { width, height: Math.max(1, Math.round(source.height * scale)) };
+}
+
 function configureSmoothing(context: Canvas2D): void {
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";

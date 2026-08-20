@@ -1556,6 +1556,83 @@ test.describe("multi-touch", () => {
 });
 
 /**
+ * The resampling seam, and the rule for when it opens.
+ *
+ * A host only reaches for its own downscaler because it does not trust the
+ * browser's, so two things have to be true: it is asked at the moment a large
+ * reduction is about to happen, and what it hands back is what gets drawn. Both
+ * need real pixels — the second is only visible in the exported file.
+ */
+test("the resample hook is offered a large downscale, and its pixels are the ones exported", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const result = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const asked: Array<{ from: { width: number }; to: { width: number; height: number } }> = [];
+
+    const resample = (
+      _source: CanvasImageSource,
+      from: { width: number; height: number },
+      to: { width: number; height: number },
+    ) => {
+      asked.push({ from, to });
+      // Flat green, so "the host's pixels were drawn" is unmistakable in the
+      // exported file — nothing in the photograph looks like this.
+      const stand = document.createElement("canvas");
+      stand.width = to.width;
+      stand.height = to.height;
+      const context = stand.getContext("2d")!;
+      context.fillStyle = "#00ff00";
+      context.fillRect(0, 0, to.width, to.height);
+      return stand;
+    };
+
+    // Crop to a square first, so the crop is a *part* of the frame: that is the
+    // only arrangement where "shrink the bitmap by the crop's factor" and
+    // "shrink the bitmap to the export size" are different numbers.
+    element.editor.setAspectRatio(1);
+    const source = element.editor.document.source.width;
+    const crop = element.editor.cropRect;
+    // Barely a reduction — three quarters of the crop — so one draw already
+    // samples it fairly and the hook has nothing to offer. It is not called.
+    await element.export({ width: Math.round(crop.width * 0.75), format: "image/png", hooks: { resample } } as never);
+    const afterModest = asked.length;
+
+    const exported = await element.export({ width: 64, format: "image/png", hooks: { resample } } as never);
+    const bitmap = await createImageBitmap(exported.blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+    const centre = canvas
+      .getContext("2d")!
+      .getImageData(Math.round(bitmap.width / 2), Math.round(bitmap.height / 2), 1, 1).data;
+
+    return { afterModest, asked, source, crop, exported: bitmap.width, centre: [centre[0], centre[1], centre[2]] };
+  });
+
+  // Not called for a modest reduction, where one draw is already fair.
+  expect(result.afterModest).toBe(0);
+  expect(result.asked).toHaveLength(1);
+
+  const [call] = result.asked;
+  expect(call!.from.width).toBe(result.source);
+  expect(result.crop.width).toBeLessThan(result.source);
+  // Asked for the whole bitmap at the shrink the *crop* needs, not for the
+  // export size — the scene still has to place the crop against it, so a bitmap
+  // shrunk to the export size would arrive already too small.
+  expect(call!.to.width).toBeGreaterThan(result.exported);
+  expect(call!.to.width).toBe(Math.round((result.source * result.exported) / result.crop.width));
+  expect(call!.to.width).toBeLessThan(call!.from.width);
+
+  // The host's green, not the photograph: what it returned is what was drawn.
+  expect(result.centre[0]).toBeLessThan(60);
+  expect(result.centre[1]).toBeGreaterThan(200);
+  expect(result.centre[2]).toBeLessThan(60);
+});
+
+/**
  * The pipeline a host bends: hooks, and delivery.
  *
  * Every one of these runs against real canvas pixels and a real request, which

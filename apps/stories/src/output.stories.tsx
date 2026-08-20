@@ -7,7 +7,7 @@
  * Both are about the way out rather than the edit itself.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { maskBlob, srcset, type ExportHooks, type ExportVariant } from "@pixen/core";
+import { createSurface, drawResized, maskBlob, srcset, type ExportHooks, type ExportVariant } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import { seedAnnotations, seedStyling } from "./fixtures.js";
 import { Row, SeededEditor, Stage, formatBytes, useSampleImage } from "./harness.js";
@@ -111,25 +111,40 @@ export const Variants: Story = () => {
 };
 
 /**
- * The four points an export can be bent, and where the file goes.
+ * The five points an export can be bent, and where the file goes.
  *
- * An export is: take a document, draw it, encode it, name it — and then hand it
- * somewhere. Every one of those is something an application eventually needs to
- * change, and every one of them is otherwise a fork of the library. Turn the
- * switches on and export: the picture that comes back has been bent at each
- * point in turn, and the upload below reports itself as it goes.
+ * An export is: take a document, shrink it, draw it, encode it, name it — and
+ * then hand it somewhere. Every one of those is something an application
+ * eventually needs to change, and every one of them is otherwise a fork of the
+ * library. Turn the switches on and export: the picture that comes back has been
+ * bent at each point in turn, and the upload below reports itself as it goes.
+ *
+ * `resample` is the one that is only sometimes called, which is the point of
+ * showing it here: it runs when the export is a large reduction and stays out of
+ * the way when it is not. Switch it on and the export drops to a thumbnail, so
+ * there is something for it to do.
  */
 export const Pipeline: Story = () => {
   const image = useSampleImage();
   const handle = useRef<PixenImageEditorHandle>(null);
   const [mask, setMask] = useState(true);
   const [stamp, setStamp] = useState(true);
+  const [shrink, setShrink] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
 
   const hooks: ExportHooks = {
     document: (source) =>
       stamp ? { ...source, adjustments: { ...source.adjustments, sepia: 1 } } : source,
+    resample: (source, from, to) => {
+      // Pixen leaves this to the browser, having measured that halving first
+      // buys nothing on Chromium. A host that has measured otherwise puts its
+      // own downscaler here — this one is Pixen's, exported for exactly that.
+      setLog((entries) => [...entries, `resample ${from.width}×${from.height} → ${to.width}×${to.height}`]);
+      const surface = createSurface(to.width, to.height);
+      drawResized(surface.context, source, from, to);
+      return surface.canvas;
+    },
     pixels: (surface, size) => {
       if (!mask) return;
       // A canvas, not a copy of the pixels: a circular mask is three drawing
@@ -148,7 +163,12 @@ export const Pipeline: Story = () => {
     const editor = handle.current?.editor;
     if (!editor) return;
     setLog([]);
-    const result = await editor.export({ format: "image/png", hooks });
+    const result = await editor.export({
+      format: "image/png",
+      // Only a real reduction reaches the resample hook, so give it one.
+      ...(shrink ? { width: THUMBNAIL_WIDTH } : {}),
+      hooks,
+    });
     setPreview((previous) => {
       if (previous) URL.revokeObjectURL(previous);
       return URL.createObjectURL(result.blob);
@@ -160,7 +180,7 @@ export const Pipeline: Story = () => {
     <Row>
       <Stage
         title="Pipeline"
-        note="The document, the pixels and the filename each pass through a host step on the way out."
+        note="The document, the downscale, the pixels and the filename each pass through a host step on the way out."
       >
         <PixenImageEditor
           ref={handle}
@@ -184,6 +204,10 @@ export const Pipeline: Story = () => {
           <input type="checkbox" checked={mask} onChange={(event) => setMask(event.target.checked)} /> pixels · cut a
           circular mask, and rename
         </label>
+        <label style={note}>
+          <input type="checkbox" checked={shrink} onChange={(event) => setShrink(event.target.checked)} /> resample ·
+          export a thumbnail through our own downscaler
+        </label>
         <button type="button" onClick={() => void run()} style={{ ...hostButton, justifySelf: "start" }}>
           Export through the hooks
         </button>
@@ -206,6 +230,8 @@ export const Pipeline: Story = () => {
 
 /** A log that scrolls forever is a log nobody reads. */
 const PIPELINE_LOG_LIMIT = 8;
+/** Small enough that the resample hook has something to do. */
+const THUMBNAIL_WIDTH = 240;
 
 /**
  * The marked areas, as a picture of their own.

@@ -258,11 +258,12 @@ Pixen ships no HEIC decoder. Every recent iPhone produces the format and no
 browser reads it, but bundling a decoder would put a megabyte in the build of
 every application that never sees one. The hook is where a host puts its own.
 
-**Writing.** `export` takes `hooks`, at the four points an export has:
+**Writing.** `export` takes `hooks`, at the five points an export has:
 
 | Hook | Gets | For |
 | --- | --- | --- |
 | `document` | the document about to be drawn | a stamp, a watermark only the export carries, placeholder text filled in |
+| `resample` | the source, and the size to shrink it to | your own downscaler, on a large reduction |
 | `pixels` | the drawn `CanvasSurface`, in place | a mask, a LUT, anything a canvas can draw |
 | `bytes` | the encoded `Blob` | a format the browser cannot write |
 | `filename` | the suggested name | whatever the storage layer dictates |
@@ -286,6 +287,37 @@ const { blob, filename } = await editor.export({
 `pixels` is handed the surface rather than a copy of the pixels. An `ImageData`
 round trip costs two full-size allocations and gives you an array to loop over;
 a canvas gives you every drawing primitive the platform has, for nothing.
+
+`resample` is the one hook that is only sometimes called: it runs when the
+export is a large reduction of the crop, and not otherwise. It exists because
+Pixen deliberately lets the browser do that downscale — measured on Chromium,
+halving in steps first lands no closer to the true area average and adds about
+half a second to a 24-megapixel export, so the cost is not imposed on everyone.
+If you have measured otherwise on the engines you ship to, or you want a filter
+the platform does not have, this is where it goes:
+
+```js
+import { drawResized, createSurface } from "@pixen/core";
+
+await editor.export({
+  width: 400,
+  hooks: {
+    resample: (source, from, to) => {
+      const surface = createSurface(to.width, to.height);
+      drawResized(surface.context, source, from, to);
+      return surface.canvas;
+    },
+  },
+});
+```
+
+Note what it is asked for: the whole bitmap shrunk by the factor the *crop*
+needs, not the export's own size. The scene still has to place the crop, the
+straightening and every annotation against that bitmap, so one shrunk to the
+export size would arrive already too small. Returning a different size than `to`
+is safe — the picture lands in the same place regardless — it only changes the
+resolution the resampling happened at. See
+[BROWSER-SUPPORT.md](BROWSER-SUPPORT.md) for the measurement.
 
 **Delivery.** `exportTo` draws, encodes and uploads as one task, so
 `pixen-export-progress` covers all three and one cancel calls off whichever is

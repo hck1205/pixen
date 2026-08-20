@@ -98,5 +98,24 @@ the failure mode is an import-time crash rather than a render-time one.
   trip costs more than it saves; and the byte-budget search encodes on the main
   thread, because it tries up to five times and reading the canvas back for each
   attempt would cost more than the offload returns.
+- **Downscaling is left to the browser on export.** The standard advice for
+  shrinking an image by more than about half is to halve it in steps first, on
+  the grounds that a single `drawImage` keeps one sample per output pixel and
+  turns fine detail into aliasing. Pixen does that for the *preview*, where one
+  proxy is reused for every frame, and deliberately does not for the export.
+
+  The reason is a measurement rather than a preference. Rendering a 1-pixel
+  checkerboard and a fine stripe pattern down by factors of 20 and 32, upright
+  and rotated, Chromium's single draw and a chain of halvings were
+  indistinguishable; against an exactly computed area average, both were off by
+  the same amount. On a 6000 × 4000 source the halvings added roughly 560 ms per
+  export. Paying that on every browser to fix something one of them does not
+  have is the wrong default.
+
+  This is measured on Chromium only, which is the engine this repository can
+  drive. If you have measured otherwise on the engines you ship to, the
+  `resample` hook on `export()` puts your own downscaler in that exact place —
+  including Pixen's own `drawResized`, which is exported for it. See
+  [FRAMEWORKS.md](FRAMEWORKS.md).
 - **Very large images** are bounded at 268,435,456 pixels (16384 × 16384), above
   which `MEMORY_LIMIT` is raised rather than the tab being killed.

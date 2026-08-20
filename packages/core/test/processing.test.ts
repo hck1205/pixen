@@ -6,6 +6,7 @@ import {
   policyToProcessOptions,
   PRESETS,
   resolveSize,
+  standInSize,
   stepDownPasses,
   supportsTransparency,
 } from "@pixen/core";
@@ -61,6 +62,50 @@ describe("stepDownPasses", () => {
 
   it("stays within the pass cap", () => {
     expect(stepDownPasses({ width: 16384, height: 16384 }, { width: 1, height: 1 }, 3)).toBe(3);
+  });
+});
+
+describe("standInSize", () => {
+  const source = { width: 4000, height: 3000 };
+
+  it("leaves a modest reduction alone, because one draw already samples it fairly", () => {
+    expect(standInSize(source, source, { width: 2400, height: 1800 })).toBeNull();
+  });
+
+  it("shrinks the source when the export is much smaller", () => {
+    // 4000x3000 down to 200x150 is a factor of twenty; the stand-in puts the
+    // source at the size the crop needs, so the scene's own draw is 1:1.
+    expect(standInSize(source, source, { width: 200, height: 150 })).toEqual({ width: 200, height: 150 });
+  });
+
+  it("measures the reduction against the crop, not the whole bitmap", () => {
+    // A postage-stamp crop exported at 300px is barely a reduction at all, even
+    // though the source is thirteen times wider than the output.
+    expect(standInSize(source, { width: 400, height: 300 }, { width: 300, height: 225 })).toBeNull();
+  });
+
+  it("shrinks the whole bitmap by the crop's factor, since the scene still places the crop", () => {
+    // The crop is a quarter of the frame and is being shrunk eightfold, so the
+    // bitmap it is cut from shrinks eightfold too.
+    expect(standInSize(source, { width: 1000, height: 750 }, { width: 125, height: 94 })).toEqual({
+      width: 500,
+      height: 375,
+    });
+  });
+
+  it("never asks for a copy that is not smaller", () => {
+    // A one-pixel-wide source cannot shrink; a stand-in would be a copy.
+    expect(standInSize({ width: 1, height: 4000 }, { width: 4000, height: 4000 }, { width: 100, height: 100 })).toBeNull();
+  });
+
+  it("keeps the source's aspect ratio, since the scene is told one scale for both axes", () => {
+    // A thin strip, where rounding the width down to a whole pixel moves the
+    // scale a long way. Sizing the height from `fit` instead of from the width's
+    // rounded scale would give 1x100 here — the same picture, squashed threefold.
+    expect(standInSize({ width: 3, height: 900 }, { width: 900, height: 900 }, { width: 100, height: 100 })).toEqual({
+      width: 1,
+      height: 300,
+    });
   });
 });
 

@@ -40,8 +40,11 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
       {
         capability: "Downscaling quality",
         layer: "Engine",
-        detail: "Halving passes before the final draw, so fine detail averages instead of aliasing",
-        evidence: [unit("processing.test.ts")],
+        detail:
+          "The preview draws through halving passes; the export draws in one, because measured on " +
+          "Chromium the passes land no closer to the true area average and cost half a second on a " +
+          "24-megapixel source. A host that has measured otherwise supplies its own resampler",
+        evidence: [unit("processing.test.ts"), browser("editor.spec.ts"), doc("docs/BROWSER-SUPPORT.md")],
       },
       {
         capability: "Editor-free processing",
@@ -65,8 +68,9 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
         capability: "Export hooks",
         layer: "Engine",
         detail:
-          "Host steps at four points — the document before it is drawn, the drawn surface before it is " +
-          "encoded, the encoded bytes, and the filename — so bending an export is not a fork",
+          "Host steps at five points — the document before it is drawn, the source before a large " +
+          "downscale, the drawn surface before it is encoded, the encoded bytes, and the filename — " +
+          "so bending an export is not a fork",
         evidence: [browser("editor.spec.ts"), story("Pipeline"), doc("docs/FRAMEWORKS.md")],
       },
       {
