@@ -1,3 +1,4 @@
+import { boundsOf } from "../geometry/rect.js";
 import type { Point, Rect } from "../geometry/types.js";
 import { createId } from "../util/id.js";
 import {
@@ -181,14 +182,8 @@ export function layerBounds(layer: EditorLayer): Rect {
         height: Math.abs(layer.to.y - layer.from.y),
       };
     }
-    case "path": {
-      if (layer.points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-      const xs = layer.points.map((p) => p.x);
-      const ys = layer.points.map((p) => p.y);
-      const x = Math.min(...xs);
-      const y = Math.min(...ys);
-      return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
-    }
+    case "path":
+      return boundsOf(layer.points);
     case "text": {
       // Without a measuring context this is an estimate; the renderer refines it.
       const lines = layer.text.split("\n");

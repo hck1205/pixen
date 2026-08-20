@@ -128,6 +128,14 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
         detail: "Blur and pixelate obscure; the default is solid, and the documentation says why",
         evidence: [unit("layers.test.ts"), doc("docs/SECURITY.md")],
       },
+      {
+        capability: "Strength survives a rotation",
+        layer: "Engine",
+        detail:
+          "The strength is measured in image pixels and applied in device pixels, so it travels through " +
+          "the render transform — a rotated picture is redacted exactly as hard as an upright one",
+        evidence: [unit("redaction.test.ts")],
+      },
     ],
   },
   {

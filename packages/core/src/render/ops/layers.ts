@@ -1,5 +1,6 @@
 import { last } from "../../fp/function.js";
 import { compose, rotation, translation } from "../../geometry/matrix.js";
+import { boundsOf } from "../../geometry/rect.js";
 import type { Matrix, Point, Rect } from "../../geometry/types.js";
 import type {
   EditorLayer,
@@ -240,12 +241,8 @@ export function layerRotationCentre(layer: EditorLayer, measure: TextMeasurer): 
       return rectCentre(layer.frame);
     case "line":
       return { x: (layer.from.x + layer.to.x) / 2, y: (layer.from.y + layer.to.y) / 2 };
-    case "path": {
-      const xs = layer.points.map((point) => point.x);
-      const ys = layer.points.map((point) => point.y);
-      if (xs.length === 0) return { x: 0, y: 0 };
-      return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
-    }
+    case "path":
+      return rectCentre(boundsOf(layer.points));
     case "image":
     case "redact":
       return rectCentre(layer.frame);

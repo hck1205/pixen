@@ -1,6 +1,7 @@
-import { applyToPoint } from "../../geometry/matrix.js";
-import type { Matrix, Rect } from "../../geometry/types.js";
-import { createSurface, releaseSurface, type Canvas2D } from "../../image/canvas.js";
+import { meanScale } from "../../geometry/matrix.js";
+import { transformBounds } from "../../geometry/rect.js";
+import type { Matrix, Rect, Size } from "../../geometry/types.js";
+import { createSurface, releaseSurface, type Canvas2D, type CanvasSurface } from "../../image/canvas.js";
 import { supportsContextFilter } from "../adjustments.js";
 import type { DrawOp } from "../ops/index.js";
 
@@ -27,17 +28,14 @@ export function obscureRegion(context: Canvas2D, op: Extract<DrawOp, { op: "obsc
     return;
   }
 
-  const device = deviceRect(frame, transform);
   const canvas = context.canvas;
-  const clamped = clampRect(device, canvas.width, canvas.height);
+  const clamped = clampRect(transformBounds(transform, frame), canvas.width, canvas.height);
   if (clamped.width < 1 || clamped.height < 1) return;
 
   try {
-    const scale = Math.max(Math.abs(transform.a), Math.abs(transform.b));
+    const strength = obscureStrength(op.strength, transform);
     const applied =
-      op.mode === "blur"
-        ? blurRegion(context, clamped, op.strength * scale)
-        : pixelateRegion(context, clamped, op.strength * scale);
+      op.mode === "blur" ? blurRegion(context, clamped, strength) : pixelateRegion(context, clamped, strength);
     if (applied) return;
   } catch {
     // A tainted canvas cannot be read back; fall through to the solid fill.
@@ -46,19 +44,18 @@ export function obscureRegion(context: Canvas2D, op: Extract<DrawOp, { op: "obsc
   fillSolid();
 }
 
-/** Device-space bounding box of an image-space rect under `transform`. */
-function deviceRect(rect: Rect, transform: Matrix): Rect {
-  const corners = [
-    applyToPoint(transform, { x: rect.x, y: rect.y }),
-    applyToPoint(transform, { x: rect.x + rect.width, y: rect.y }),
-    applyToPoint(transform, { x: rect.x + rect.width, y: rect.y + rect.height }),
-    applyToPoint(transform, { x: rect.x, y: rect.y + rect.height }),
-  ];
-  const xs = corners.map((point) => point.x);
-  const ys = corners.map((point) => point.y);
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
-  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+/**
+ * A strength in image pixels, in the device pixels it will be applied in.
+ *
+ * It has to travel through the render transform, and which number is taken off
+ * that matrix matters: the first two terms are `s·cos θ` and `s·sin θ`, so the
+ * larger of them is `s` only when the picture is square to the canvas. At 45°
+ * it is 71% of `s`, which is a redaction quietly weaker than the one asked for
+ * — and quietly weaker is the worst kind for something whose whole job is to
+ * destroy information.
+ */
+export function obscureStrength(strength: number, transform: Matrix): number {
+  return strength * meanScale(transform);
 }
 
 function clampRect(rect: Rect, width: number, height: number): Rect {
@@ -72,6 +69,54 @@ function clampRect(rect: Rect, width: number, height: number): Rect {
   };
 }
 
+/**
+ * Copies a device-space region of the canvas into a surface of its own.
+ *
+ * Every mode here works the same way — take what is already drawn, change it,
+ * put it back — and the taking and the putting back are the same two calls each
+ * time. Getting either wrong, a stale transform or smoothing left on, is
+ * invisible until someone looks closely at a picture that was meant to hide
+ * something.
+ */
+function copyRegion(context: Canvas2D, region: Rect, target: Size, filter?: string): CanvasSurface {
+  const surface = createSurface(target.width, target.height);
+  if (filter) surface.context.filter = filter;
+  surface.context.imageSmoothingEnabled = true;
+  surface.context.drawImage(
+    context.canvas as CanvasImageSource,
+    region.x,
+    region.y,
+    region.width,
+    region.height,
+    0,
+    0,
+    target.width,
+    target.height,
+  );
+  return surface;
+}
+
+/** Draws part of a surface back over a device-space region, at identity. */
+function drawBack(context: Canvas2D, surface: CanvasSurface, from: Rect, region: Rect, smooth: boolean): void {
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.imageSmoothingEnabled = smooth;
+  context.drawImage(
+    surface.canvas as CanvasImageSource,
+    from.x,
+    from.y,
+    from.width,
+    from.height,
+    region.x,
+    region.y,
+    region.width,
+    region.height,
+  );
+  // Both the transform and the smoothing flag are part of the drawing state, so
+  // one `restore` puts both back and neither is reset by hand.
+  context.restore();
+}
+
 /** Blurs by sampling a margin around the region, so its edges do not darken. */
 function blurRegion(context: Canvas2D, region: Rect, radius: number): boolean {
   if (!supportsContextFilter(context)) return false;
@@ -82,35 +127,10 @@ function blurRegion(context: Canvas2D, region: Rect, radius: number): boolean {
     context.canvas.height,
   );
 
-  const surface = createSurface(source.width, source.height);
+  const surface = copyRegion(context, source, source, `blur(${radius}px)`);
   try {
-    surface.context.filter = `blur(${radius}px)`;
-    surface.context.drawImage(
-      context.canvas as CanvasImageSource,
-      source.x,
-      source.y,
-      source.width,
-      source.height,
-      0,
-      0,
-      source.width,
-      source.height,
-    );
-
-    context.save();
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.drawImage(
-      surface.canvas as CanvasImageSource,
-      region.x - source.x,
-      region.y - source.y,
-      region.width,
-      region.height,
-      region.x,
-      region.y,
-      region.width,
-      region.height,
-    );
-    context.restore();
+    const within = { x: region.x - source.x, y: region.y - source.y, width: region.width, height: region.height };
+    drawBack(context, surface, within, region, true);
     return true;
   } finally {
     releaseSurface(surface);
@@ -119,32 +139,21 @@ function blurRegion(context: Canvas2D, region: Rect, radius: number): boolean {
 
 /** Averages each block down and draws it back with smoothing off. */
 function pixelateRegion(context: Canvas2D, region: Rect, blockSize: number): boolean {
-  const columns = Math.max(1, Math.round(region.width / Math.max(1, blockSize)));
-  const rows = Math.max(1, Math.round(region.height / Math.max(1, blockSize)));
-
-  const surface = createSurface(columns, rows);
+  const grid = blockGrid(region, blockSize);
+  const surface = copyRegion(context, region, grid);
   try {
-    surface.context.imageSmoothingEnabled = true;
-    surface.context.drawImage(
-      context.canvas as CanvasImageSource,
-      region.x,
-      region.y,
-      region.width,
-      region.height,
-      0,
-      0,
-      columns,
-      rows,
-    );
-
-    context.save();
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.imageSmoothingEnabled = false;
-    context.drawImage(surface.canvas as CanvasImageSource, 0, 0, columns, rows, region.x, region.y, region.width, region.height);
-    context.imageSmoothingEnabled = true;
-    context.restore();
+    drawBack(context, surface, { x: 0, y: 0, ...grid }, region, false);
     return true;
   } finally {
     releaseSurface(surface);
   }
+}
+
+/** How many blocks a region breaks into at this block size; at least one. */
+function blockGrid(region: Rect, blockSize: number): Size {
+  const size = Math.max(1, blockSize);
+  return {
+    width: Math.max(1, Math.round(region.width / size)),
+    height: Math.max(1, Math.round(region.height / size)),
+  };
 }

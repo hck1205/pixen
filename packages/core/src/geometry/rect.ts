@@ -45,12 +45,23 @@ export function union(a: Rect, b: Rect): Rect {
 
 /** Axis-aligned bounding box of `r` after `m` is applied. */
 export function transformBounds(m: Matrix, r: Rect): Rect {
-  const points = corners(r).map((p) => applyToPoint(m, p));
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const minX = Math.min(...xs);
-  const minY = Math.min(...ys);
-  return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+  return boundsOf(corners(r).map((p) => applyToPoint(m, p)));
+}
+
+/**
+ * The axis-aligned box a set of points sits in.
+ *
+ * An empty set has no box, and the zero rect is the honest answer: there is
+ * nothing to bound, and every caller here treats a zero-size layer as one with
+ * nothing in it.
+ */
+export function boundsOf(points: readonly Point[]): Rect {
+  if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
 
 /**

@@ -6,3 +6,4 @@
  * pixels back, and the ones that shade by position.
  */
 export * from "./execute.js";
+export { obscureStrength } from "./redaction.js";

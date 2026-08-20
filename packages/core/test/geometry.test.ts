@@ -9,6 +9,7 @@ import {
   matrixEquals,
   multiply,
   rotation,
+  boundsOf,
   resolveSize,
   rotatedBounds,
   scaling,
@@ -171,5 +172,24 @@ describe("resolveSize fit", () => {
 
   it("ignores the fit when only one edge is given, which already keeps the ratio", () => {
     expect(resolveSize(landscape, { width: 400, fit: "cover" })).toEqual({ width: 400, height: 200 });
+  });
+});
+
+describe("boundsOf", () => {
+  it("boxes a set of points", () => {
+    expect(boundsOf([{ x: 10, y: 40 }, { x: -5, y: 12 }, { x: 3, y: 90 }])).toEqual({
+      x: -5,
+      y: 12,
+      width: 15,
+      height: 78,
+    });
+  });
+
+  it("gives a single point a box with no size", () => {
+    expect(boundsOf([{ x: 7, y: 9 }])).toEqual({ x: 7, y: 9, width: 0, height: 0 });
+  });
+
+  it("calls an empty set the zero rect, which is what every caller means by it", () => {
+    expect(boundsOf([])).toEqual({ x: 0, y: 0, width: 0, height: 0 });
   });
 });
