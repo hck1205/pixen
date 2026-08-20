@@ -49,6 +49,18 @@ function migrateV3ToV4(document: Record<string, unknown>): Record<string, unknow
   return { frame: null, ...document };
 }
 
+/**
+ * v4 -> v5 added the optional `clip`, the time range of a moving source.
+ *
+ * A v4 document is a still picture, and `null` is exactly "all of it", so this
+ * is a default rather than a change of meaning — the same shape as the frame
+ * before it. It is spread *after* the default so a document that somehow
+ * already carries one keeps it.
+ */
+function migrateV4ToV5(document: Record<string, unknown>): Record<string, unknown> {
+  return { clip: null, ...document };
+}
+
 export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
   if (migrations.has(fromVersion)) {
     throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
@@ -60,6 +72,7 @@ export function registerMigration(fromVersion: number, migration: DocumentMigrat
 migrations.set(1, migrateV1ToV2);
 migrations.set(2, migrateV2ToV3);
 migrations.set(3, migrateV3ToV4);
+migrations.set(4, migrateV4ToV5);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {

@@ -2,6 +2,7 @@ import { PixenError } from "../../errors/index.js";
 import { err, isErr, ok, type Result } from "../../fp/result.js";
 import type { Point, Rect } from "../../geometry/types.js";
 import { ADJUSTMENT_RANGES } from "../adjustments.js";
+import { MIN_CLIP_SECONDS, type ClipRange } from "../clip.js";
 import { REDACTION_COLOUR } from "../palette.js";
 import {
   DEFAULT_CORNER_RADIUS,
@@ -84,6 +85,29 @@ export const rect: Validator<Rect> = (value, path) => {
   if (isErr(parsed)) return parsed;
   if (parsed.value.width < 0 || parsed.value.height < 0) {
     return err(issue(path, "a rect with non-negative size", value));
+  }
+  return parsed;
+};
+
+const clipShape = object<ClipRange>({
+  start: field("start", finiteNumber),
+  end: field("end", finiteNumber),
+});
+
+/**
+ * A clip that runs backwards, or for no time at all, is not a clip.
+ *
+ * Rejected rather than sorted: `clampClip` sorts a *gesture*, where dragging one
+ * handle past the other is a thing people mean. A stored document that arrived
+ * inverted did not come from a gesture, and quietly repairing it would hide
+ * whatever wrote it.
+ */
+const clipRange: Validator<ClipRange> = (value, path) => {
+  const parsed = clipShape(value, path);
+  if (isErr(parsed)) return parsed;
+  const { start, end } = parsed.value;
+  if (start < 0 || end - start < MIN_CLIP_SECONDS) {
+    return err(issue(path, `a clip starting at or after 0 and lasting at least ${MIN_CLIP_SECONDS}s`, value));
   }
   return parsed;
 };
@@ -226,6 +250,7 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
         height: field("height", finiteNumber),
         name: field("name", optional(text)),
         mimeType: field("mimeType", optional(text)),
+        duration: field("duration", optional(finiteNumber)),
       }),
     ),
     transform: group("transform", {
@@ -234,6 +259,7 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
       flipY: field("flipY", withDefault(boolean, false)),
     }),
     crop: field("crop", nullable(rect)),
+    clip: field("clip", withDefault(nullable(clipRange), null)),
     aspectRatio: field("aspectRatio", nullable(finiteNumber)),
     adjustments: group("adjustments", adjustmentFields),
     frame: field("frame", nullable(frameSettings)),

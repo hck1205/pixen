@@ -6,6 +6,7 @@ export * from "./palette.js";
 export * from "./defaults.js";
 export * from "./text-metrics.js";
 export * from "./adjustments.js";
+export * from "./clip.js";
 export * from "./migrations.js";
 export * from "./serialize.js";
 export {

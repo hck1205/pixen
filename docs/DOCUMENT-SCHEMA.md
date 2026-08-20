@@ -6,10 +6,12 @@ migratable from v1.
 
 ```jsonc
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "source": { "resourceId": "res_1a2b", "width": 4000, "height": 3000, "name": "beach.jpg", "mimeType": "image/jpeg" },
+                                                                     // "duration": 12.5 as well, for a source that runs
   "transform": { "rotation": 0, "flipX": false, "flipY": false },   // radians, clockwise
   "crop": { "x": 0, "y": 0, "width": 4000, "height": 3000 },        // stage space, or null
+  "clip": null,                                                      // { "start": 2, "end": 7 } in seconds, or null
   "aspectRatio": 1.7777777777777777,                                 // locked ratio, or null
   "adjustments": { "exposure": 0, "brightness": 0, "contrast": 0, "saturation": 0,
                    "hue": 0, "grayscale": 0, "sepia": 0, "invert": 0, "vignette": 0 },
@@ -31,6 +33,12 @@ migratable from v1.
 - **`meta` is yours.** Pixen never reads it and always round-trips it.
 - **Layer geometry is image space.** Rotating or flipping the image does not
   rewrite a single layer coordinate.
+- **A clip is to time what a crop is to space**, and is stored the same way: an
+  absolute range in seconds against a source that states its own `duration`, not
+  a pair of fractions. `[0.5, 0.7]` of a source whose length you have not got is
+  not a range, and the moment the picture underneath is replaced by one of a
+  different length it silently means something else. `null` is the whole of it,
+  which is what a photograph always has.
 
 ## Layers
 
@@ -110,7 +118,7 @@ one, applying each registered step in order:
 ```js
 import { registerMigration } from "@pixen/core";
 
-registerMigration(4, (document) => ({ ...document, /* v4 -> v5 changes */ }));
+registerMigration(5, (document) => ({ ...document, /* v5 -> v6 changes */ }));
 ```
 
 Shipped so far:
@@ -119,6 +127,8 @@ Shipped so far:
 | --- | --- |
 | v1 → v2 | Added the `image` and `redact` layer types. Nothing in a v1 document changes, but the version moves so that a v1 build refuses a v2 document rather than dropping a redaction it cannot render |
 | v2 → v3 | Widened `adjustments` from three values to nine. The new ones are filled in neutral, so a v2 document looks exactly as it did |
+| v3 → v4 | Added the optional `frame`. A v3 document had none, and `null` is exactly that |
+| v4 → v5 | Added the optional `clip`, and `duration` on the source. A v4 document is a still picture, and `null` is exactly "all of it" |
 
 - A document from a **newer** build fails with `UNSUPPORTED_SCHEMA_VERSION`
   rather than being partially understood.

@@ -10,6 +10,7 @@ import { PixenError } from "../../errors/index.js";
 import { compose, scaling } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
 import { clampAdjustments } from "../../model/adjustments.js";
+import { clampClip, type ClipRange } from "../../model/clip.js";
 import { DEFAULT_FRAME, MAX_FRAME_WIDTH, MIN_FRAME_WIDTH } from "../../model/defaults.js";
 import { clamp } from "../../fp/function.js";
 import { layerBounds } from "../../model/layers.js";
@@ -82,11 +83,26 @@ export function replaceSource(document: EditorDocument, source: SourceDescriptor
   };
 }
 
+/**
+ * Sets the kept time range, or clears it back to the whole source.
+ *
+ * Clamped against the source's own duration rather than taken as given: the
+ * range usually arrives from a dragged handle, and a handle can be dragged past
+ * the end of the picture. A source with no duration is a still one, where the
+ * only honest answer is that it has no clip at all.
+ */
+export function setClip(document: EditorDocument, range: ClipRange | null): EditorDocument {
+  const duration = document.source.duration;
+  if (range === null || duration === undefined) return { ...document, clip: null };
+  return { ...document, clip: clampClip(range, duration) };
+}
+
 export function resetEdits(document: EditorDocument): EditorDocument {
   return {
     ...document,
     transform: { rotation: 0, flipX: false, flipY: false },
     crop: null,
+    clip: null,
     aspectRatio: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
     frame: null,

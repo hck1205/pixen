@@ -2,6 +2,7 @@ import type { CropHandle } from "../../geometry/crop.js";
 import type { Point, Rect } from "../../geometry/types.js";
 import type { ResizeIntent } from "../../image/resize.js";
 import { resolveSize } from "../../image/resize.js";
+import type { ClipRange } from "../../model/clip.js";
 import { cloneDocument, effectiveCrop } from "../../model/document.js";
 import type { LayerHandle } from "../../model/transform.js";
 import type {
@@ -37,6 +38,7 @@ export type Intent =
   | { kind: "drag-crop-handle"; handle: CropHandle; pointer: Point; minSize?: number }
   | { kind: "pan-crop"; delta: Point }
   | { kind: "set-aspect-ratio"; ratio: number | null }
+  | { kind: "set-clip"; range: ClipRange | null }
   | { kind: "set-adjustments"; adjustments: Partial<Adjustments> }
   | { kind: "set-output"; output: Partial<OutputSettings> }
   | { kind: "set-frame"; frame: Partial<FrameSettings> | null }
@@ -121,6 +123,12 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
       };
     case "pan-crop":
       return { reason: "crop-pan", label: "Move crop", transform: (d) => commands.panCrop(d, intent.delta) };
+    case "set-clip":
+      return {
+        reason: "clip",
+        label: intent.range ? "Trim" : "Reset trim",
+        transform: (d) => commands.setClip(d, intent.range),
+      };
     case "set-aspect-ratio":
       return {
         reason: "aspect-ratio",

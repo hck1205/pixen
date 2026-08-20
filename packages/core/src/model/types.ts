@@ -1,7 +1,8 @@
 import type { Point, Rect } from "../geometry/types.js";
+import type { ClipRange } from "./clip.js";
 import { DEFAULT_QUALITY } from "./defaults.js";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -126,6 +127,14 @@ export interface SourceDescriptor {
   /** Best-effort provenance, useful for filenames on export. */
   name?: string;
   mimeType?: string;
+  /**
+   * Seconds, for a source that runs rather than sits still.
+   *
+   * Absent for a photograph, which is the case this package was built for. It
+   * lives beside `width` and `height` because it is the same kind of fact: how
+   * far the source extends in one of its dimensions.
+   */
+  duration?: number;
 }
 
 export interface DocumentTransform {
@@ -197,6 +206,11 @@ export interface EditorDocument {
   transform: DocumentTransform;
   /** Stage-space crop region. Absent means "the whole stage". */
   crop: Rect | null;
+  /**
+   * The kept part of a moving source, in seconds. Absent means all of it, and
+   * is what a still picture always has. See `model/clip.ts`.
+   */
+  clip: ClipRange | null;
   /** Locked crop ratio, kept in the document so a resumed session behaves the same. */
   aspectRatio: number | null;
   adjustments: Adjustments;

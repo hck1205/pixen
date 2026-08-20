@@ -19,6 +19,7 @@ export function createDocument(source: SourceDescriptor): EditorDocument {
     source: { ...source },
     transform: { rotation: 0, flipX: false, flipY: false },
     crop: null,
+    clip: null,
     aspectRatio: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
     frame: null,

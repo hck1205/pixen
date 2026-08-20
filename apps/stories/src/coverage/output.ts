@@ -131,7 +131,10 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
       {
         capability: "JSON document",
         layer: "Engine",
-        detail: `Schema v${SCHEMA_VERSION}; bitmaps live in the ResourceManager and are referenced by id`,
+        detail:
+          `Schema v${SCHEMA_VERSION}; bitmaps live in the ResourceManager and are referenced by id. A ` +
+          "clip is stored the way a crop is — an absolute range against a source that states its own " +
+          "extent, because a fraction of a length you have not got is not a range",
         evidence: [unit("document.test.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
       },
       {
