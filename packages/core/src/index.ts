@@ -20,7 +20,7 @@ export * from "./platform/support.js";
 export { Emitter, type Unsubscribe } from "./util/emitter.js";
 export { deepClone } from "./util/clone.js";
 export { createId } from "./util/id.js";
-export { chainAbort } from "./util/abort.js";
+export { chainAbort, throwIfAborted } from "./util/abort.js";
 export { progressRatio, type StepProgress, type StepReporter } from "./util/progress.js";
 
 export const VERSION = "0.1.0";

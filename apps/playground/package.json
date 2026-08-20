@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@pixen/core": "workspace:*",
-    "@pixen/web": "workspace:*"
+    "@pixen/web": "workspace:*",
+    "@pixen/video": "workspace:*"
   },
   "devDependencies": { "vite": "^6.0.5" }
 }

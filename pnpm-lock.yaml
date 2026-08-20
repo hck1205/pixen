@@ -26,6 +26,9 @@ importers:
       '@pixen/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@pixen/video':
+        specifier: workspace:*
+        version: link:../../packages/video
       '@pixen/web':
         specifier: workspace:*
         version: link:../../packages/web
@@ -91,6 +94,12 @@ importers:
       '@pixen/web':
         specifier: workspace:*
         version: link:../web
+
+  packages/video:
+    dependencies:
+      '@pixen/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/vue:
     dependencies:

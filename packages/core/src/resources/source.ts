@@ -17,5 +17,6 @@ export function sourceFromResource(resource: ImageResource): SourceDescriptor {
     height: resource.height,
     ...(resource.name ? { name: resource.name } : {}),
     ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+    ...(resource.duration === undefined ? {} : { duration: resource.duration }),
   };
 }

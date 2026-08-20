@@ -21,6 +21,14 @@ export interface ImageResource {
   /** Full-resolution, upright, drawable. */
   readonly source: CanvasImageSource;
   readonly blob: Blob | null;
+  /**
+   * Seconds, for a source that runs rather than sits still.
+   *
+   * Also the flag that it does. A resource with a duration is never proxied
+   * into a preview bitmap: a downscaled copy of a moving picture is one frame
+   * of it, held forever.
+   */
+  readonly duration?: number;
   readonly mimeType: string;
   readonly name?: string;
   readonly byteSize: number;
@@ -92,6 +100,8 @@ export class ResourceManager {
     mimeType?: string;
     name?: string;
     id?: string;
+    /** Seconds, for a source that runs. See `ImageResource.duration`. */
+    duration?: number;
   }): ImageResource {
     const resource: ImageResource = {
       id: input.id ?? createId("res"),
@@ -101,6 +111,7 @@ export class ResourceManager {
       blob: input.blob ?? null,
       mimeType: input.mimeType ?? "",
       ...(input.name ? { name: input.name } : {}),
+      ...(input.duration === undefined ? {} : { duration: input.duration }),
       byteSize: input.blob?.size ?? input.width * input.height * 4,
     };
     this.#entries.set(resource.id, {
@@ -173,6 +184,13 @@ export class ResourceManager {
 
     const { resource } = entry;
     const size: Size = { width: resource.width, height: resource.height };
+
+    // A moving source is drawn from directly, however large it is. The proxy
+    // exists to keep a 48-megapixel photograph interactive by drawing a smaller
+    // copy of it — and a copy of a video is one frame of it, so the picture
+    // would freeze the moment the proxy was built.
+    if (resource.duration !== undefined) return { source: resource.source, ...size, scale: 1 };
+
     const cached = entry.preview;
     const plan = planPreview(size, maxSize, cached ? entry.previewLimit : null);
     if (cached) {

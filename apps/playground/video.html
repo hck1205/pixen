@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pixen video playground</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Pixen<span>video</span></h1>
+      <p>Trim a clip, then export it. Recording runs at wall-clock speed and writes WebM.</p>
+    </header>
+
+    <main>
+      <section class="stage">
+        <pixen-image-editor id="editor" theme="dark"></pixen-image-editor>
+      </section>
+
+      <aside class="panel">
+        <h2>Clip</h2>
+        <p id="clip-status" class="note" role="status" aria-live="polite">No video open.</p>
+        <button id="open-sample" type="button">Open a generated clip</button>
+        <button id="export-clip" type="button" disabled>Export the clip</button>
+        <p id="export-status" class="note" role="status" aria-live="polite">—</p>
+        <video id="result" controls muted playsinline hidden></video>
+      </aside>
+    </main>
+
+    <script type="module" src="./src/video.ts"></script>
+  </body>
+</html>
