@@ -50,9 +50,6 @@ export const EXEMPT = {
   // which is what the working agreement says a class is for; the overlay's
   // decision and the multi-touch bookkeeping have been lifted out of it.
   "packages/web/src/viewport/viewport.ts": 473,
-  // Every document mutation as a pure function, one per operation. The list is
-  // long because the vocabulary is; each entry is a handful of lines.
-  "packages/core/src/engine/commands.ts": 333,
 };
 
 const SOURCE = /^(packages|apps)\/[^/]+\/src\/.*\.tsx?$/;

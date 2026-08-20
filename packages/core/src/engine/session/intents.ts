@@ -11,7 +11,7 @@ import type {
   FrameSettings,
   OutputSettings,
 } from "../../model/types.js";
-import * as commands from "../commands.js";
+import * as commands from "../commands/index.js";
 import type { HistorySummary } from "../history.js";
 
 /**

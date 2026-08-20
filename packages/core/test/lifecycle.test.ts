@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { replaceSource } from "../src/engine/commands.js";
+import { replaceSource } from "../src/engine/commands/index.js";
 import { createDocument } from "../src/model/document.js";
 import { createStickerLayer } from "../src/export/placement.js";
 import { center } from "../src/geometry/rect.js";

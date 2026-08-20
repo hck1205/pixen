@@ -1,5 +1,5 @@
 import { PixenError, toPixenError } from "../errors/index.js";
-import * as commands from "./commands.js";
+import * as commands from "./commands/index.js";
 import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
