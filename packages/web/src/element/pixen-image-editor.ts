@@ -410,6 +410,14 @@ export class PixenImageEditorElement extends ElementBase {
 
   // --- imperative API ------------------------------------------------------
 
+  /**
+   * The token is not the same guard as the engine's.
+   *
+   * The engine aborts a superseded decode, which stops it wasting work. This
+   * stops the *continuation* of a superseded load — applying the policy, the
+   * format, the busy state — from running against an editor that has moved on.
+   * Both are needed; neither replaces the other.
+   */
   async load(input: Parameters<Editor["load"]>[0]): Promise<void> {
     const token = ++this.#loadToken;
     this.#setBusy(true);

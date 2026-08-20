@@ -1,4 +1,4 @@
-import { PixenError, toPixenError } from "../errors/index.js";
+import { PixenError, toPixenError, type PixenErrorCode } from "../errors/index.js";
 import { chainAbort } from "../util/abort.js";
 import * as commands from "./commands.js";
 import type { CropHandle } from "../geometry/crop.js";
@@ -166,6 +166,25 @@ export class Editor {
     return this.#emitter.on(event, listener);
   }
 
+  /**
+   * Runs asynchronous work, and makes any failure of it an editor error.
+   *
+   * Every async entry point owes the host the same two things when something
+   * goes wrong: an error on the event channel, for the interface that is
+   * listening, and a rejection, for the caller that is awaiting. Five of them
+   * had their own copy of that pair, which is five chances to announce a
+   * failure to only half the audience.
+   */
+  async #attempt<T>(code: PixenErrorCode, message: string, work: () => Promise<T>): Promise<T> {
+    try {
+      return await work();
+    } catch (cause) {
+      const error = toPixenError(cause, code, message);
+      this.#emitter.emit("error", error);
+      throw error;
+    }
+  }
+
   // --- loading -------------------------------------------------------------
 
   /**
@@ -182,12 +201,10 @@ export class Editor {
     this.#loading = attempt;
 
     try {
-      const resource = await this.resources.load(input, { ...options, signal: attempt.signal });
-      return this.open(resource);
-    } catch (cause) {
-      const error = toPixenError(cause, "INVALID_IMAGE", "The image could not be loaded");
-      this.#emitter.emit("error", error);
-      throw error;
+      return await this.#attempt("INVALID_IMAGE", "The image could not be loaded", async () => {
+        const resource = await this.resources.load(input, { ...options, signal: attempt.signal });
+        return this.open(resource);
+      });
     } finally {
       if (this.#loading === attempt) this.#loading = null;
     }
@@ -213,7 +230,7 @@ export class Editor {
     this.#assertAlive();
     const previous = this.session.document.source.resourceId;
 
-    try {
+    return this.#attempt("INVALID_IMAGE", "The image could not be replaced", async () => {
       const resource = await this.resources.load(input, options);
       this.dispatch({
         kind: "transform",
@@ -233,11 +250,7 @@ export class Editor {
       // new bitmap, the old one is still the one being drawn.
       if (this.document.source.resourceId !== previous) this.resources.release(previous);
       return this.document;
-    } catch (cause) {
-      const error = toPixenError(cause, "INVALID_IMAGE", "The image could not be replaced");
-      this.#emitter.emit("error", error);
-      throw error;
-    }
+    });
   }
 
   /**
@@ -249,6 +262,10 @@ export class Editor {
    */
   close(): this {
     this.#assertAlive();
+    // A load, but not an export. A load in flight is about to fill the editor
+    // that is being emptied, so letting it land would undo the close. An export
+    // is the opposite: "save and close" is an ordinary thing to ask for, and
+    // cancelling it would make the save silently fail.
     this.cancelLoad();
     if (!this.#session) return this;
 
@@ -284,7 +301,7 @@ export class Editor {
    */
   async restore(input: unknown, image?: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     this.#assertAlive();
-    try {
+    return this.#attempt("INVALID_DOCUMENT", "The document could not be restored", async () => {
       const document = deserializeDocument(input);
 
       if (!this.resources.has(document.source.resourceId)) {
@@ -311,11 +328,7 @@ export class Editor {
       }
 
       return this.#start(document, this.resources.require(document.source.resourceId));
-    } catch (cause) {
-      const error = toPixenError(cause, "INVALID_DOCUMENT", "The document could not be restored");
-      this.#emitter.emit("error", error);
-      throw error;
-    }
+    });
   }
 
   #start(document: EditorDocument, resource: ImageResource): EditorDocument {
@@ -647,11 +660,9 @@ export class Editor {
     this.#exporting = attempt;
 
     try {
-      return await exportDocument(this.document, this.resources, { ...options, signal: attempt.signal });
-    } catch (cause) {
-      const error = toPixenError(cause, "EXPORT_FAILED", "The image could not be exported");
-      this.#emitter.emit("error", error);
-      throw error;
+      return await this.#attempt("EXPORT_FAILED", "The image could not be exported", () =>
+        exportDocument(this.document, this.resources, { ...options, signal: attempt.signal }),
+      );
     } finally {
       if (this.#exporting === attempt) this.#exporting = null;
     }
@@ -678,13 +689,9 @@ export class Editor {
    */
   async exportVariants(specs: readonly VariantSpec[], options: ExportOptions = {}): Promise<ExportVariant[]> {
     this.#assertAlive();
-    try {
-      return await exportVariants(this.document, this.resources, specs, options);
-    } catch (cause) {
-      const error = toPixenError(cause, "EXPORT_FAILED", "The image could not be exported");
-      this.#emitter.emit("error", error);
-      throw error;
-    }
+    return this.#attempt("EXPORT_FAILED", "The image could not be exported", () =>
+      exportVariants(this.document, this.resources, specs, options),
+    );
   }
 
   /** JSON-safe snapshot; pair it with `restore` to resume a session. */
