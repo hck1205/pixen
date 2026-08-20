@@ -238,6 +238,53 @@ editor.crop({ aspectRatio: 1 }).resize({ width: 1024 });
 const { blob } = await editor.export({ format: "image/webp" });
 ```
 
+## Styling it, and replacing its chrome
+
+The element is a shadow root, so a page's stylesheet does not reach inside it.
+Two named surfaces are how it is meant to be reached instead, and both are API:
+renaming one is a breaking change, and a browser test pins the list.
+
+**Parts** are styled from outside with `::part()`:
+
+| Part | What it is |
+| --- | --- |
+| `root` | The whole editor box |
+| `canvas` | The picture itself |
+| `tool-rail` | The row of tools |
+| `actions` | Undo, redo, export — the buttons that act on the picture |
+| `inspector` | The panel of options for whatever is selected |
+| `busy` | The status pill shown while something is loading or exporting |
+| `empty` | The empty state, before an image is loaded |
+| `dropzone` | The overlay shown while a file is dragged over the editor |
+| `text-input` | The field a caption is typed into, over the canvas |
+
+```css
+pixen-image-editor::part(tool-rail) {
+  border-radius: 0;
+}
+```
+
+**Slots** replace a piece of chrome entirely with your own:
+
+| Slot | Replaces |
+| --- | --- |
+| `tools` | The tool rail |
+| `actions` | The action buttons |
+| `inspector` | The options panel |
+
+```html
+<pixen-image-editor>
+  <div slot="actions">
+    <button onclick="save()">Save to library</button>
+  </div>
+</pixen-image-editor>
+```
+
+A slot with nothing in it keeps Pixen's own chrome, so you replace only what you
+mean to. For adding to the chrome rather than replacing it, see
+[PLUGINS.md](PLUGINS.md) — a plugin contributes buttons and inspector sections
+without taking over the panel they sit in.
+
 ## Bending the way in and the way out
 
 Two places an application usually has to change something, and neither should

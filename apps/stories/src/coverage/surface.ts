@@ -46,8 +46,11 @@ export const SURFACE_COVERAGE: CoverageGroup[] = [
       {
         capability: "Slots and parts",
         layer: "Element",
-        detail: "Host-supplied toolbar, actions and inspector content; named parts for styling",
-        evidence: [story("Slots")],
+        detail:
+          "Three slots replace the toolbar, the actions and the inspector; nine parts style everything " +
+          "from the root to the drop overlay. Both are API — a browser test pins the exact names, " +
+          "because a renamed part breaks a host's CSS without erroring anywhere",
+        evidence: [browser("editor.spec.ts"), story("Slots"), doc("docs/FRAMEWORKS.md")],
       },
       {
         capability: "Small hosts",

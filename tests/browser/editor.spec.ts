@@ -1671,6 +1671,60 @@ test("all eight EXIF orientations open upright, whatever the browser did first",
 });
 
 /**
+ * The names a host styles and slots into, pinned.
+ *
+ * `template.ts` says it in a comment — "renaming one is a breaking change" — and
+ * CLAUDE.md counts `part` and slot names among the contracts alongside the
+ * package exports. Nothing enforced it. A rename from `tool-rail` to `rail`
+ * would pass every suite and break the CSS of every application that had styled
+ * it, silently, because `::part(tool-rail)` that matches nothing is not an
+ * error in any browser.
+ *
+ * Read from the rendered shadow root rather than from the source, so a part
+ * built at runtime counts the same as one written in the template. Two states
+ * are checked because a part that only exists while an image is loaded is still
+ * a name a host may have styled.
+ *
+ * Changing this list is allowed. It is a decision, and the diff should say so.
+ */
+const PUBLIC_PARTS = [
+  "actions",
+  "busy",
+  "canvas",
+  "dropzone",
+  "empty",
+  "inspector",
+  "root",
+  "text-input",
+  "tool-rail",
+];
+const PUBLIC_SLOTS = ["actions", "inspector", "tools"];
+
+test("the part and slot names a host builds against do not move", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const surface = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & { close(): void };
+    const shadow = element.shadowRoot!;
+    const read = () => ({
+      parts: [...shadow.querySelectorAll("[part]")].map((node) => node.getAttribute("part")!).sort(),
+      slots: [...shadow.querySelectorAll("slot")].map((node) => node.getAttribute("name") ?? "").sort(),
+    });
+
+    const loaded = read();
+    element.close();
+    return { loaded, empty: read() };
+  });
+
+  expect(surface.loaded.parts).toEqual(PUBLIC_PARTS);
+  expect(surface.loaded.slots).toEqual(PUBLIC_SLOTS);
+  // The empty state is a state a host styles too, not a gap in the contract.
+  expect(surface.empty.parts).toEqual(PUBLIC_PARTS);
+  expect(surface.empty.slots).toEqual(PUBLIC_SLOTS);
+});
+
+/**
  * The pixels a host wants changed before anyone edits them.
  *
  * `beforeDecode` takes bytes no browser reads; `afterDecode` takes the decoded
