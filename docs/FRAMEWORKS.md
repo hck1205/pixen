@@ -238,6 +238,78 @@ editor.crop({ aspectRatio: 1 }).resize({ width: 1024 });
 const { blob } = await editor.export({ format: "image/webp" });
 ```
 
+## Bending the way in and the way out
+
+Two places an application usually has to change something, and neither should
+mean forking the library.
+
+**Reading.** `load` takes decode options. `headers` go on the request for a URL
+source, and `beforeDecode` runs before anything tries to decode, which is where
+a format no browser reads gets converted:
+
+```js
+await editor.load(file, {
+  headers: { "X-Tenant": "acme" },
+  beforeDecode: async (blob) => (isHeic(blob) ? await toJpeg(blob) : blob),
+});
+```
+
+Pixen ships no HEIC decoder. Every recent iPhone produces the format and no
+browser reads it, but bundling a decoder would put a megabyte in the build of
+every application that never sees one. The hook is where a host puts its own.
+
+**Writing.** `export` takes `hooks`, at the four points an export has:
+
+| Hook | Gets | For |
+| --- | --- | --- |
+| `document` | the document about to be drawn | a stamp, a watermark only the export carries, placeholder text filled in |
+| `pixels` | the drawn `CanvasSurface`, in place | a mask, a LUT, anything a canvas can draw |
+| `bytes` | the encoded `Blob` | a format the browser cannot write |
+| `filename` | the suggested name | whatever the storage layer dictates |
+
+```js
+const { blob, filename } = await editor.export({
+  format: "image/png",
+  hooks: {
+    pixels: (surface, size) => {
+      const context = surface.context;
+      context.globalCompositeOperation = "destination-in";
+      context.beginPath();
+      context.arc(size.width / 2, size.height / 2, size.width / 2, 0, Math.PI * 2);
+      context.fill();
+    },
+    filename: (suggested) => `avatar-${suggested}`,
+  },
+});
+```
+
+`pixels` is handed the surface rather than a copy of the pixels. An `ImageData`
+round trip costs two full-size allocations and gives you an array to loop over;
+a canvas gives you every drawing primitive the platform has, for nothing.
+
+**Delivery.** `exportTo` draws, encodes and uploads as one task, so
+`pixen-export-progress` covers all three and one cancel calls off whichever is
+running. The bytes on the wire are the one step whose length a server declares,
+so that part of the bar is real:
+
+```js
+const { status, body } = await editor.exportTo(
+  { url: "/api/photos", headers: { Authorization: token } },
+  { format: "image/jpeg", quality: 0.82 },
+);
+```
+
+By default the file goes as multipart under `file`, named after the export.
+`fields` replaces that with whatever your endpoint wants.
+
+**Sizing.** `resize` and the export's `width`/`height` accept `fit` when both
+edges are given: `force` (the default — the numbers are meant literally),
+`contain` (fit inside the box, keeping the ratio), or `cover` (fill it and let
+the picture overflow). `preventUpscale` applies last and defaults to on.
+
+**Pixels without a file.** `renderToCanvas()` returns the drawn surface, for a
+texture upload, an `ImageData` read, or an encoder of your own.
+
 ## Server rendering checklist
 
 | Framework | What to do |

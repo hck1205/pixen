@@ -9,6 +9,7 @@ import {
   matrixEquals,
   multiply,
   rotation,
+  resolveSize,
   rotatedBounds,
   scaling,
   stageSizeFor,
@@ -136,5 +137,39 @@ describe("fitting helpers", () => {
   it("computes a fit zoom with padding", () => {
     expect(zoomToFit({ width: 1000, height: 500 }, { width: 500, height: 500 }, 0)).toBeCloseTo(0.5);
     expect(zoomToFit({ width: 1000, height: 500 }, { width: 600, height: 600 }, 50)).toBeCloseTo(0.5);
+  });
+});
+
+describe("resolveSize fit", () => {
+  const landscape = { width: 1600, height: 800 };
+  const box = { width: 400, height: 400 };
+
+  it("reads a width and height pair literally by default", () => {
+    // Two boxes filled in by hand usually mean exactly those numbers.
+    expect(resolveSize(landscape, { ...box })).toEqual(box);
+  });
+
+  it("fits inside the box when asked to contain", () => {
+    expect(resolveSize(landscape, { ...box, fit: "contain" })).toEqual({ width: 400, height: 200 });
+  });
+
+  it("fills the box when asked to cover, and lets the picture overflow", () => {
+    expect(resolveSize(landscape, { ...box, fit: "cover", preventUpscale: false })).toEqual({
+      width: 800,
+      height: 400,
+    });
+  });
+
+  it("still refuses to enlarge unless told it may", () => {
+    const small = { width: 100, height: 50 };
+    expect(resolveSize(small, { width: 400, height: 400, fit: "contain" })).toEqual(small);
+    expect(resolveSize(small, { width: 400, height: 400, fit: "contain", preventUpscale: false })).toEqual({
+      width: 400,
+      height: 200,
+    });
+  });
+
+  it("ignores the fit when only one edge is given, which already keeps the ratio", () => {
+    expect(resolveSize(landscape, { width: 400, fit: "cover" })).toEqual({ width: 400, height: 200 });
   });
 });

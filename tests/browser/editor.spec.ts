@@ -17,6 +17,11 @@ type EditorElement = HTMLElement & {
     historyState: { canUndo: boolean; canRedo: boolean; depth: number };
     setAspectRatio(ratio: number | null): void;
     rotateRight(): void;
+    exportTo(target: Record<string, unknown>, options?: Record<string, unknown>): Promise<{
+      status: number;
+      body: string;
+    }>;
+    renderToCanvas(options?: Record<string, unknown>): { canvas: HTMLCanvasElement };
   };
   viewport: { stageToScreen(point: { x: number; y: number }): { x: number; y: number } } | null;
   export(options?: Record<string, unknown>): Promise<{
@@ -26,6 +31,7 @@ type EditorElement = HTMLElement & {
     bytes: number;
     format: string;
     quality: number;
+    filename: string;
   }>;
 };
 
@@ -1545,4 +1551,146 @@ test.describe("multi-touch", () => {
     // The second finger calls off whatever the first one had begun.
     expect(after.layers).toBe(0);
   });
+});
+
+/**
+ * The pipeline a host bends: hooks, and delivery.
+ *
+ * Every one of these runs against real canvas pixels and a real request, which
+ * is the only place they can be checked — a hook handed a surface has nothing
+ * to draw on in node, and an upload with no XMLHttpRequest never starts.
+ */
+test("export hooks reach the document, the pixels, the bytes and the name", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const result = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const seen: string[] = [];
+
+    const output = await element.export({
+      format: "image/png",
+      hooks: {
+        document: (doc: { adjustments: Record<string, number> }) => {
+          seen.push("document");
+          // Something visible in the exported pixels and nowhere else.
+          return { ...doc, adjustments: { ...doc.adjustments, grayscale: 1 } };
+        },
+        pixels: (surface: { context: CanvasRenderingContext2D }, size: { width: number; height: number }) => {
+          seen.push("pixels");
+          const context = surface.context;
+          context.globalCompositeOperation = "destination-in";
+          context.beginPath();
+          context.arc(size.width / 2, size.height / 2, size.width / 2, 0, Math.PI * 2);
+          context.fill();
+          context.globalCompositeOperation = "source-over";
+        },
+        bytes: (blob: Blob) => {
+          seen.push("bytes");
+          return blob;
+        },
+        filename: (suggested: string) => {
+          seen.push("filename");
+          return `masked-${suggested}`;
+        },
+      },
+    } as never);
+
+    // Read a corner and the centre back out of the exported file.
+    const bitmap = await createImageBitmap(output.blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(bitmap, 0, 0);
+    const alphaAt = (x: number, y: number) => context.getImageData(x, y, 1, 1).data[3]!;
+    const centre = context.getImageData(bitmap.width / 2, bitmap.height / 2, 1, 1).data;
+
+    return {
+      seen,
+      filename: output.filename,
+      cornerAlpha: alphaAt(2, 2),
+      centreAlpha: alphaAt(Math.round(bitmap.width / 2), Math.round(bitmap.height / 2)),
+      centre: [centre[0], centre[1], centre[2]],
+    };
+  });
+
+  expect(result.seen).toEqual(["document", "pixels", "bytes", "filename"]);
+  expect(result.filename).toMatch(/^masked-/);
+  // The circular mask cut the corner out and left the middle.
+  expect(result.cornerAlpha).toBe(0);
+  expect(result.centreAlpha).toBeGreaterThan(0);
+  // The document hook's grayscale reached the exported pixels.
+  const [r, g, b] = result.centre;
+  expect(Math.abs(r! - g!)).toBeLessThanOrEqual(2);
+  expect(Math.abs(g! - b!)).toBeLessThanOrEqual(2);
+});
+
+test("exportTo delivers the file and counts the bytes going out", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  let received: { hasFile: boolean; caption: string | null } = { hasFile: false, caption: null };
+  await page.route("**/pixen-test-upload", async (route) => {
+    // latin1, not utf8: the multipart body carries JPEG bytes between the text
+    // parts, and decoding those as UTF-8 mangles the headers around them.
+    const body = route.request().postDataBuffer()?.toString("latin1") ?? "";
+    received = { hasFile: /filename="[^"]*edited[^"]*"/.test(body), caption: /Hello/.test(body) ? "Hello" : null };
+    await route.fulfill({ status: 201, body: "stored" });
+  });
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const stages: string[] = [];
+    element.addEventListener("pixen-export-progress", (event) => {
+      stages.push((event as CustomEvent<{ stage: string }>).detail.stage);
+    });
+
+    const response = await element.editor.exportTo(
+      {
+        url: "/pixen-test-upload",
+        fields: (result: { blob: Blob; filename: string }) => [
+          ["file", result.blob, result.filename],
+          ["caption", "Hello"],
+        ],
+      },
+      { format: "image/jpeg" },
+    );
+    return { status: response.status, body: response.body, stages };
+  });
+
+  expect(outcome.status).toBe(201);
+  expect(outcome.body).toBe("stored");
+  expect(received.hasFile).toBe(true);
+  expect(received.caption).toBe("Hello");
+  // One task, three kinds of step: drawing, encoding, and going out. Only the
+  // upload's start is asserted — a request Playwright intercepts never fires
+  // `xhr.upload` progress events, so the byte counts have no server to come
+  // from here.
+  expect(outcome.stages).toContain("render");
+  expect(outcome.stages).toContain("encode");
+  expect(outcome.stages).toContain("upload");
+});
+
+test("renderToCanvas hands over pixels without encoding them", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const drawn = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const surface = element.editor.renderToCanvas();
+    const context = surface.canvas.getContext("2d") as CanvasRenderingContext2D;
+    const { data } = context.getImageData(0, 0, surface.canvas.width, surface.canvas.height);
+
+    let opaque = 0;
+    for (let i = 3; i < data.length; i += 4 * 97) if (data[i]! > 0) opaque += 1;
+    return {
+      size: { width: surface.canvas.width, height: surface.canvas.height },
+      output: element.editor.outputSize,
+      opaque,
+    };
+  });
+
+  expect(drawn.size).toEqual(drawn.output);
+  expect(drawn.opaque).toBeGreaterThan(0);
 });

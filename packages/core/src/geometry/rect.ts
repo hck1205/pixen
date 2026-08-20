@@ -147,6 +147,19 @@ export function constrainRect(
 
 /** Scales a size to fit inside `limit`, never scaling up. */
 export function scaleToFit(size: Size, limit: Size): Size {
-  const scale = Math.min(1, limit.width / size.width, limit.height / size.height);
+  const scale = Math.min(1, fitScale(size, limit, "contain"));
   return { width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)) };
+}
+
+/**
+ * How much to scale `size` so it sits inside `box`, or covers it.
+ *
+ * The two are the same ratio with a different reducer, which is why they are one
+ * function: `contain` takes the smaller of the two axes so nothing sticks out,
+ * `cover` takes the larger so nothing is left uncovered.
+ */
+export function fitScale(size: Size, box: Size, mode: "contain" | "cover"): number {
+  const horizontal = box.width / size.width;
+  const vertical = box.height / size.height;
+  return mode === "contain" ? Math.min(horizontal, vertical) : Math.max(horizontal, vertical);
 }

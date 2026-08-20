@@ -2,6 +2,7 @@ import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import type { StepReporter } from "../util/progress.js";
 import { assertDrawableSize, createSurface, releaseSurface } from "./canvas.js";
+import { toBlob } from "./bytes.js";
 import { imageWorker } from "./worker/client.js";
 import {
   applyOrientationToSize,
@@ -24,7 +25,11 @@ export interface DecodedImage {
   source: CanvasImageSource;
   width: number;
   height: number;
-  /** Original bytes when the input carried them, for size reporting and re-encode shortcuts. */
+  /**
+   * The bytes the pixels were decoded from, when the input carried any — for
+   * size reporting and re-encode shortcuts. After a `beforeDecode` conversion
+   * these are the converted bytes, not the ones the host was originally given.
+   */
   blob: Blob | null;
   mimeType: string;
   /** The orientation found in the file; the returned source has it applied. */
@@ -50,74 +55,24 @@ export interface DecodeOptions {
   respectExifOrientation?: boolean;
   /** Passed to `fetch` for string inputs. */
   crossOrigin?: RequestCredentials;
+  /** Sent with the request for a string input — a bearer token, a tenant id. */
+  headers?: Record<string, string>;
+  /**
+   * Turns bytes no browser can decode into bytes it can, before anything tries.
+   *
+   * HEIC is the case this exists for: every recent iPhone produces it and no
+   * browser reads it, so a host drops a converter in here rather than
+   * pre-converting every file it might ever be handed. Bundling one ourselves
+   * would mean a megabyte of decoder in everyone's build for a format most
+   * applications never see.
+   */
+  beforeDecode?: (input: Blob, signal?: AbortSignal) => Blob | Promise<Blob>;
 }
 
 const EXIF_SCAN_BYTES = 256 * 1024;
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new PixenError("ABORTED", "Image decoding was aborted");
-}
-
-export async function toBlob(input: ImageInput, options: DecodeOptions = {}): Promise<Blob | null> {
-  if (input instanceof Blob) return input;
-  if (input instanceof ArrayBuffer) return new Blob([input]);
-  if (ArrayBuffer.isView(input)) {
-    return new Blob([input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) as ArrayBuffer]);
-  }
-  if (typeof input === "string") {
-    try {
-      const response = await fetch(input, {
-        signal: options.signal ?? null,
-        credentials: options.crossOrigin ?? "same-origin",
-      });
-      if (!response.ok) {
-        throw new PixenError("INVALID_IMAGE", `Fetching the image failed with HTTP ${response.status}`, {
-          details: { status: response.status, url: input },
-        });
-      }
-      return await readResponse(response, options.onProgress);
-    } catch (cause) {
-      if (cause instanceof PixenError) throw cause;
-      throw new PixenError(
-        "CORS_ERROR",
-        `Could not fetch "${input}". Check the URL and the server's CORS headers.`,
-        { cause, details: { url: input } },
-      );
-    }
-  }
-  return null;
-}
-
-/**
- * Reads a response, counting bytes when anyone is listening.
- *
- * `response.blob()` is the fast path and stays the default: streaming exists
- * only to answer "how far along is this download", so it is not paid for when
- * nothing asked. `Content-Length` describes the bytes on the wire, which for a
- * compressed response is fewer than the ones that arrive — `progressRatio`
- * clamps rather than reporting 130% of a download.
- */
-async function readResponse(response: Response, onProgress?: StepReporter<DecodeStage>): Promise<Blob> {
-  const body = response.body;
-  if (!onProgress || !body) return response.blob();
-
-  const declared = Number(response.headers.get("content-length"));
-  const total = Number.isFinite(declared) && declared > 0 ? declared : null;
-  const type = response.headers.get("content-type") ?? "";
-
-  const reader = body.getReader();
-  const chunks: BlobPart[] = [];
-  let loaded = 0;
-  onProgress({ stage: "fetch", loaded, total });
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value as BlobPart);
-    loaded += value.byteLength;
-    onProgress({ stage: "fetch", loaded, total });
-  }
-  return new Blob(chunks, { type });
 }
 
 async function readOrientation(blob: Blob): Promise<ExifOrientation> {
@@ -245,22 +200,31 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
   if (blob.size === 0) {
     throw new PixenError("INVALID_IMAGE", "The provided file is empty");
   }
-  if (blob.type && !blob.type.startsWith("image/")) {
-    throw new PixenError("UNSUPPORTED_FORMAT", `"${blob.type}" is not an image type`, {
-      details: { mimeType: blob.type },
+
+  // Before the format checks, not after: the point of the hook is to hand back
+  // something those checks will accept.
+  const decodable = options.beforeDecode ? await options.beforeDecode(blob, options.signal) : blob;
+  throwIfAborted(options.signal);
+
+  if (decodable.type && !decodable.type.startsWith("image/")) {
+    throw new PixenError("UNSUPPORTED_FORMAT", `"${decodable.type}" is not an image type`, {
+      details: { mimeType: decodable.type },
     });
   }
-  if (blob.type === "image/svg+xml") {
+  if (decodable.type === "image/svg+xml") {
     throw new PixenError(
       "UNSUPPORTED_FORMAT",
       "SVG input is not accepted: rasterising untrusted SVG can execute embedded content.",
-      { details: { mimeType: blob.type } },
+      { details: { mimeType: decodable.type } },
     );
   }
 
-  const orientation = options.respectExifOrientation === false ? 1 : await readOrientation(blob);
+  // Everything below reads the bytes the pixels actually came from. Reading the
+  // orientation off the original would be wrong the moment a conversion moved
+  // the EXIF block, and re-encode shortcuts have to agree with what was decoded.
+  const orientation = options.respectExifOrientation === false ? 1 : await readOrientation(decodable);
   options.onProgress?.({ stage: "decode", loaded: 0, total: null });
-  const decoded = await decodeBlob(blob, options.signal);
+  const decoded = await decodeBlob(decodable, options.signal);
   assertDrawableSize(sourceSize(decoded), "image");
   const upright = normaliseOrientation(decoded, orientation);
 
@@ -268,8 +232,8 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
     source: upright.source,
     width: upright.width,
     height: upright.height,
-    blob,
-    mimeType: blob.type || "application/octet-stream",
+    blob: decodable,
+    mimeType: decodable.type || "application/octet-stream",
     orientation,
     ...(name ? { name } : {}),
   };

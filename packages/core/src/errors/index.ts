@@ -9,6 +9,7 @@ export type PixenErrorCode =
   | "ENCODE_FAILED"
   | "MEMORY_LIMIT"
   | "EXPORT_FAILED"
+  | "UPLOAD_FAILED"
   | "CORS_ERROR"
   | "RESOURCE_MISSING"
   | "RESOURCE_RELEASED"

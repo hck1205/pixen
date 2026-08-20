@@ -5,18 +5,20 @@ import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTranspar
 import { outputSize as documentOutputSize } from "../model/document.js";
 import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../model/types.js";
 import { createScene } from "../render/scene.js";
+import type { ExportHooks } from "./hooks.js";
 import type { StepReporter } from "../util/progress.js";
 import { renderScene } from "../render/canvas2d/index.js";
 import type { ResourceManager } from "../resources/manager.js";
 
 /**
- * The steps of producing a file that are worth reporting.
+ * The steps of getting a file out of the editor that are worth reporting.
  *
  * `render` is a single pass over the scene and cannot be counted; `encode` can,
  * because a byte budget encodes up to a known number of times. `variant` counts
- * the files in a multi-size export — see `exportVariants`.
+ * the files in a multi-size export — see `exportVariants` — and `upload` counts
+ * bytes on the wire, which is the one step a server tells us the size of.
  */
-export type ExportStage = "render" | "encode" | "variant";
+export type ExportStage = "render" | "encode" | "variant" | "upload";
 
 export interface ExportOptions {
   format?: ImageFormat;
@@ -33,6 +35,8 @@ export interface ExportOptions {
   signal?: AbortSignal;
   /** Called as the picture is rendered and encoded. See `ExportStage`. */
   onProgress?: StepReporter<ExportStage>;
+  /** Host steps at the four points an export can be bent. See `ExportHooks`. */
+  hooks?: ExportHooks;
 }
 
 export interface ExportResult {
@@ -87,28 +91,34 @@ export async function exportDocument(
 ): Promise<ExportResult> {
   if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
 
-  const resource = resources.require(document.source.resourceId);
-  const format = resolveOutputFormat(document, options.format);
-  const quality = options.quality ?? document.output.quality;
+  const hooks = options.hooks ?? {};
+  // Read before anything else: the hook exists to change what is drawn, so
+  // everything below has to derive from what it returned.
+  const drawn = hooks.document ? await hooks.document(document) : document;
 
-  const target = resolveExportSize(document, options);
+  const resource = resources.require(drawn.source.resourceId);
+  const format = resolveOutputFormat(drawn, options.format);
+  const quality = options.quality ?? drawn.output.quality;
+
+  const target = resolveExportSize(drawn, options);
   assertDrawableSize(target, "export");
 
   const background =
     options.background !== undefined
       ? options.background
-      : document.output.background ?? (supportsTransparency(format) ? null : "#ffffff");
+      : drawn.output.background ?? (supportsTransparency(format) ? null : "#ffffff");
 
   let surface: CanvasSurface | null = null;
   try {
     options.onProgress?.({ stage: "render", loaded: 0, total: null });
     surface = createSurface(target.width, target.height, supportsTransparency(format));
     const scene = createScene(
-      { ...document, output: { ...document.output, background } },
+      { ...drawn, output: { ...drawn.output, background } },
       { source: resource.source, sourceScale: 1, resolveResource: resources.resolve },
       { region: "crop", target },
     );
     renderScene(surface.context, scene);
+    await hooks.pixels?.(surface, target);
 
     if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
 
@@ -120,20 +130,23 @@ export async function exportDocument(
           })
         : await encodeOnce(surface.canvas, format, quality, onProgress);
 
+    const blob = hooks.bytes ? await hooks.bytes(encoded.blob, { format, size: target }) : encoded.blob;
+
     // An encode in progress cannot be interrupted — no browser exposes that —
     // so a cancel arriving mid-encode is honoured at the only point it can be:
     // the result is thrown away rather than handed to a caller who said they no
     // longer wanted it.
     if (options.signal?.aborted) throw new PixenError("ABORTED", "Export was aborted");
 
+    const suggested = buildFilename(drawn, format, options.filename);
     return {
-      blob: encoded.blob,
+      blob,
       width: target.width,
       height: target.height,
       format,
       quality: encoded.quality,
-      bytes: encoded.blob.size,
-      filename: buildFilename(document, format, options.filename),
+      bytes: blob.size,
+      filename: hooks.filename ? hooks.filename(suggested, { format }) : suggested,
       sourceBytes: resource.blob?.size ?? null,
       encodeAttempts: encoded.attempts,
     };

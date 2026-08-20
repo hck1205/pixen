@@ -5,7 +5,7 @@
  * rules it is kept honest by.
  */
 import { browser, doc, list, story, unit, visual, type CoverageGroup } from "./evidence.js";
-import { PRESETS, SCHEMA_VERSION } from "@pixen/core";
+import { PRESETS, RESIZE_FITS, SCHEMA_VERSION } from "@pixen/core";
 import { OUTPUT_FORMATS, formatLabel } from "@pixen/web";
 
 export const OUTPUT_COVERAGE: CoverageGroup[] = [
@@ -60,6 +60,34 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
         layer: "Engine",
         detail: "Alpha kept where the format has it, and a background painted where it does not",
         evidence: [unit("processing.test.ts"), story("Transparency")],
+      },
+      {
+        capability: "Export hooks",
+        layer: "Engine",
+        detail:
+          "Host steps at four points — the document before it is drawn, the drawn surface before it is " +
+          "encoded, the encoded bytes, and the filename — so bending an export is not a fork",
+        evidence: [browser("editor.spec.ts"), story("Pipeline"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
+        capability: "Fit modes",
+        layer: "Engine",
+        detail: `A width and height pair read as ${list(RESIZE_FITS)}, on top of the max hints and preventUpscale`,
+        evidence: [unit("geometry.test.ts"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
+        capability: "Delivery",
+        layer: "Engine",
+        detail:
+          "exportTo draws, encodes and uploads as one cancellable task, counting the bytes on the wire — " +
+          "the one step whose length a server declares",
+        evidence: [unit("upload.test.ts"), browser("editor.spec.ts"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
+        capability: "Pixels without a file",
+        layer: "Engine",
+        detail: "renderToCanvas hands over the drawn surface, for a texture upload or an encoder of your own",
+        evidence: [browser("editor.spec.ts")],
       },
     ],
   },

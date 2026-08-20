@@ -1,10 +1,25 @@
+import { fitScale } from "../geometry/rect.js";
 import type { Size } from "../geometry/types.js";
 import { createSurface, releaseSurface, type Canvas2D } from "./canvas.js";
+
+/**
+ * What to do when a width *and* a height are asked for and the picture's own
+ * ratio disagrees with them.
+ *
+ * `force` is the default because an explicit pair of numbers is usually meant
+ * literally — the output panel's two boxes, an avatar that has to be exactly
+ * 512 square. The other two keep the ratio and treat the pair as a box:
+ * `contain` fits inside it, `cover` fills it and lets the picture overflow.
+ */
+export const RESIZE_FITS = ["force", "contain", "cover"] as const;
+export type ResizeFit = (typeof RESIZE_FITS)[number];
 
 export interface ResizeIntent {
   /** Hard target; wins over the max/scale hints. */
   width?: number | null;
   height?: number | null;
+  /** Only consulted when both `width` and `height` are set. Defaults to `force`. */
+  fit?: ResizeFit;
   maxWidth?: number | null;
   maxHeight?: number | null;
   scale?: number | null;
@@ -15,9 +30,10 @@ export interface ResizeIntent {
 /**
  * Resolves a resize intent into concrete output pixels.
  *
- * Rules, in order: an explicit width/height pair wins; a single explicit side
- * scales the other proportionally; otherwise the max hints shrink the image to
- * fit and `scale` multiplies what is left.
+ * Rules, in order: an explicit width/height pair wins, read literally or as a
+ * box depending on `fit`; a single explicit side scales the other
+ * proportionally; otherwise the max hints shrink the image to fit and `scale`
+ * multiplies what is left. `preventUpscale` applies last, to whatever came out.
  */
 export function resolveSize(source: Size, intent: ResizeIntent = {}): Size {
   const ratio = source.width / source.height;
@@ -27,8 +43,11 @@ export function resolveSize(source: Size, intent: ResizeIntent = {}): Size {
   let height: number;
 
   if (intent.width != null && intent.height != null) {
-    width = intent.width;
-    height = intent.height;
+    const box = { width: intent.width, height: intent.height };
+    const fit = intent.fit ?? "force";
+    const scale = fit === "force" ? null : fitScale(source, box, fit);
+    width = scale === null ? box.width : source.width * scale;
+    height = scale === null ? box.height : source.height * scale;
   } else if (intent.width != null) {
     width = intent.width;
     height = width / ratio;

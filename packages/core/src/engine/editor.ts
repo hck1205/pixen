@@ -3,10 +3,11 @@ import * as commands from "./commands.js";
 import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
+import type { CanvasSurface } from "../image/canvas.js";
 import type { ResizeIntent } from "../image/resize.js";
 import type { DecodeOptions, ImageInput } from "../image/decode.js";
 import { cloneDocument, createDocument, effectiveCrop, outputSize, stageRect, stageSize } from "../model/document.js";
-import { deserializeDocument, serializeDocument } from "../model/serialize.js";
+import { serializeDocument } from "../model/serialize.js";
 import type {
   Adjustments,
   EditorDocument,
@@ -16,7 +17,15 @@ import type {
   OutputSettings,
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
-import { exportDocument, resolveOutputFormat, type ExportOptions, type ExportResult } from "../export/pipeline.js";
+import { sourceFromResource } from "../resources/source.js";
+import {
+  exportDocument,
+  renderDocumentToCanvas,
+  resolveOutputFormat,
+  type ExportOptions,
+  type ExportResult,
+} from "../export/pipeline.js";
+import { uploadExport, type UploadResponse, type UploadTarget } from "../export/upload.js";
 import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
 import {
   createStickerLayer,
@@ -36,8 +45,9 @@ import {
   type SessionEvent,
   type SessionState,
 } from "./session/index.js";
-import { TaskRunner, tracked } from "./tasks/index.js";
+import { TaskRunner, tracked, type TaskAttempt } from "./tasks/index.js";
 import { editorEmissions, type EditorEvents } from "./events.js";
+import { missingResource, planRestore, repointSource } from "./restore.js";
 
 export interface EditorOptions {
   /** Share a manager to reuse decoded bitmaps across editors. */
@@ -53,6 +63,9 @@ export interface MutateOptions {
   silent?: boolean;
 }
 
+/** However an export is asked for, it fails as the same thing. */
+const EXPORT_FAILURE = { code: "EXPORT_FAILED", message: "The image could not be exported" } as const;
+
 /**
  * The imperative shell around a pure session.
  *
@@ -61,9 +74,6 @@ export interface MutateOptions {
  * delegated to `session.reduce`, so the interesting behaviour is unit-testable
  * without constructing an editor at all — see `engine/session.ts`.
  */
-/** One failure, two entry points: `export` and `exportVariants` fail alike. */
-const EXPORT_FAILURE = { code: "EXPORT_FAILED", message: "The image could not be exported" } as const;
-
 export class Editor {
   readonly resources: ResourceManager;
   readonly #emitter = new Emitter<EditorEvents>();
@@ -186,7 +196,6 @@ export class Editor {
     return this.#emitter.on(event, listener);
   }
 
-
   // --- loading -------------------------------------------------------------
 
   /**
@@ -234,14 +243,7 @@ export class Editor {
           kind: "transform",
           reason: "replace-source",
           label: "Replace image",
-          transform: (document) =>
-            commands.replaceSource(document, {
-              resourceId: resource.id,
-              width: resource.width,
-              height: resource.height,
-              ...(resource.name ? { name: resource.name } : {}),
-              ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-            }),
+          transform: (document) => commands.replaceSource(document, sourceFromResource(resource)),
         });
 
         // Released after the swap, not before: until the document points at the
@@ -281,14 +283,7 @@ export class Editor {
    */
   open(resource: ImageResource): EditorDocument {
     this.#assertAlive();
-    const document = createDocument({
-      resourceId: resource.id,
-      width: resource.width,
-      height: resource.height,
-      ...(resource.name ? { name: resource.name } : {}),
-      ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-    });
-    return this.#start(document, resource);
+    return this.#start(createDocument(sourceFromResource(resource)), resource);
   }
 
   /**
@@ -308,32 +303,12 @@ export class Editor {
       { replace: false },
       { signal: options.signal, code: "INVALID_DOCUMENT", message: "The document could not be restored" },
       async (attempt) => {
-        const document = deserializeDocument(input);
-
-        if (this.resources.has(document.source.resourceId)) {
-          return this.#start(document, this.resources.require(document.source.resourceId));
-        }
-        if (image === undefined) {
-          throw new PixenError(
-            "RESOURCE_MISSING",
-            `The document references resource "${document.source.resourceId}", which is not registered. Pass the image bytes as the second argument.`,
-            { details: { resourceId: document.source.resourceId } },
-          );
-        }
+        const plan = planRestore(input, (id) => this.resources.has(id));
+        if (plan.kind === "ready") return this.#start(plan.document, this.resources.require(plan.resourceId));
+        if (image === undefined) throw missingResource(plan.resourceId);
 
         const resource = await this.resources.load(image, tracked(options, attempt));
-        return this.#start(
-          {
-            ...document,
-            source: {
-              ...document.source,
-              resourceId: resource.id,
-              width: resource.width,
-              height: resource.height,
-            },
-          },
-          resource,
-        );
+        return this.#start(repointSource(plan.document, resource), resource);
       },
     );
   }
@@ -641,17 +616,41 @@ export class Editor {
 
   // --- output --------------------------------------------------------------
 
-  async export(options: ExportOptions = {}): Promise<ExportResult> {
+  /**
+   * Every way out of the editor is the same task: announce a start, report the
+   * steps, end once. Three entry points shared it before this had a name.
+   */
+  #runExport<T>(options: ExportOptions, work: (attempt: TaskAttempt) => Promise<T>): Promise<T> {
     this.#assertAlive();
     return this.#exportTask.run(
       { format: resolveOutputFormat(this.document, options.format) },
       { ...EXPORT_FAILURE, signal: options.signal },
-      async (attempt) => {
-        const result = await exportDocument(this.document, this.resources, tracked(options, attempt));
-        this.#emitter.emit("export", result);
-        return result;
-      },
+      work,
     );
+  }
+
+  async export(options: ExportOptions = {}): Promise<ExportResult> {
+    return this.#runExport(options, async (attempt) => {
+      const result = await exportDocument(this.document, this.resources, tracked(options, attempt));
+      this.#emitter.emit("export", result);
+      return result;
+    });
+  }
+
+  /**
+   * Exports and hands the file to a server, as one task.
+   *
+   * The upload is where the time goes and the only step whose length anything
+   * declares, so it belongs inside the progress channel rather than after it:
+   * `export-progress` covers drawing, encoding and sending, and one cancel
+   * calls off whichever of them is running.
+   */
+  async exportTo(target: UploadTarget, options: ExportOptions = {}): Promise<UploadResponse> {
+    return this.#runExport(options, async (attempt) => {
+      const result = await exportDocument(this.document, this.resources, tracked(options, attempt));
+      this.#emitter.emit("export", result);
+      return uploadExport(result, target, { signal: attempt.signal, onProgress: attempt.report });
+    });
   }
 
   /**
@@ -671,13 +670,18 @@ export class Editor {
    * rendered — see `planVariants` — so a host can show what it is about to get.
    */
   async exportVariants(specs: readonly VariantSpec[], options: ExportOptions = {}): Promise<ExportVariant[]> {
-    this.#assertAlive();
-    return this.#exportTask.run(
-      { format: resolveOutputFormat(this.document, options.format) },
-      { ...EXPORT_FAILURE, signal: options.signal },
-      (attempt) =>
-        exportVariants(this.document, this.resources, specs, tracked(options, attempt)),
+    return this.#runExport(options, (attempt) =>
+      exportVariants(this.document, this.resources, specs, tracked(options, attempt)),
     );
+  }
+
+  /**
+   * The edit as pixels, without encoding it. For hosts that want a texture, an
+   * `ImageData` read, or an encoder of their own.
+   */
+  renderToCanvas(options: { target?: Size; region?: "crop" | "stage" } = {}): CanvasSurface {
+    this.#assertAlive();
+    return renderDocumentToCanvas(this.document, this.resources, options);
   }
 
   /** JSON-safe snapshot; pair it with `restore` to resume a session. */
