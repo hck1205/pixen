@@ -1556,6 +1556,121 @@ test.describe("multi-touch", () => {
 });
 
 /**
+ * A rotated photograph opens the right way up — on a browser that turns it
+ * first, and on one that does not.
+ *
+ * EXIF orientation used to be the application's job, and Pixen did it. Chromium
+ * now does it too, for all eight orientations, and does not stop when asked for
+ * the pixels as stored — so doing it as well turned every rotated photograph
+ * twice. No unit test could see that: the double turn is a property of the
+ * decoder, and node has no decoder.
+ *
+ * Each of the eight is checked by where the colours land rather than by the
+ * size alone, because half of them are flips and mirrors that leave the size
+ * exactly as it was.
+ *
+ * One branch this cannot reach: a decoder that does *not* turn the picture, in
+ * which case Pixen turns it. That is the behaviour this file has always had,
+ * and `exif.test.ts` covers the transform it uses — but a browser that always
+ * orients cannot be made to demonstrate the other path, so it is not claimed
+ * here that it did.
+ */
+test("all eight EXIF orientations open upright, whatever the browser did first", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      load(input: unknown): Promise<void>;
+    };
+
+    const short = (value: number) => [value >> 8, value & 0xff];
+    /** An APP1 saying only "this is how the picture is stored". */
+    const orientationExif = (orientation: number) => [
+      0xff, 0xe1, ...short(0x22), ...[...new TextEncoder().encode("Exif")], 0, 0,
+      0x4d, 0x4d, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x08,
+      0x00, 0x01, 0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, ...short(orientation), 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00,
+    ];
+
+    // Four quadrants, so a mirror is as visible as a quarter turn. Wider than
+    // tall, so the turns that swap the axes are visible in the size too.
+    const WIDE = 64;
+    const TALL = 32;
+    const canvas = document.createElement("canvas");
+    canvas.width = WIDE;
+    canvas.height = TALL;
+    const context = canvas.getContext("2d")!;
+    const quadrants = [
+      ["#ff0000", 0, 0],
+      ["#00ff00", WIDE / 2, 0],
+      ["#0000ff", 0, TALL / 2],
+      ["#ffff00", WIDE / 2, TALL / 2],
+    ] as const;
+    for (const [colour, x, y] of quadrants) {
+      context.fillStyle = colour;
+      context.fillRect(x, y, WIDE / 2, TALL / 2);
+    }
+    const stored: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/jpeg", 1));
+    const storedBytes = new Uint8Array(await stored.arrayBuffer());
+
+    const name = (r: number, g: number, b: number) => {
+      const lit = (value: number) => value > 140;
+      if (lit(r) && lit(g)) return "Y";
+      if (lit(r)) return "R";
+      if (lit(g)) return "G";
+      if (lit(b)) return "B";
+      return "?";
+    };
+
+    /** What the exported picture looks like: its size, then its four quadrants. */
+    const readBack = async (orientation: number) => {
+      const tagged = new Uint8Array([0xff, 0xd8, ...orientationExif(orientation), ...storedBytes.subarray(2)]);
+      await element.load(new Blob([tagged as BlobPart], { type: "image/jpeg" }));
+
+      const surface = element.editor.renderToCanvas().canvas;
+      const read = surface.getContext("2d") as CanvasRenderingContext2D;
+      const at = (fx: number, fy: number) => {
+        const data = read.getImageData(Math.round(surface.width * fx), Math.round(surface.height * fy), 1, 1).data;
+        return name(data[0]!, data[1]!, data[2]!);
+      };
+      return `${surface.width}x${surface.height} ${at(0.25, 0.25)}${at(0.75, 0.25)}${at(0.25, 0.75)}${at(0.75, 0.75)}`;
+    };
+
+    const seen: Record<string, string> = {};
+    for (let orientation = 1; orientation <= 8; orientation += 1) {
+      seen[`o${orientation}`] = await readBack(orientation);
+    }
+    return seen;
+  });
+
+  // Derived from what each tag means, not from what a browser happens to do.
+  // The stored quadrants are R G / B Y, and the tag says how the stored data
+  // relates to the picture it is meant to be:
+  //
+  //   1  as stored                          R G / B Y
+  //   2  mirrored left to right             G R / Y B
+  //   3  turned half way round              Y B / G R
+  //   4  mirrored top to bottom             B Y / R G
+  //   5  mirrored, then a quarter turn anticlockwise   R B / G Y
+  //   6  a quarter turn clockwise           B R / Y G
+  //   7  mirrored, then a quarter turn clockwise       Y G / B R
+  //   8  a quarter turn anticlockwise       G Y / R B
+  //
+  // The four turns swap the axes, so those come back 32x64.
+  expect(outcome).toEqual({
+    o1: "64x32 RGBY",
+    o2: "64x32 GRYB",
+    o3: "64x32 YBGR",
+    o4: "64x32 BYRG",
+    o5: "32x64 RBGY",
+    o6: "32x64 BRYG",
+    o7: "32x64 YGBR",
+    o8: "32x64 GYRB",
+  });
+});
+
+/**
  * The resampling seam, and the rule for when it opens.
  *
  * A host only reaches for its own downscaler because it does not trust the

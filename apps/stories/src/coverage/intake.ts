@@ -35,8 +35,12 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
       {
         capability: "EXIF orientation",
         layer: "Engine",
-        detail: "All eight orientations applied at decode, so geometry never sees a rotated source",
-        evidence: [unit("exif.test.ts")],
+        detail:
+          "All eight orientations upright at decode, so geometry never sees a rotated source — turned " +
+          "by Pixen, or left alone where the browser has already turned it. Which of those a browser " +
+          "is gets measured rather than assumed: Chromium turns the picture itself and does not stop " +
+          "when asked for the pixels as stored, and turning it twice is a photograph on its side",
+        evidence: [unit("exif.test.ts"), browser("editor.spec.ts"), doc("docs/BROWSER-SUPPORT.md")],
       },
       {
         capability: "Off-thread decode and encode",

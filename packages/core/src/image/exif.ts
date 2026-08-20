@@ -1,4 +1,5 @@
 import { QUARTER_TURN } from "../geometry/angles.js";
+import { findExifSegment } from "./jpeg.js";
 import type { Size } from "../geometry/types.js";
 
 /** TIFF orientation values as stored in EXIF tag 0x0112. */
@@ -11,10 +12,6 @@ export interface OrientationTransform {
   flipY: boolean;
 }
 
-const JPEG_SOI = 0xffd8;
-const APP1 = 0xffe1;
-const SOS = 0xffda;
-const EXIF_HEADER = 0x45786966; // "Exif"
 const ORIENTATION_TAG = 0x0112;
 
 /**
@@ -22,28 +19,12 @@ const ORIENTATION_TAG = 0x0112;
  *
  * Returns `null` when the bytes are not a JPEG, carry no EXIF block, or the
  * orientation tag is absent — all of which mean "treat as orientation 1".
- * The parser walks segment headers only and never trusts a length field far
- * enough to read outside the buffer.
  */
 export function readExifOrientation(buffer: ArrayBufferLike): ExifOrientation | null {
   const view = new DataView(buffer as ArrayBuffer);
-  if (view.byteLength < 4 || view.getUint16(0, false) !== JPEG_SOI) return null;
-
-  let offset = 2;
-  while (offset + 4 <= view.byteLength) {
-    const marker = view.getUint16(offset, false);
-    if ((marker & 0xff00) !== 0xff00) return null; // desynchronised, give up
-    if (marker === SOS) return null; // image data starts, no EXIF found
-
-    const length = view.getUint16(offset + 2, false);
-    if (length < 2 || offset + 2 + length > view.byteLength) return null;
-
-    if (marker === APP1 && length >= 14 && view.getUint32(offset + 4, false) === EXIF_HEADER) {
-      return readOrientationFromTiff(view, offset + 10, offset + 2 + length);
-    }
-    offset += 2 + length;
-  }
-  return null;
+  const segment = findExifSegment(view);
+  if (!segment) return null;
+  return readOrientationFromTiff(view, segment.tiffStart, segment.end);
 }
 
 function readOrientationFromTiff(view: DataView, tiffStart: number, end: number): ExifOrientation | null {

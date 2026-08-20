@@ -98,6 +98,19 @@ the failure mode is an import-time crash rather than a render-time one.
   trip costs more than it saves; and the byte-budget search encodes on the main
   thread, because it tries up to five times and reading the canvas back for each
   attempt would cost more than the offload returns.
+- **EXIF orientation is applied once, by whichever of us does it.** A rotated
+  photograph used to arrive as stored, and turning it upright was the
+  application's job. That is no longer true: Chromium turns all eight
+  orientations itself, and — measured — `createImageBitmap(blob, {
+  imageOrientation: "none" })` does not stop it. A library that turns the pixels
+  as well turns them twice, which is a photograph on its side.
+
+  There is no capability to test for this and no version to key off, so Pixen
+  asks: the first time a rotated image is opened, a tiny picture whose right way
+  up is known is put through the same decoder, and what comes back decides. The
+  answer is kept for the session, and a browser with no rotated images to open
+  never pays for it. If the probe fails for any reason the answer is "the
+  decoder did not", which is what Pixen has always assumed.
 - **Downscaling is left to the browser on export.** The standard advice for
   shrinking an image by more than about half is to halve it in steps first, on
   the grounds that a single `drawImage` keeps one sample per output pixel and

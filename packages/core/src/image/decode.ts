@@ -4,6 +4,7 @@ import type { StepReporter } from "../util/progress.js";
 import { assertDrawableSize, createSurface, releaseCanvas } from "./canvas.js";
 import { toBlob } from "./bytes.js";
 import { imageWorker } from "./worker/client.js";
+import { decoderAppliesOrientation } from "./auto-orient.js";
 import {
   applyOrientationToSize,
   orientationTransform,
@@ -104,7 +105,10 @@ async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<
 
   if (typeof createImageBitmap === "function") {
     try {
-      // "none" keeps orientation handling in our hands so every browser agrees.
+      // Asks for the pixels as stored. Chromium ignores it and turns them
+      // anyway, which is why `decoderAppliesOrientation` measures rather than
+      // trusts — but engines that honour it are then handed a consistent
+      // starting point, so it is still worth asking for.
       return (await createImageBitmap(blob, { imageOrientation: "none" })) as ImageBitmap;
     } catch (cause) {
       if (typeof Image === "undefined") {
@@ -147,6 +151,18 @@ export function sourceSize(source: CanvasImageSource): Size {
 
 export interface UprightImage extends Size {
   source: CanvasImageSource;
+}
+
+/**
+ * The turn still owed to a decoded picture — the file's orientation, or none
+ * because the decoder already did it.
+ *
+ * The probe is only reached for when there is something to decide, so a library
+ * of upright images never pays for it.
+ */
+async function outstandingOrientation(orientation: ExifOrientation): Promise<ExifOrientation> {
+  if (orientation === 1) return 1;
+  return (await decoderAppliesOrientation((blob) => decodeBlob(blob, undefined))) ? 1 : orientation;
 }
 
 /**
@@ -226,7 +242,7 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
   options.onProgress?.({ stage: "decode", loaded: 0, total: null });
   const decoded = await decodeBlob(decodable, options.signal);
   assertDrawableSize(sourceSize(decoded), "image");
-  const upright = normaliseOrientation(decoded, orientation);
+  const upright = normaliseOrientation(decoded, await outstandingOrientation(orientation));
 
   return {
     source: upright.source,
