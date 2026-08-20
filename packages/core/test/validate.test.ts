@@ -133,6 +133,39 @@ describe("validateDocument", () => {
     expect(result.value.layers[0]).toMatchObject({ visible: true, locked: false, opacity: 1, closed: false });
   });
 
+  it("names every layer kind it accepts when given one it does not", () => {
+    const result = validateDocument({
+      ...minimal,
+      layers: [{ id: "l1", type: "hologram" }],
+    });
+    expect(isErr(result)).toBe(true);
+    if (!isErr(result)) return;
+    // Derived from the table of kinds, so it cannot drift from what is accepted.
+    const [first] = result.error;
+    expect(first?.path).toBe("$.layers[0].type");
+    for (const kind of ["rect", "ellipse", "line", "path", "image", "redact", "text"]) {
+      expect(first?.expected).toContain(kind);
+    }
+  });
+
+  it("defaults a whole section that an older document never had", () => {
+    // `transform`, `adjustments` and `output` are read as groups: absent is not
+    // broken, it is a document written before that section existed.
+    const result = validateDocument(minimal);
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.transform).toEqual({ rotation: 0, flipX: false, flipY: false });
+    expect(result.value.output.quality).toBeGreaterThan(0);
+    expect(result.value.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
+  });
+
+  it("still rejects a section that is present and wrong", () => {
+    const result = validateDocument({ ...minimal, transform: { rotation: "sideways" } });
+    expect(isErr(result)).toBe(true);
+    if (!isErr(result)) return;
+    expect(result.error[0]?.path).toBe("$.transform.rotation");
+  });
+
   it("rejects an unknown output format", () => {
     const result = validateDocument({ ...minimal, output: { format: "image/heic" } });
     if (!isErr(result)) throw new Error("expected failure");

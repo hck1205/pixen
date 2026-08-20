@@ -13,4 +13,4 @@ export {
   validateDocument,
   type ValidationIssue,
   type Validator,
-} from "./validate.js";
+} from "./validate/index.js";

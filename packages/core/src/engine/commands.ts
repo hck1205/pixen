@@ -5,6 +5,8 @@ import {
   resizeCrop,
   type CropHandle,
 } from "../geometry/crop.js";
+import { PixenError } from "../errors/index.js";
+import { QUARTER_TURN, positiveAngle } from "../geometry/angles.js";
 import { compose, invert } from "../geometry/matrix.js";
 import { center, clampInside, constrainRect, transformBounds } from "../geometry/rect.js";
 import {
@@ -21,7 +23,7 @@ import { effectiveCrop, stageRect } from "../model/document.js";
 import { clampAdjustments } from "../model/adjustments.js";
 import { DEFAULT_FRAME, MAX_FRAME_WIDTH, MIN_FRAME_WIDTH } from "../model/defaults.js";
 import { layerBounds, translateLayer } from "../model/layers.js";
-import { resizeLayer, rotateLayer, type LayerHandle } from "../model/transform.js";
+import { resizeLayer, rotateLayer, scaleLayerToBounds, type LayerHandle } from "../model/transform.js";
 import { DEFAULT_ADJUSTMENTS } from "../model/types.js";
 import type {
   Adjustments,
@@ -30,6 +32,7 @@ import type {
   EditorLayer,
   FrameSettings,
   OutputSettings,
+  SourceDescriptor,
 } from "../model/types.js";
 
 /**
@@ -39,13 +42,14 @@ import type {
  * "what does rotate do to a crop" has exactly one answer in the codebase.
  */
 
-const QUARTER_TURN = Math.PI / 2;
-
-function normaliseRotation(radians: number): number {
-  const full = Math.PI * 2;
-  const value = radians % full;
-  return value < 0 ? value + full : value;
-}
+/**
+ * How far two scale factors may differ and still count as the same shape.
+ *
+ * Integer pixel sizes cannot express most ratios exactly — half of a 1601px
+ * width is 800 or 801, never 800.5 — so an exact comparison would refuse
+ * replacements that are right.
+ */
+const SOURCE_ASPECT_TOLERANCE = 0.005;
 
 /**
  * Re-expresses the crop rect after the source transform changes.
@@ -83,7 +87,7 @@ function rotateAspectRatio(document: EditorDocument, nextTransform: DocumentTran
 }
 
 export function setTransform(document: EditorDocument, transform: DocumentTransform): EditorDocument {
-  const next: DocumentTransform = { ...transform, rotation: normaliseRotation(transform.rotation) };
+  const next: DocumentTransform = { ...transform, rotation: positiveAngle(transform.rotation) };
   const { crop, aspectRatio } = remapCrop(document, next);
   return { ...document, transform: next, crop, aspectRatio };
 }
@@ -266,6 +270,52 @@ export function clampLayersToImage(document: EditorDocument): EditorDocument {
     return translateLayer(layer, clamped.x - box.x, clamped.y - box.y);
   });
   return { ...document, layers };
+}
+
+/**
+ * Swaps the pixels under an edit, keeping the edit.
+ *
+ * The use for this is a round trip through something else — a background
+ * remover, an upscaler, a service that retouches — after which the host wants
+ * the *same* crop, the same annotations and the same undo stack, over different
+ * pixels.
+ *
+ * Geometry is stored in image space, so a replacement of a different size would
+ * leave every mark in the wrong place. A uniform rescale is unambiguous and is
+ * applied; a different aspect ratio is not, so it is refused rather than
+ * silently mangling the edit — the caller knows what they meant and can say so
+ * by cropping first.
+ */
+export function replaceSource(document: EditorDocument, source: SourceDescriptor): EditorDocument {
+  const scaleX = source.width / document.source.width;
+  const scaleY = source.height / document.source.height;
+
+  if (Math.abs(scaleX - scaleY) > SOURCE_ASPECT_TOLERANCE) {
+    throw new PixenError(
+      "INVALID_IMAGE",
+      "A replacement image must have the same aspect ratio as the one it replaces",
+      { details: { from: document.source, to: source } },
+    );
+  }
+
+  if (scaleX === 1 && scaleY === 1) return { ...document, source };
+
+  const scaleRect = (rect: Rect): Rect => ({
+    x: rect.x * scaleX,
+    y: rect.y * scaleY,
+    width: rect.width * scaleX,
+    height: rect.height * scaleY,
+  });
+
+  return {
+    ...document,
+    source,
+    crop: document.crop ? scaleRect(document.crop) : null,
+    layers: document.layers.map((layer) => {
+      const from = layerBounds(layer);
+      return scaleLayerToBounds(layer, from, scaleRect(from));
+    }),
+  };
 }
 
 export function resetEdits(document: EditorDocument): EditorDocument {

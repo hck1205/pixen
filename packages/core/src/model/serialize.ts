@@ -2,7 +2,7 @@ import { PixenError } from "../errors/index.js";
 import { cloneDocument } from "./document.js";
 import { migrateDocument } from "./migrations.js";
 import type { EditorDocument } from "./types.js";
-import { parseDocument } from "./validate.js";
+import { parseDocument } from "./validate/index.js";
 
 /** Plain JSON snapshot suitable for `JSON.stringify`, a database column, or postMessage. */
 export function serializeDocument(document: EditorDocument): EditorDocument {

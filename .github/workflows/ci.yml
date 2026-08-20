@@ -43,8 +43,23 @@ jobs:
       - name: Build stories
         run: pnpm stories:build
 
+      # No `--with-deps`. That flag runs `apt-get update` before installing, and
+      # on this runner the Ubuntu mirror has twice stopped answering — the job
+      # sat silent for nineteen minutes and was killed by the timeout, which
+      # reads as "cancelled" and looks like a person did it.
+      #
+      # It was buying fonts, not libraries: on a green run the only packages it
+      # installed were CJK, Thai and Cyrillic font sets, so the shared objects
+      # Chromium needs are already in the image. Those fonts matter to golden
+      # images, and the visual suite that takes them is opt-in and never runs
+      # here — see docs/TESTING.md. If a future image really is missing a
+      # library, `pnpm test:browser` fails on the first launch and names it.
       - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
+        # A download, not a package manager: healthy is under a minute. Bounded
+        # so a stalled CDN fails here, quickly and by name, instead of eating
+        # the job's whole budget.
+        timeout-minutes: 6
 
       # `test:browser` builds the packages and the playground it tests, so the
       # suite can never run against a stale bundle.

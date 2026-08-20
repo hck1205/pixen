@@ -6,8 +6,10 @@ import {
   type RedactLayer,
 } from "@pixen/core";
 import type { PixenStrings } from "../../../i18n/index.js";
-import { button, field, input } from "../../dom/index.js";
+import { button } from "../../dom/index.js";
 import type { ChromeContext } from "../context.js";
+import { transactedSlider } from "./slider.js";
+import { styleWriter } from "./style-writer.js";
 
 /**
  * How a redaction hides its region.
@@ -22,19 +24,16 @@ const MODE_STRING_KEYS = {
   pixelate: "redactPixelate",
 } as const satisfies Record<RedactionMode, keyof PixenStrings>;
 
-/** Strength is meaningless for a solid fill, so the slider only appears with it. */
-const STRENGTH_STEP = 0.002;
+/** Strength is a fraction of the longest edge, so the step is small. */
+const STRENGTH_RANGE = { min: MIN_REDACTION_STRENGTH, max: MAX_REDACTION_STRENGTH, step: 0.002 };
 
 export function buildRedactionControls(context: ChromeContext, selected: RedactLayer | null): Node[] {
-  const { strings, actions, editor } = context;
+  const { strings, editor } = context;
   const mode = selected?.mode ?? context.annotationStyle.redactionMode;
   const strength = selected?.strength ?? context.annotationStyle.redactionStrength;
 
-  const setMode = (next: RedactionMode): void => {
-    // The style remembers the choice, so the next redaction inherits it.
-    actions.setAnnotationStyle({ redactionMode: next });
-    if (selected) editor.updateLayer(selected.id, { mode: next });
-  };
+  // The style remembers every choice, so the next redaction inherits it.
+  const apply = styleWriter(context, selected);
 
   const nodes: Node[] = REDACTION_MODES.map((candidate) => {
     const label = strings[MODE_STRING_KEYS[candidate]];
@@ -43,28 +42,22 @@ export function buildRedactionControls(context: ChromeContext, selected: RedactL
       text: label,
       className: "text",
       active: mode === candidate,
-      onClick: () => setMode(candidate),
+      onClick: () => apply({ redactionMode: candidate }, { mode: candidate }),
     });
   });
 
   if (mode === "solid") return nodes;
 
+  // Strength is meaningless for a solid fill, so the slider only appears with
+  // the modes that have one.
   nodes.push(
-    field(
-      strings.redactStrength,
-      input({
-        type: "range",
-        min: MIN_REDACTION_STRENGTH,
-        max: MAX_REDACTION_STRENGTH,
-        step: STRENGTH_STEP,
-        value: String(strength),
-        onInput: (value) => {
-          const next = Number(value);
-          actions.setAnnotationStyle({ redactionStrength: next });
-          if (selected) editor.updateLayer(selected.id, { strength: next });
-        },
-      }),
-    ),
+    transactedSlider(editor, {
+      label: strings.redactStrength,
+      field: "redact-strength",
+      range: STRENGTH_RANGE,
+      value: strength,
+      onInput: (next) => apply({ redactionStrength: next }, { strength: next }),
+    }),
   );
   return nodes;
 }

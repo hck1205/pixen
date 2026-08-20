@@ -14,8 +14,8 @@ import { layerRows, type LayerRow } from "./layer-rows.js";
  */
 export function buildLayerList(context: ChromeContext): Node[] {
   const { editor, strings } = context;
-  const selected = editor.ready ? editor.selectedLayer : null;
-  const rows = editor.ready ? layerRows(editor.document.layers, selected?.id ?? null) : [];
+  const selected = editor.selectedLayer;
+  const rows = layerRows(editor.document.layers, selected?.id ?? null);
 
   if (rows.length === 0) return [hint(strings.layersEmpty)];
 

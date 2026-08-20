@@ -1,4 +1,4 @@
-import { supportsTransparency, type ImageFormat, type OutputSettings, type Size } from "@pixen/core";
+import { IMAGE_FORMATS, supportsTransparency, type ImageFormat, type OutputSettings, type Size } from "@pixen/core";
 
 /**
  * What the output panel decides.
@@ -70,7 +70,7 @@ export function isResized(output: SizeTarget): boolean {
  * which is the right default and the only one that cannot be spelled as a
  * MIME type.
  */
-export const OUTPUT_FORMATS: ReadonlyArray<ImageFormat | null> = [null, "image/jpeg", "image/png", "image/webp"];
+export const OUTPUT_FORMATS: ReadonlyArray<ImageFormat | null> = [null, ...IMAGE_FORMATS];
 
 /** What to call a format in a button. Proper nouns, so not translated. */
 const FORMAT_LABELS: Record<ImageFormat, string> = {
@@ -81,14 +81,6 @@ const FORMAT_LABELS: Record<ImageFormat, string> = {
 
 export function formatLabel(format: ImageFormat): string {
   return FORMAT_LABELS[format];
-}
-
-/** Encoders that throw information away, and so take a quality. */
-const LOSSY_FORMATS: readonly ImageFormat[] = ["image/jpeg", "image/webp"];
-
-/** Whether a quality slider means anything for the format that will be used. */
-export function qualityApplies(format: ImageFormat): boolean {
-  return LOSSY_FORMATS.includes(format);
 }
 
 /**

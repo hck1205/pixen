@@ -19,6 +19,7 @@ const STORIES = [
   "editor--styling",
   "editor--layers",
   "editor--output",
+  "editor--round-trip",
   "editor--locales",
   "design--icons",
   "design--palette",

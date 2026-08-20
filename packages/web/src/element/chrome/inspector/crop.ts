@@ -1,10 +1,15 @@
-import { straightenAngleOf } from "@pixen/core";
-import { button, divider, field, input } from "../../dom/index.js";
+import { straightenAngleOf, toDegrees, toRadians } from "@pixen/core";
+import { button, divider } from "../../dom/index.js";
 import { STRAIGHTEN_RANGE } from "../../constants.js";
 import { ratiosEqual } from "../../ratios.js";
+import { transactedSlider } from "./slider.js";
 import type { ChromeContext } from "../context.js";
 
-const DEGREES_PER_RADIAN = 180 / Math.PI;
+/** Rounds to the step the slider actually offers, so the thumb sits on a notch. */
+function toSliderDegrees(radians: number): number {
+  const step = STRAIGHTEN_RANGE.step;
+  return Math.round(toDegrees(radians) / step) * step;
+}
 
 /** Aspect ratios, straightening, rotation and flips — everything that shapes the crop. */
 export function buildCropControls(context: ChromeContext): Node[] {
@@ -23,19 +28,13 @@ export function buildCropControls(context: ChromeContext): Node[] {
 
   // The slider shows the angle the document holds, not one the UI accumulates,
   // so it stays truthful across undo and across a quarter turn.
-  const straighten = field(
-    strings.straighten,
-    input({
-      type: "range",
-      ...STRAIGHTEN_RANGE,
-      value: String(Math.round(straightenAngleOf(editor.document.transform.rotation) * DEGREES_PER_RADIAN * 2) / 2),
-      dataset: { field: "straighten" },
-      onInput: (value) => editor.straighten(Number(value) / DEGREES_PER_RADIAN),
-      // A slider drag is one gesture, so it collapses into one undo step.
-      onPointerDown: () => editor.beginTransaction(strings.straighten),
-      onPointerUp: () => editor.commitTransaction(),
-    }),
-  );
+  const straighten = transactedSlider(editor, {
+    label: strings.straighten,
+    field: "straighten",
+    range: STRAIGHTEN_RANGE,
+    value: toSliderDegrees(straightenAngleOf(editor.document.transform.rotation)),
+    onInput: (degrees) => editor.straighten(toRadians(degrees)),
+  });
 
   return [
     ...ratioButtons,

@@ -1,3 +1,4 @@
+import { QUARTER_TURN, normaliseAngle } from "../geometry/angles.js";
 import { handlePosition, type CropHandle } from "../geometry/crop.js";
 import { center } from "../geometry/rect.js";
 import type { Point, Rect } from "../geometry/types.js";
@@ -204,16 +205,7 @@ export function rotateLayer(
 ): EditorLayer {
   const centre = center(layerBounds(layer));
   // The handle sits above the layer, so a pointer straight up is no rotation.
-  const angle = Math.atan2(pointer.y - centre.y, pointer.x - centre.x) + Math.PI / 2;
+  const angle = Math.atan2(pointer.y - centre.y, pointer.x - centre.x) + QUARTER_TURN;
   const snap = options.snap ?? 0;
   return { ...layer, rotation: normaliseAngle(snap > 0 ? Math.round(angle / snap) * snap : angle) };
-}
-
-/** Folds an angle into (-π, π], so a saved rotation never grows without bound. */
-export function normaliseAngle(radians: number): number {
-  const turn = Math.PI * 2;
-  const folded = radians % turn;
-  if (folded > Math.PI) return folded - turn;
-  if (folded <= -Math.PI) return folded + turn;
-  return folded;
 }

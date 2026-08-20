@@ -114,6 +114,31 @@ export const COVERAGE: CoverageGroup[] = [
         evidence: [doc("docs/SECURITY.md")],
       },
       {
+        capability: "Host round trip",
+        layer: "Engine",
+        detail:
+          "replaceSource swaps the pixels under an edit, keeping the crop, the annotations and the undo stack",
+        evidence: [unit("lifecycle.test.ts"), story("RoundTrip"), browser("editor.spec.ts")],
+      },
+      {
+        capability: "Lifecycle control",
+        layer: "Engine",
+        detail: "Cancel a load or an export in flight; close the picture without destroying the editor",
+        evidence: [unit("lifecycle.test.ts"), browser("editor.spec.ts")],
+      },
+      {
+        capability: "Edits as data",
+        layer: "Engine",
+        detail: "dispatchAll applies a list of intents as one undo step, so a host can open an image pre-edited",
+        evidence: [unit("session.test.ts"), unit("editor.test.ts")],
+      },
+      {
+        capability: "Host busy state",
+        layer: "Element",
+        detail: "A settable status message over the picture, and a disabled state that blocks input without hiding it",
+        evidence: [story("RoundTrip"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
         capability: "Capability probe",
         layer: "Engine",
         detail: "What this browser actually supports, so a host can degrade deliberately",

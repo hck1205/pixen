@@ -1,7 +1,10 @@
 import "@pixen/web";
-import { ImageWorker, layerHandlePosition, processImages } from "@pixen/core";
+import { ImageWorker, createRectLayer, layerHandlePosition } from "@pixen/core";
 import type { ExportResult, ImageFormat } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
+import { attachBatch } from "./batch.js";
+import { formatBytes } from "./bytes.js";
+import { sampleImage } from "./sample.js";
 
 /**
  * A small window hook for the browser suite.
@@ -10,7 +13,11 @@ import type { PixenImageEditorElement } from "@pixen/web";
  * come from the engine itself — re-deriving a handle position in the test would
  * only prove the test agrees with itself.
  */
-(window as unknown as { pixen: Record<string, unknown> }).pixen = { layerHandlePosition, ImageWorker };
+(window as unknown as { pixen: Record<string, unknown> }).pixen = {
+  layerHandlePosition,
+  ImageWorker,
+  createRectLayer,
+};
 
 const editor = document.querySelector<PixenImageEditorElement>("#editor")!;
 const preset = document.querySelector<HTMLSelectElement>("#preset")!;
@@ -22,67 +29,8 @@ const theme = document.querySelector<HTMLSelectElement>("#theme")!;
 const fileInput = document.querySelector<HTMLInputElement>("#file")!;
 const download = document.querySelector<HTMLAnchorElement>("#download")!;
 const configCode = document.querySelector<HTMLElement>("#config code")!;
-const batchOpen = document.querySelector<HTMLButtonElement>("#batch-open")!;
-const batchSample = document.querySelector<HTMLButtonElement>("#batch-sample")!;
-const batchFile = document.querySelector<HTMLInputElement>("#batch-file")!;
-const batchProgress = document.querySelector<HTMLElement>("#batch-progress")!;
-const batchResults = document.querySelector<HTMLOListElement>("#batch-results")!;
 
 let lastUrl: string | null = null;
-
-/** A generated sample so the playground works with no network and no upload. */
-async function sampleImage(): Promise<Blob> {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1600;
-  canvas.height = 1067;
-  const context = canvas.getContext("2d")!;
-
-  const sky = context.createLinearGradient(0, 0, 0, canvas.height);
-  sky.addColorStop(0, "#1b2a5e");
-  sky.addColorStop(0.55, "#e0674f");
-  sky.addColorStop(1, "#f6c177");
-  context.fillStyle = sky;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-
-  context.fillStyle = "rgba(255, 244, 214, 0.95)";
-  context.beginPath();
-  context.arc(1180, 430, 74, 0, Math.PI * 2);
-  context.fill();
-
-  const ridges: Array<[number, string]> = [
-    [720, "#2b2f4a"],
-    [820, "#1e2137"],
-    [930, "#141626"],
-  ];
-  for (const [baseline, colour] of ridges) {
-    context.fillStyle = colour;
-    context.beginPath();
-    context.moveTo(0, canvas.height);
-    context.lineTo(0, baseline);
-    for (let x = 0; x <= canvas.width; x += 40) {
-      const y = baseline - Math.sin(x / 190) * 70 - Math.cos(x / 70) * 22;
-      context.lineTo(x, y);
-    }
-    context.lineTo(canvas.width, canvas.height);
-    context.closePath();
-    context.fill();
-  }
-
-  // Printed detail, so the redaction tools have something real to destroy — and
-  // so the browser tests can measure whether they did.
-  context.fillStyle = "rgba(255, 255, 255, 0.9)";
-  context.font = `${Math.round(canvas.height * 0.05)}px system-ui, sans-serif`;
-  context.fillText("ID 4821-77", canvas.width * 0.08, canvas.height * 0.2);
-  context.fillText("pixen sample", canvas.width * 0.08, canvas.height * 0.28);
-
-  return await new Promise<Blob>((resolve) => canvas.toBlob((blob) => resolve(blob!), "image/jpeg", 0.9));
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
 
 function renderConfig(): void {
   const lines = [`<pixen-image-editor`, `  src="/photo.jpg"`, `  theme="${theme.value}"`];
@@ -157,83 +105,9 @@ editor.addEventListener("pixen-error", (event) => {
   console.error(`[pixen:${error.code ?? "unknown"}]`, error.message);
 });
 
-// --- batch ----------------------------------------------------------------
-
-/** Object URLs handed to download links, revoked when the list is replaced. */
-let batchUrls: string[] = [];
-
-function clearBatch(): void {
-  for (const url of batchUrls) URL.revokeObjectURL(url);
-  batchUrls = [];
-  batchResults.replaceChildren();
-}
-
-/**
- * Runs the batch pipeline over whatever was chosen.
- *
- * This is the whole point of `processImages`: the same resize and re-encode the
- * editor does, with no editor involved — which is what an upload form wants.
- */
-async function runBatch(files: File[]): Promise<void> {
-  if (files.length === 0) return;
-  clearBatch();
-  batchOpen.disabled = true;
-  batchSample.disabled = true;
-  batchProgress.textContent = `0 / ${files.length}`;
-
-  try {
-    const outcomes = await processImages(files, {
-      maxWidth: 1600,
-      format: format.value ? (format.value as ImageFormat) : undefined,
-      quality: Number(quality.value),
-      concurrency: 2,
-      onProgress: ({ completed, total }) => {
-        batchProgress.textContent = `${completed} / ${total}`;
-      },
-    });
-
-    for (const [index, outcome] of outcomes.entries()) {
-      const item = document.createElement("li");
-      const name = files[index]?.name ?? `image ${index + 1}`;
-
-      if (outcome.status === "rejected") {
-        item.className = "failed";
-        item.textContent = `${name} — ${outcome.error.message}`;
-      } else {
-        const { result } = outcome;
-        const url = URL.createObjectURL(result.blob);
-        batchUrls.push(url);
-
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = result.filename;
-        link.textContent = result.filename;
-
-        const detail = document.createElement("span");
-        const saved = result.savedBytes === null ? "" : `, saved ${formatBytes(result.savedBytes)}`;
-        detail.textContent = ` — ${result.width} × ${result.height}, ${formatBytes(result.bytes)}${saved}`;
-
-        item.append(link, detail);
-      }
-      batchResults.append(item);
-    }
-  } catch (error) {
-    batchProgress.textContent = String(error);
-  } finally {
-    batchOpen.disabled = false;
-    batchSample.disabled = false;
-  }
-}
-
-batchOpen.addEventListener("click", () => batchFile.click());
-batchFile.addEventListener("change", () => {
-  void runBatch([...(batchFile.files ?? [])]);
-});
-batchSample.addEventListener("click", () => {
-  // Generated rather than fetched, so the demo needs no network and no assets.
-  void Promise.all([sampleImage(), sampleImage(), sampleImage()]).then((blobs) =>
-    runBatch(blobs.map((blob, index) => new File([blob], `sample-${index + 1}.jpg`, { type: blob.type }))),
-  );
+attachBatch({
+  format: () => (format.value ? (format.value as ImageFormat) : undefined),
+  quality: () => Number(quality.value),
 });
 
 renderConfig();

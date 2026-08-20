@@ -6,6 +6,7 @@ import {
   type FrameStyle,
 } from "@pixen/core";
 import { button, field, input } from "../../dom/index.js";
+import { transactedSlider } from "./slider.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
 
@@ -17,7 +18,7 @@ const STYLE_KEYS = {
 } as const satisfies Record<FrameStyle, keyof PixenStrings>;
 
 /** Width is a fraction of the longest edge, so the step is small. */
-const WIDTH_STEP = 0.002;
+const FRAME_WIDTH_RANGE = { min: MIN_FRAME_WIDTH, max: MAX_FRAME_WIDTH, step: 0.002 };
 
 /**
  * The frame: off, or one of three styles with a width and a colour.
@@ -52,20 +53,13 @@ export function buildFrameControls(context: ChromeContext): Node[] {
   if (!frame) return nodes;
 
   nodes.push(
-    field(
-      strings.frameWidth,
-      input({
-        type: "range",
-        min: MIN_FRAME_WIDTH,
-        max: MAX_FRAME_WIDTH,
-        step: WIDTH_STEP,
-        value: String(frame.width),
-        dataset: { field: "frame-width" },
-        onInput: (value) => editor.setFrame({ width: Number(value) }),
-        onPointerDown: () => editor.beginTransaction(strings.frameWidth),
-        onPointerUp: () => editor.commitTransaction(),
-      }),
-    ),
+    transactedSlider(editor, {
+      label: strings.frameWidth,
+      field: "frame-width",
+      range: FRAME_WIDTH_RANGE,
+      value: frame.width,
+      onInput: (width) => editor.setFrame({ width }),
+    }),
     field(
       strings.frameColour,
       input({

@@ -43,7 +43,7 @@ export function buildInspector(context: ChromeContext): ChromeBuild {
 
 function buildContextualControls(context: ChromeContext): Node[] {
   const { strings, editor } = context;
-  const selected = editor.ready ? editor.selectedLayer : null;
+  const selected = editor.selectedLayer;
 
   const section = inspectorSectionFor({
     panel: context.panel,

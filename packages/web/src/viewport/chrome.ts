@@ -1,5 +1,5 @@
 import { toArray, type CropHandle, type Matrix, type Point, type Rect } from "@pixen/core";
-import { cornerSegments, gridSegments, type Segment } from "./overlay.js";
+import { CORNER_ARM, cornerSegments, gridSegments, type Segment } from "./overlay.js";
 
 /**
  * Painting the crop chrome and the selection outline.
@@ -37,7 +37,6 @@ export function readOverlayPalette(styles: CSSStyleDeclaration): OverlayPalette 
 const OUTLINE_WIDTH = 1.5;
 const GRID_WIDTH = 1;
 const BRACKET_WIDTH = 3.5;
-const BRACKET_ARM = 22;
 const SELECTION_DASH: readonly [number, number] = [5, 4];
 /** Grip size in CSS pixels; the hit radius in `gestures/constants.ts` is larger on purpose. */
 const HANDLE_SIZE = 9;
@@ -82,7 +81,7 @@ export function drawCropFrame(
 
   context.save();
   context.lineCap = "square";
-  strokeSegments(context, cornerSegments(rect, BRACKET_ARM * dpr), palette.outline, BRACKET_WIDTH * dpr);
+  strokeSegments(context, cornerSegments(rect, CORNER_ARM * dpr), palette.outline, BRACKET_WIDTH * dpr);
   context.restore();
 }
 

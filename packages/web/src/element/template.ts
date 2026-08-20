@@ -14,6 +14,7 @@ export function template(): string {
   <textarea class="text-input" part="text-input" spellcheck="false" dir="auto" hidden rows="1"></textarea>
   <div class="layer">
     <div class="top">
+      <div class="busy" part="busy" role="status" hidden></div>
       <slot name="actions"><div class="cluster actions" part="actions" role="toolbar"></div></slot>
     </div>
     <div class="middle">
@@ -25,7 +26,6 @@ export function template(): string {
   </div>
   <div class="empty" part="empty"></div>
   <div class="dropzone" part="dropzone" hidden></div>
-  <div class="busy" part="busy" role="status" hidden></div>
   <div class="status sr-only" role="status" aria-live="polite"></div>
   <input type="file" accept="image/*" class="sr-only" tabindex="-1" aria-hidden="true">
 </div>`;
