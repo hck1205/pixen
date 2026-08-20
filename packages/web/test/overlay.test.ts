@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cornerSegments, gridSegments, projectRect, CORNER_ARM } from "../src/viewport/overlay.js";
+import { CROP_HANDLES } from "@pixen/core";
+import { cornerSegments, gridSegments, planOverlay, projectRect, CORNER_ARM } from "../src/viewport/overlay.js";
 
 const rect = { x: 0, y: 0, width: 300, height: 150 };
 
@@ -73,6 +74,39 @@ describe("projectRect", () => {
       y: 40,
       width: 200,
       height: 100,
+    });
+  });
+});
+
+describe("planOverlay", () => {
+  const layer = { locked: false };
+
+  it("gives the crop tool the canvas, whatever else is selected", () => {
+    expect(planOverlay("crop", layer)).toEqual({ kind: "crop" });
+  });
+
+  it("draws nothing when nothing is selected and no crop is armed", () => {
+    expect(planOverlay("select", null)).toEqual({ kind: "none" });
+  });
+
+  it("gives a selected layer its grips and its rotate handle", () => {
+    expect(planOverlay("select", layer)).toEqual({
+      kind: "selection",
+      grips: CROP_HANDLES,
+      rotate: true,
+    });
+  });
+
+  /**
+   * A locked layer still shows where it is — hiding the outline would make the
+   * layer list the only way to know it exists — but nothing on it can be
+   * grabbed, so it gets none of the things you would drag.
+   */
+  it("outlines a locked layer without giving it anything to drag", () => {
+    expect(planOverlay("select", { locked: true })).toEqual({
+      kind: "selection",
+      grips: [],
+      rotate: false,
     });
   });
 });

@@ -1,10 +1,10 @@
 import { PixenError } from "../errors/index.js";
-import { scaleToFit } from "../geometry/rect.js";
 import type { Size } from "../geometry/types.js";
 import { createSurface, releaseSurface } from "../image/canvas.js";
 import { decodeImage, disposeImageSource, type DecodeOptions, type ImageInput } from "../image/decode.js";
 import { drawResized } from "../image/resize.js";
 import { createId } from "../util/id.js";
+import { planPreview } from "./preview.js";
 
 export interface PreviewBitmap {
   source: CanvasImageSource;
@@ -171,43 +171,29 @@ export class ResourceManager {
       throw new PixenError("RESOURCE_MISSING", `No resource registered for id "${id}"`, { details: { id } });
     }
 
-    if (entry.preview && entry.previewLimit >= maxSize) return entry.preview;
-
     const { resource } = entry;
-    const limit: Size = { width: maxSize, height: maxSize };
-    const target = scaleToFit({ width: resource.width, height: resource.height }, limit);
-
-    if (target.width === resource.width && target.height === resource.height) {
-      const preview: PreviewBitmap = {
-        source: resource.source,
-        width: resource.width,
-        height: resource.height,
-        scale: 1,
-      };
-      entry.preview = preview;
-      entry.previewLimit = maxSize;
-      return preview;
+    const size: Size = { width: resource.width, height: resource.height };
+    const cached = entry.preview;
+    const plan = planPreview(size, maxSize, cached ? entry.previewLimit : null);
+    if (cached) {
+      if (plan.kind === "cached") return cached;
+      // Released only once a new one is called for: until then the old proxy is
+      // the one on screen.
+      this.#disposePreview(entry);
     }
 
-    if (entry.preview) this.#disposePreview(entry);
-
-    const surface = createSurface(target.width, target.height);
-    drawResized(
-      surface.context,
-      resource.source,
-      { width: resource.width, height: resource.height },
-      target,
-    );
-
-    const preview: PreviewBitmap = {
-      source: surface.canvas,
-      width: target.width,
-      height: target.height,
-      scale: target.width / resource.width,
-    };
-    entry.preview = preview;
     entry.previewLimit = maxSize;
-    return preview;
+    entry.preview =
+      plan.kind === "render"
+        ? this.#renderPreview(resource.source, size, plan.target)
+        : { source: resource.source, ...size, scale: 1 };
+    return entry.preview;
+  }
+
+  #renderPreview(source: CanvasImageSource, size: Size, target: Size): PreviewBitmap {
+    const surface = createSurface(target.width, target.height);
+    drawResized(surface.context, source, size, target);
+    return { source: surface.canvas, ...target, scale: target.width / size.width };
   }
 
   #disposePreview(entry: ResourceEntry): void {

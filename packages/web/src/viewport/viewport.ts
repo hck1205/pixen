@@ -3,13 +3,13 @@ import {
   compose,
   createId,
   createScene,
-  CROP_HANDLES,
   Editor,
-  invert,
+  imageToStage,
   layerHandlePosition,
   renderScene,
   scaling,
   stageToView,
+  type LayerHandle,
   type Matrix,
   type Point,
   type Rect,
@@ -23,8 +23,6 @@ import {
   hitLayer,
   IDLE,
   moveGesture,
-  pinchFrom,
-  pinchStep,
   screenToImage as toImage,
   screenToStage as toStage,
   wheelZoomFactor,
@@ -32,12 +30,12 @@ import {
   type GestureEffect,
   type GestureOutcome,
   type GestureState,
-  type PinchState,
 } from "./gestures/index.js";
 // Straight from the module rather than the barrel: these are the gesture's own
 // tuning, and the barrel deliberately keeps tuning out of the package's API.
 import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/constants.js";
-import { projectRect } from "./overlay.js";
+import { planOverlay, projectRect } from "./overlay.js";
+import { PINCH_POINTERS, TouchPoints } from "./touch.js";
 import {
   drawCropFrame,
   drawCropScrim,
@@ -95,8 +93,7 @@ export class Viewport {
   #minCropSize = DEFAULT_MIN_CROP_SIZE;
 
   #gesture: GestureState = IDLE;
-  #pointers = new Map<number, Point>();
-  #pinch: PinchState | null = null;
+  readonly #touch = new TouchPoints();
   #frame = 0;
   #observer: ResizeObserver | null = null;
   #unsubscribe: Array<() => void> = [];
@@ -230,7 +227,7 @@ export class Viewport {
       layers: document.layers,
       selectedId: this.#editor.selectedLayer?.id ?? null,
       viewMatrix: this.#viewMatrix(),
-      stageFromImage: invert(this.#imageFromStage()),
+      stageFromImage: this.#stageFromImage(),
       imageLongestEdge: Math.max(document.source.width, document.source.height),
       style: this.#style,
       minCropSize: this.#minCropSize,
@@ -238,14 +235,17 @@ export class Viewport {
     };
   }
 
-  /** stage -> image, the inverse of the document's own transform. */
-  #imageFromStage(): Matrix {
-    const scene = createScene(
-      this.#editor.document,
-      { source: this.#editor.resource.source },
-      { region: "stage", fit: "none" },
-    );
-    return invert(scene.image.matrix);
+  /**
+   * image -> stage, the document's own transform.
+   *
+   * This used to build a whole scene and invert the matrix out of it, which
+   * every caller then inverted back — two inversions and a full projection of
+   * the document, on every pointer move. The scene's own image matrix *is*
+   * `imageToStage` for a stage-region render, so the conversion comes from
+   * `spaces.ts` like every other one.
+   */
+  #stageFromImage(): Matrix {
+    return imageToStage(this.#editor.document.source, this.#editor.document.transform);
   }
 
   screenToStage(point: Point): Point {
@@ -258,7 +258,7 @@ export class Viewport {
 
   /** image space -> CSS pixels on the canvas, for chrome placed over a layer. */
   imageToScreen(): Matrix {
-    return compose(this.#viewMatrix(), invert(this.#imageFromStage()));
+    return compose(this.#viewMatrix(), this.#stageFromImage());
   }
 
   screenToImage(point: Point): Point {
@@ -315,30 +315,31 @@ export class Viewport {
   }
 
   #drawOverlay(context: CanvasRenderingContext2D, matrix: Matrix, dpr: number): void {
+    const selected = this.#editor.selectedLayer;
+    const plan = planOverlay(this.#tool, selected);
+    if (plan.kind === "none") return;
     const palette = readOverlayPalette(getComputedStyle(this.canvas));
 
-    if (this.#tool === "crop") {
+    if (plan.kind === "crop") {
       const crop = this.#editor.cropRect;
       drawCropScrim(context, { stage: this.#editor.stageRect, crop, matrix, colour: palette.scrim });
       context.setTransform(1, 0, 0, 1, 0, 0);
       drawCropFrame(context, { rect: this.#toScreenRect(crop, dpr), palette, dpr });
       return;
     }
-
-    const selected = this.#editor.selectedLayer;
     if (!selected) return;
 
     // Handles are image space; everything drawn here is device pixels.
-    const stageFromImage = invert(this.#imageFromStage());
-    const project = (point: Point): Point => {
-      const screen = this.stageToScreen(applyToPoint(stageFromImage, point));
+    const stageFromImage = this.#stageFromImage();
+    const at = (handle: LayerHandle): Point => {
+      const screen = this.stageToScreen(applyToPoint(stageFromImage, layerHandlePosition(selected, handle)));
       return { x: screen.x * dpr, y: screen.y * dpr };
     };
 
     drawLayerSelection(context, {
-      quad: SELECTION_CORNERS.map((handle) => project(layerHandlePosition(selected, handle))),
-      handles: selected.locked ? [] : CROP_HANDLES.map((handle) => project(layerHandlePosition(selected, handle))),
-      rotate: selected.locked ? null : project(layerHandlePosition(selected, "rotate")),
+      quad: SELECTION_CORNERS.map(at),
+      handles: plan.grips.map(at),
+      rotate: plan.rotate ? at("rotate") : null,
       colour: palette.selection,
       dpr,
     });
@@ -380,14 +381,14 @@ export class Viewport {
     if (!this.#editor.ready) return;
     this.canvas.setPointerCapture(event.pointerId);
     const point = this.#eventPoint(event);
-    this.#pointers.set(event.pointerId, point);
+    this.#touch.down(event.pointerId, point);
 
-    if (this.#pointers.size === 2) {
+    if (this.#touch.count === PINCH_POINTERS) {
       this.#apply(cancelGesture(this.#gesture));
-      this.#startPinch();
+      this.#touch.beginPinch();
       return;
     }
-    if (this.#pointers.size > 2) return;
+    if (this.#touch.count > PINCH_POINTERS) return;
 
     event.preventDefault();
     this.#apply(
@@ -399,10 +400,14 @@ export class Viewport {
   #onPointerMove = (event: PointerEvent): void => {
     if (!this.#editor.ready) return;
     const point = this.#eventPoint(event);
-    if (this.#pointers.has(event.pointerId)) this.#pointers.set(event.pointerId, point);
+    this.#touch.move(event.pointerId, point);
 
-    if (this.#pinch) {
-      this.#updatePinch();
+    if (this.#touch.pinching) {
+      const step = this.#touch.step();
+      if (step) {
+        this.zoomBy(step.factor, step.centre);
+        this.panBy(step.delta);
+      }
       return;
     }
     if (this.#gesture.kind === "idle") {
@@ -415,38 +420,18 @@ export class Viewport {
   };
 
   #onPointerUp = (event: PointerEvent): void => {
-    this.#pointers.delete(event.pointerId);
+    this.#touch.up(event.pointerId);
     if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
-    if (this.#pointers.size < 2) this.#pinch = null;
     if (this.#gesture.kind === "idle") return;
 
     this.#apply(endGesture(this.#gesture, this.#gestureContext()));
     this.#callbacks.onChange?.();
   };
 
-  #onPointerCancel = (event: PointerEvent): void => {
-    this.#pointers.delete(event.pointerId);
-    this.#pinch = null;
+  #onPointerCancel = (): void => {
+    this.#touch.cancel();
     this.#apply(cancelGesture(this.#gesture));
   };
-
-  #startPinch(): void {
-    const [a, b] = [...this.#pointers.values()];
-    if (a && b) this.#pinch = pinchFrom(a, b);
-  }
-
-  #updatePinch(): void {
-    const previous = this.#pinch;
-    if (!previous) return;
-    const [a, b] = [...this.#pointers.values()];
-    if (!a || !b) return;
-
-    const current = pinchFrom(a, b);
-    const { factor, delta } = pinchStep(previous, current);
-    this.zoomBy(factor, current.centre);
-    this.panBy(delta);
-    this.#pinch = current;
-  }
 
   /** Double-clicking text edits it, which is where anyone would look first. */
   #onDoubleClick = (event: MouseEvent): void => {

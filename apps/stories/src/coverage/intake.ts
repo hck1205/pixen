@@ -45,6 +45,14 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
         evidence: [unit("worker.test.ts"), browser("editor.spec.ts")],
       },
       {
+        capability: "Preview proxy",
+        layer: "Engine",
+        detail:
+          "Editing happens against a downscaled bitmap and exporting against the original, so a " +
+          "48-megapixel source stays interactive without ever degrading the exported pixels",
+        evidence: [unit("preview.test.ts"), browser("editor.spec.ts")],
+      },
+      {
         capability: "Decompression-bomb ceiling",
         layer: "Engine",
         detail: "MAX_CANVAS_PIXELS refuses a surface no browser would allocate",

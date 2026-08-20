@@ -1489,3 +1489,60 @@ test("a cancelled export is an abort rather than an error", async ({ page }) => 
   expect(outcome.events).not.toContain("export");
   expect(outcome.busy).toBe(false);
 });
+
+/**
+ * Two fingers, dispatched as real touch input.
+ *
+ * The pinch is the one gesture with no keyboard or mouse equivalent, so nothing
+ * else in this suite goes near it, and a unit test can only check the
+ * arithmetic — not that the second finger cancels the drag the first one
+ * started, which is what stops a pinch from drawing a rectangle.
+ */
+test.describe("multi-touch", () => {
+  test.use({ hasTouch: true });
+
+  test("a two-finger spread zooms instead of drawing", async ({ page }) => {
+    await page.goto("/");
+    await waitForImage(page);
+    await page.evaluate(() => {
+      // The rectangle tool, so a one-finger drag would leave something behind.
+      (document.querySelector("pixen-image-editor") as EditorElement).tool = "rect";
+    });
+
+    const box = (await page.locator("pixen-image-editor").boundingBox())!;
+    const midX = box.x + box.width / 2;
+    const midY = box.y + box.height / 2;
+    const client = await page.context().newCDPSession(page);
+    const touch = (type: string, spread: number) =>
+      client.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints:
+          type === "touchEnd"
+            ? []
+            : [
+                { x: midX - spread, y: midY, id: 1 },
+                { x: midX + spread, y: midY, id: 2 },
+              ],
+      });
+
+    const before = await page.evaluate(
+      () => (document.querySelector("pixen-image-editor") as unknown as { viewport: { zoom: number } }).viewport.zoom,
+    );
+
+    await touch("touchStart", 40);
+    await touch("touchMove", 80);
+    await touch("touchMove", 120);
+    await touch("touchEnd", 0);
+
+    const after = await page.evaluate(() => {
+      const element = document.querySelector("pixen-image-editor") as EditorElement & {
+        viewport: { zoom: number };
+      };
+      return { zoom: element.viewport.zoom, layers: element.editor.document.layers.length };
+    });
+
+    expect(after.zoom).toBeGreaterThan(before * 1.5);
+    // The second finger calls off whatever the first one had begun.
+    expect(after.layers).toBe(0);
+  });
+});

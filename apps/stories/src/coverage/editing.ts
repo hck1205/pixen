@@ -35,8 +35,8 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
       {
         capability: "Zoom, pan, pinch, fit",
         layer: "Element",
-        detail: "Wheel and pinch zoom, drag to pan, fit-on-resize, and a fit button",
-        evidence: [unit("view.test.ts"), browser("editor.spec.ts")],
+        detail: "Wheel and two-finger pinch zoom, drag to pan, fit-on-resize, and a fit button",
+        evidence: [unit("view.test.ts"), unit("touch.test.ts"), browser("editor.spec.ts")],
       },
       {
         capability: "Coordinate spaces",

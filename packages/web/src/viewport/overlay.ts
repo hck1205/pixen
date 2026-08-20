@@ -1,11 +1,13 @@
-import type { Point, Rect } from "@pixen/core";
+import { CROP_HANDLES, type CropHandle, type Point, type Rect } from "@pixen/core";
+import type { ToolId } from "../tools/index.js";
 
 /**
- * Crop chrome as geometry, not drawing calls.
+ * The overlay as data, not as drawing calls: what to draw over the picture, and
+ * where its lines go.
  *
- * Keeping the layout maths here means the rule-of-thirds spacing and the corner
- * bracket lengths are unit-testable, and the viewport is left with a loop over
- * line segments.
+ * Keeping both here means the rule-of-thirds spacing, the corner bracket
+ * lengths and "which overlay does this state call for" are all answerable in a
+ * unit test, and the viewport is left with a loop over line segments.
  */
 export interface Segment {
   from: Point;
@@ -48,7 +50,6 @@ export function cornerSegments(rect: Rect, arm = CORNER_ARM): Segment[] {
   ]);
 }
 
-/** Grows a rect on every side, for a selection outline drawn around content. */
 /** Maps a stage-space rect into device pixels through the view transform. */
 export function projectRect(
   rect: Rect,
@@ -63,4 +64,25 @@ export function projectRect(
     width: (bottomRight.x - topLeft.x) * devicePixelRatio,
     height: (bottomRight.y - topLeft.y) * devicePixelRatio,
   };
+}
+
+/**
+ * What the overlay is, for the state the editor is in.
+ *
+ * A pure lookup, like `inspectorSectionFor` next door: the crop tool owns the
+ * canvas while it is armed, whatever else is selected, and everything else
+ * shows the selected layer or nothing at all.
+ */
+export type OverlayPlan =
+  | { kind: "crop" }
+  | { kind: "selection"; grips: readonly CropHandle[]; rotate: boolean }
+  | { kind: "none" };
+
+export function planOverlay(tool: ToolId, selected: { locked: boolean } | null): OverlayPlan {
+  if (tool === "crop") return { kind: "crop" };
+  if (!selected) return { kind: "none" };
+  // A locked layer still shows where it is; it just cannot be grabbed, so it
+  // gets the outline and none of the things you would drag.
+  if (selected.locked) return { kind: "selection", grips: [], rotate: false };
+  return { kind: "selection", grips: CROP_HANDLES, rotate: true };
 }

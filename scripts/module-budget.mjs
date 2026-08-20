@@ -46,9 +46,10 @@ export const EXEMPT = {
   // surface a host reads as one thing, and the decisions are already elsewhere.
   "packages/core/src/engine/editor.ts": 728,
   // Pointer plumbing over gesture functions that are pure and tested next
-  // door. The class holds state, effects and subscribers, which is what the
-  // working agreement says a class is for.
-  "packages/web/src/viewport/viewport.ts": 488,
+  // door, plus the render loop. The class holds state, effects and subscribers,
+  // which is what the working agreement says a class is for; the overlay's
+  // decision and the multi-touch bookkeeping have been lifted out of it.
+  "packages/web/src/viewport/viewport.ts": 473,
   // Every document mutation as a pure function, one per operation. The list is
   // long because the vocabulary is; each entry is a handful of lines.
   "packages/core/src/engine/commands.ts": 333,
