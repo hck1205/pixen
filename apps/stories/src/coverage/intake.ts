@@ -69,8 +69,11 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
       {
         capability: "Decompression-bomb ceiling",
         layer: "Engine",
-        detail: "MAX_CANVAS_PIXELS refuses a surface no browser would allocate",
-        evidence: [doc("docs/SECURITY.md")],
+        detail:
+          "MAX_CANVAS_PIXELS refuses a surface no browser would allocate, by area rather than by " +
+          "either edge — before every canvas Pixen allocates, and after a decode, because only the " +
+          "decoder knows the size a hostile file really described",
+        evidence: [unit("canvas.test.ts"), doc("docs/SECURITY.md")],
       },
       {
         capability: "Host round trip",

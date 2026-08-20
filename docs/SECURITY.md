@@ -6,7 +6,21 @@
   execute embedded content, so it is not accepted until a sanitisation pipeline
   exists. This is a deliberate, documented limitation, not an oversight.
 - **Decompression bombs** are bounded: `assertDrawableSize` rejects anything over
-  268,435,456 pixels (16384 × 16384) with `MEMORY_LIMIT` before allocation.
+  268,435,456 pixels (16384 × 16384) with `MEMORY_LIMIT`. It measures the area
+  rather than either edge, so a panorama wider than the square limit is allowed
+  while a bomb of any shape is not.
+
+  Where that sits matters, and it is worth being exact. Every canvas Pixen
+  allocates is checked *before* the allocation — the export target, the mask, the
+  surface an orientation is baked into. A decoded image is checked *after* the
+  browser decoded it, because the check needs a size and only the decoder knows
+  one. So a hostile file can still make the browser's own decoder allocate once;
+  what is bounded is everything Pixen would then do with it, which is where the
+  multiplication would otherwise happen.
+
+  The per-dimension limits real engines have — well below 16,384 on some phones
+  — are a separate matter, and not something Pixen guesses at. See
+  `export({ maxPixels })` in [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md).
 - **Non-image and empty files** fail with `UNSUPPORTED_FORMAT` / `INVALID_IMAGE`
   rather than producing a blank canvas.
 - **EXIF parsing** walks segment headers only, never trusts a length field far
