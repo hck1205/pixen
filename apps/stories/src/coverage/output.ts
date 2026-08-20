@@ -65,6 +65,15 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
         evidence: [unit("processing.test.ts"), story("Transparency")],
       },
       {
+        capability: "Pixel ceiling",
+        layer: "Engine",
+        detail:
+          "maxPixels scales an over-large export to fit rather than refusing it, because a device past " +
+          "its real canvas limit returns a blank picture rather than an error — and the result reports " +
+          "the size actually produced",
+        evidence: [unit("geometry.test.ts"), browser("editor.spec.ts"), doc("docs/BROWSER-SUPPORT.md")],
+      },
+      {
         capability: "Metadata",
         layer: "Engine",
         detail:

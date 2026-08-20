@@ -131,4 +131,18 @@ the failure mode is an import-time crash rather than a render-time one.
   including Pixen's own `drawResized`, which is exported for it. See
   [FRAMEWORKS.md](FRAMEWORKS.md).
 - **Very large images** are bounded at 268,435,456 pixels (16384 × 16384), above
-  which `MEMORY_LIMIT` is raised rather than the tab being killed.
+  which `MEMORY_LIMIT` is raised rather than the tab being killed. That is a
+  decompression-bomb guard and stays a refusal: nothing that large was meant.
+
+  What a device will *really* allocate is another matter, and it is well below
+  that — low enough on some phones that a photograph taken on the same phone
+  does not fit. The failure there is the bad part: an over-large canvas comes
+  back blank or transparent rather than throwing, so the export is silently
+  wrong and nothing says why.
+
+  Pixen does not guess a number for your device — there is no honest way to
+  measure a limit without allocating up to it, and a page that does that on load
+  is a page that sometimes crashes on load. Instead `export({ maxPixels })`
+  takes one from you, and an export past it is **scaled to fit rather than
+  refused**, keeping its shape. The size in the result is the size you got, so
+  read it back rather than assuming what was asked for.

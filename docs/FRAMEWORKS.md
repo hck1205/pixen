@@ -319,6 +319,19 @@ is safe — the picture lands in the same place regardless — it only changes t
 resolution the resampling happened at. See
 [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md) for the measurement.
 
+**A ceiling on the pixels.** Some devices refuse a canvas well below what the
+specification allows, and do it by handing back a blank one rather than by
+throwing. If you know what your target can allocate, say so and an over-large
+export is scaled to fit instead:
+
+```js
+const { blob, width, height } = await editor.export({ maxPixels: 16_777_216 });
+```
+
+It keeps the picture's shape, and `width`/`height` in the result are what you
+actually got — which may be smaller than what you asked for. See
+[BROWSER-SUPPORT.md](BROWSER-SUPPORT.md).
+
 **Metadata.** A re-encode loses the camera's own record of the picture, which for
 an archive is a real loss and for a shared photograph is usually the point. It is
 stripped by default; ask for it and it comes across:

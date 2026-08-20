@@ -163,6 +163,42 @@ export function scaleToFit(size: Size, limit: Size): Size {
 }
 
 /**
+ * The largest size of this shape that fits within a pixel budget.
+ *
+ * A canvas is not refused for being wide or tall but for the pixels in it, and
+ * what a browser will actually allocate is far below what the specification
+ * allows — low enough on some phones that an ordinary photograph from the same
+ * phone does not fit. The failure is the bad part: an over-large canvas comes
+ * back blank or transparent rather than throwing, so the picture is simply
+ * wrong, and nothing says why.
+ *
+ * Scaling both axes by the square root of the ratio is what keeps the shape
+ * while actually spending the budget — a picture cut to a tenth of the pixels
+ * is not a tenth as wide.
+ *
+ * What guarantees the result is the pair of caps rather than the scaling: each
+ * axis is limited to what the budget leaves for it, so even a shape too long to
+ * fit at all comes back inside the budget rather than merely smaller. The shape
+ * is what gets given up in that case; the budget is not negotiable. Flooring on
+ * top of that keeps each axis from creeping over its share by a pixel.
+ */
+export function fitWithinPixels(size: Size, maxPixels: number): Size {
+  const width = Math.max(1, Math.round(size.width));
+  const height = Math.max(1, Math.round(size.height));
+  if (!Number.isFinite(maxPixels) || maxPixels < 1 || width * height <= maxPixels) return { width, height };
+
+  const scale = Math.sqrt(maxPixels / (width * height));
+  // Each axis is capped against what is left for it, because scaling alone is
+  // not enough at the extremes: a strip 65,535 pixels wide against a budget of
+  // one scales to 147 wide and one tall, which is 147 times over.
+  const fittedWidth = Math.max(1, Math.min(Math.floor(width * scale), Math.floor(maxPixels)));
+  return {
+    width: fittedWidth,
+    height: Math.max(1, Math.min(Math.floor(height * scale), Math.floor(maxPixels / fittedWidth))),
+  };
+}
+
+/**
  * The longer of a size's two edges.
  *
  * The measure almost every fraction in the model is expressed against — a

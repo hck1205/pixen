@@ -1671,6 +1671,70 @@ test("all eight EXIF orientations open upright, whatever the browser did first",
 });
 
 /**
+ * A ceiling that scales the picture instead of refusing it.
+ *
+ * What a browser will really allocate is far below what the specification
+ * allows, and low enough on some phones that a photograph from the same phone
+ * does not fit. The failure mode is the reason this exists: an over-large canvas
+ * comes back blank rather than throwing, so the export is silently wrong.
+ *
+ * A host that knows its device says so, and gets a smaller picture rather than
+ * an error or an empty one. Checked here rather than in a unit test because the
+ * claim is about a file that really encoded and really decodes.
+ */
+test("an export past the pixel ceiling comes back smaller, not empty", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const CEILING = 120_000;
+
+    const read = async (options: Record<string, unknown>) => {
+      const result = await element.export({ format: "image/png", ...options } as never);
+      const bitmap = await createImageBitmap(result.blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext("2d")!;
+      context.drawImage(bitmap, 0, 0);
+      // A blank export is the failure this guards against, so count what is
+      // actually painted rather than trusting the size alone.
+      const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+      let painted = 0;
+      for (let i = 3; i < data.length; i += 4 * 37) if (data[i]! > 0) painted += 1;
+      return { reported: { width: result.width, height: result.height }, decoded: [bitmap.width, bitmap.height], painted };
+    };
+
+    return {
+      ceiling: CEILING,
+      unlimited: await read({ width: 900 }),
+      capped: await read({ width: 900, maxPixels: CEILING }),
+      roomy: await read({ width: 900, maxPixels: 10_000_000 }),
+    };
+  });
+
+  // Without a ceiling, the size asked for is the size delivered.
+  expect(outcome.unlimited.reported.width).toBe(900);
+
+  // With one, the picture is scaled to fit it — and the result says so, which is
+  // the only way a host can know what it actually got.
+  const { width, height } = outcome.capped.reported;
+  expect(width * height).toBeLessThanOrEqual(outcome.ceiling);
+  expect(width).toBeLessThan(900);
+  expect(outcome.capped.decoded).toEqual([width, height]);
+  // Same shape, and a real picture rather than an empty canvas.
+  expect(width / height).toBeCloseTo(
+    outcome.unlimited.reported.width / outcome.unlimited.reported.height,
+    1,
+  );
+  expect(outcome.capped.painted).toBeGreaterThan(0);
+
+  // A ceiling nothing reaches changes nothing.
+  expect(outcome.roomy.reported).toEqual(outcome.unlimited.reported);
+});
+
+/**
  * The camera's own record of the picture, carried across a re-encode.
  *
  * Only a real encoder produces a JPEG to splice a block into and a real decoder
