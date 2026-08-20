@@ -106,6 +106,8 @@ export class PixenImageEditorElement extends ElementBase {
   #strings: PixenStrings = resolveStrings("en");
   #panel: PanelId = "tool";
   #busy = false;
+  #status: string | null = null;
+  #disabled = false;
   /** True when the host set `dir` itself, which then outranks the locale. */
   #explicitDirection = false;
   #pendingSrc: string | null = null;
@@ -179,6 +181,13 @@ export class PixenImageEditorElement extends ElementBase {
       }),
       this.editor.on("history", (state) => this.#emit("pixen-history", state)),
       this.editor.on("selection", () => this.#syncUI()),
+      // The engine is the source of truth, so the element observes a close
+      // rather than only knowing about the ones it started itself.
+      this.editor.on("close", () => {
+        this.#stickerPlacer.clear();
+        this.#viewport?.invalidate();
+        this.#syncUI();
+      }),
       this.editor.on("error", (error) => this.#emit("pixen-error", { error })),
     );
 
@@ -364,6 +373,41 @@ export class PixenImageEditorElement extends ElementBase {
     return this.#busy;
   }
 
+  /**
+   * A message shown over the picture while the host is doing something.
+   *
+   * The editor puts its own work up there — exporting — but a host round trip
+   * takes just as long and is just as invisible: sending the picture to a
+   * service and waiting. Setting this says what is happening; setting it to
+   * null takes it away.
+   */
+  get status(): string | null {
+    return this.#status;
+  }
+
+  set status(value: string | null) {
+    this.#status = value === null || value === "" ? null : value;
+    this.#refreshOverlay();
+  }
+
+  /**
+   * Blocks input without hiding anything.
+   *
+   * A host waiting on a round trip needs the picture to stay on screen and stop
+   * responding, which is neither `busy` (that is the editor's own work) nor
+   * unloading it.
+   */
+  get disabled(): boolean {
+    return this.#disabled;
+  }
+
+  set disabled(value: boolean) {
+    this.#disabled = value;
+    this.toggleAttribute("disabled", value);
+    this.setAttribute("aria-disabled", String(value));
+    this.#syncUI();
+  }
+
   // --- imperative API ------------------------------------------------------
 
   async load(input: Parameters<Editor["load"]>[0]): Promise<void> {
@@ -393,6 +437,30 @@ export class PixenImageEditorElement extends ElementBase {
         this.#syncUI();
       }
     }
+  }
+
+  /**
+   * Swaps the pixels under the current edit, keeping the edit.
+   *
+   * The host round trip this exists for — a background remover, an upscaler —
+   * is slow and invisible, so the busy state is held for its duration.
+   */
+  async replaceSource(input: Parameters<Editor["replaceSource"]>[0]): Promise<void> {
+    this.#setBusy(true);
+    try {
+      await this.editor.replaceSource(input);
+      this.#viewport?.invalidate();
+      this.#syncUI();
+    } catch (error) {
+      this.#emit("pixen-error", { error });
+    } finally {
+      this.#setBusy(false);
+    }
+  }
+
+  /** Back to the empty state, letting the picture go. */
+  close(): void {
+    this.editor.close();
   }
 
   async export(options: ExportOptions = {}): Promise<ExportResult> {
@@ -621,11 +689,21 @@ export class PixenImageEditorElement extends ElementBase {
 
   #setBusy(busy: boolean): void {
     this.#busy = busy;
-    this.#busyHost.hidden = !busy;
-    this.#busyHost.textContent = this.#strings.exporting;
     this.toggleAttribute("busy", busy);
     this.setAttribute("aria-busy", String(busy));
+    this.#refreshOverlay();
     refreshActions(this.#actionsHost, this.#context());
+  }
+
+  /**
+   * One pill, two reasons to show it: the editor's own work, and the host's.
+   * A host message wins, because it is the more specific thing to say.
+   */
+  #refreshOverlay(): void {
+    if (!this.#busyHost) return;
+    const message = this.#status ?? (this.#busy ? this.#strings.exporting : null);
+    this.#busyHost.hidden = message === null;
+    this.#busyHost.textContent = message ?? "";
   }
 
   // --- input ---------------------------------------------------------------
@@ -636,7 +714,7 @@ export class PixenImageEditorElement extends ElementBase {
   };
 
   #onKeyDown = (event: KeyboardEvent): void => {
-    if (isTypingTarget(event.target)) return;
+    if (this.#disabled || isTypingTarget(event.target)) return;
 
     const selected = this.editor.selectedLayer;
     const command = resolveKeyboardAction(event, {

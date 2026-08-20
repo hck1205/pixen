@@ -157,11 +157,12 @@ export const panels = `
   pointer-events: none;
 }
 
+/* Shares the top row with the actions rather than floating over them: it used
+   to be centred and absolutely positioned, which collided with the action
+   cluster on any host under about 500px. An auto margin at its end pushes it to
+   the start of the row and leaves the actions where they were. */
 .busy {
-  position: absolute;
-  inset-block-start: 12px;
-  inset-inline-start: 50%;
-  translate: -50% 0;
+  margin-inline-end: auto;
   padding: 6px 12px;
   font-size: 12px;
   border-radius: 999px;

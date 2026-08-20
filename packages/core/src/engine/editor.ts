@@ -1,4 +1,6 @@
 import { PixenError, toPixenError } from "../errors/index.js";
+import { chainAbort } from "../util/abort.js";
+import * as commands from "./commands.js";
 import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
@@ -44,6 +46,8 @@ export interface EditorEvents {
   history: HistorySummary;
   selection: { id: string | null };
   error: PixenError;
+  /** The image was closed; the editor is back to holding nothing. */
+  close: void;
   destroy: void;
 }
 
@@ -76,6 +80,9 @@ export class Editor {
   #session: SessionState | null = null;
   #ownsResources: boolean;
   #destroyed = false;
+  /** In-flight work, so a host can call it off. See `cancelLoad`/`cancelExport`. */
+  #loading: AbortController | null = null;
+  #exporting: AbortController | null = null;
 
   constructor(options: EditorOptions = {}) {
     this.resources =
@@ -161,17 +168,95 @@ export class Editor {
 
   // --- loading -------------------------------------------------------------
 
-  /** Decodes an input, registers it and starts a fresh document. */
+  /**
+   * Decodes an input, registers it and starts a fresh document.
+   *
+   * Only one load is ever in flight: starting a second calls off the first, so
+   * a host that changes its mind twice does not race two decodes into the same
+   * editor and get whichever finished last.
+   */
   async load(input: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     this.#assertAlive();
+    this.#loading?.abort();
+    const attempt = chainAbort(options.signal);
+    this.#loading = attempt;
+
     try {
-      const resource = await this.resources.load(input, options);
+      const resource = await this.resources.load(input, { ...options, signal: attempt.signal });
       return this.open(resource);
     } catch (cause) {
       const error = toPixenError(cause, "INVALID_IMAGE", "The image could not be loaded");
       this.#emitter.emit("error", error);
       throw error;
+    } finally {
+      if (this.#loading === attempt) this.#loading = null;
     }
+  }
+
+  /** Calls off a load in flight. True when there was one. */
+  cancelLoad(): boolean {
+    if (!this.#loading) return false;
+    this.#loading.abort();
+    this.#loading = null;
+    return true;
+  }
+
+  /**
+   * Swaps the pixels under the current edit, keeping the edit and its history.
+   *
+   * For a round trip through something else — a background remover, an
+   * upscaler, a retouching service. The document keeps its crop, its
+   * annotations and its undo stack; only the picture underneath changes, and it
+   * changes as one undo step.
+   */
+  async replaceSource(input: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
+    this.#assertAlive();
+    const previous = this.session.document.source.resourceId;
+
+    try {
+      const resource = await this.resources.load(input, options);
+      this.dispatch({
+        kind: "transform",
+        reason: "replace-source",
+        label: "Replace image",
+        transform: (document) =>
+          commands.replaceSource(document, {
+            resourceId: resource.id,
+            width: resource.width,
+            height: resource.height,
+            ...(resource.name ? { name: resource.name } : {}),
+            ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+          }),
+      });
+
+      // Released after the swap, not before: until the document points at the
+      // new bitmap, the old one is still the one being drawn.
+      if (this.document.source.resourceId !== previous) this.resources.release(previous);
+      return this.document;
+    } catch (cause) {
+      const error = toPixenError(cause, "INVALID_IMAGE", "The image could not be replaced");
+      this.#emitter.emit("error", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Puts the editor back to holding nothing.
+   *
+   * Not the same as `reset`, which clears the edits and keeps the picture. This
+   * lets the picture go — the host is done with it, or is about to show a
+   * different one and wants the empty state in between.
+   */
+  close(): this {
+    this.#assertAlive();
+    this.cancelLoad();
+    if (!this.#session) return this;
+
+    const { resourceId } = this.#session.document.source;
+    this.#session = null;
+    this.resources.release(resourceId);
+    this.#emitter.emit("close", undefined);
+    return this;
   }
 
   /**
@@ -259,6 +344,25 @@ export class Editor {
     return this;
   }
 
+  /**
+   * Dispatches a list of intents as one step.
+   *
+   * Intents are data, so "the edits to apply" needs no second vocabulary: a
+   * host that wants an image opened already rotated and cropped hands over the
+   * same values the interface would have produced, and gets one undo step for
+   * the lot. An empty list does nothing rather than recording an empty step.
+   */
+  dispatchAll(intents: readonly Intent[], label = "Apply edits"): this {
+    this.#assertAlive();
+    if (intents.length === 0) return this;
+    if (intents.length === 1) return this.dispatch(intents[0]!);
+
+    return this.transact(label, () => {
+      for (const intent of intents) this.dispatch(intent);
+      return this;
+    });
+  }
+
   #emitEvents(events: readonly SessionEvent[]): void {
     for (const event of events) {
       switch (event.type) {
@@ -295,6 +399,7 @@ export class Editor {
   }
 
   /** Replaces the document wholesale — used by hosts driving state themselves. */
+
   setDocument(document: EditorDocument): this {
     return this.dispatch({ kind: "set-document", document });
   }
@@ -538,13 +643,31 @@ export class Editor {
 
   async export(options: ExportOptions = {}): Promise<ExportResult> {
     this.#assertAlive();
+    const attempt = chainAbort(options.signal);
+    this.#exporting = attempt;
+
     try {
-      return await exportDocument(this.document, this.resources, options);
+      return await exportDocument(this.document, this.resources, { ...options, signal: attempt.signal });
     } catch (cause) {
       const error = toPixenError(cause, "EXPORT_FAILED", "The image could not be exported");
       this.#emitter.emit("error", error);
       throw error;
+    } finally {
+      if (this.#exporting === attempt) this.#exporting = null;
     }
+  }
+
+  /**
+   * Calls off an export in flight. True when there was one.
+   *
+   * A full-resolution render and encode is the longest thing the editor does,
+   * and a host that has navigated away should not have to wait for it.
+   */
+  cancelExport(): boolean {
+    if (!this.#exporting) return false;
+    this.#exporting.abort();
+    this.#exporting = null;
+    return true;
   }
 
   /**

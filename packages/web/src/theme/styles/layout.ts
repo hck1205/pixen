@@ -6,6 +6,16 @@
  * part of the box, and which parts take pointer events.
  */
 export const layout = `
+/* Disabled: still there, still legible, no longer listening. A host waiting on
+   a round trip needs the picture on screen and the controls inert. Blocking
+   pointer events at the host covers the canvas and every control at once;
+   aria-disabled on the host says the same thing out loud. */
+:host([disabled]) .root {
+  pointer-events: none;
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+
 .root {
   position: relative;
   inline-size: 100%;
@@ -48,6 +58,9 @@ canvas {
 
 .top {
   display: flex;
+  /* Wraps rather than overlapping: the status message and the actions share
+     this row, and on a narrow host there is not width for both. */
+  flex-wrap: wrap;
   justify-content: flex-end;
   align-items: flex-start;
   gap: var(--pixen-gap);

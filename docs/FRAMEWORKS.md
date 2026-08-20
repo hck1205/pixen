@@ -26,6 +26,10 @@ dance is needed. See [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md#server-side-renderi
    picture: `tool` chooses the armed tool, and `panel` opens an inspector panel
    (`"tool"`, `"adjust"`, `"layers"` or `"output"`). An application that exists
    to resize can open the output panel on load and leave it there.
+   Two are for the host's own work rather than the picture's: `status` puts a
+   message over the picture while a round trip runs, and `disabled` blocks
+   input without hiding anything. Both are properties; `disabled` also reflects
+   to an attribute so CSS can see it.
 2. **Events are DOM `CustomEvent`s** named `pixen-load`, `pixen-change`,
    `pixen-history`, `pixen-export`, `pixen-error` and `pixen-ready`. Each detail
    is on `event.detail`. Frameworks with their own event syntax need their usual

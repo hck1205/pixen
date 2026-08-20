@@ -297,6 +297,43 @@ const value = srcset(variants.map((variant) => ({
 })));
 ```
 
+## The host round trip
+
+Plenty of products send the picture somewhere between opening it and saving it
+— a background remover, an upscaler, a retouching service. `replaceSource`
+swaps the pixels under the edit and keeps the edit: the crop, the annotations
+and the undo stack survive, and the swap itself is one more undo step.
+
+```js
+element.status = "Removing the background…";
+element.disabled = true;
+try {
+  const cutOut = await removeBackground(editor.resource.blob);
+  await element.replaceSource(cutOut);
+} finally {
+  element.status = null;
+  element.disabled = false;
+}
+```
+
+A replacement of the same size is a straight swap; the same shape at another
+size rescales the edit so every mark stays on the content it was pointing at. A
+different aspect ratio is refused rather than silently mangling the edit.
+
+The rest of the lifecycle is imperative too: `editor.cancelLoad()` and
+`editor.cancelExport()` call off work in flight, `editor.close()` puts the
+editor back to holding nothing without destroying it, and `dispatchAll` applies
+a list of intents as a single undo step — which is how an image is opened
+already rotated and cropped, using the same values the interface would produce:
+
+```js
+await editor.load(file);
+editor.dispatchAll([
+  { kind: "rotate-quarter-turns", turns: 1 },
+  { kind: "set-aspect-ratio", ratio: 1 },
+]);
+```
+
 ## Policies
 
 A policy is a named set of output rules — the thing most teams actually want

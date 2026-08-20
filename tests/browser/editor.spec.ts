@@ -1247,3 +1247,150 @@ test("exporting several sizes produces one file per planned size", async ({ page
   expect(bytes[0]).toBeGreaterThan(bytes[1]!);
   expect(bytes[1]).toBeGreaterThan(bytes[2]!);
 });
+
+/**
+ * The host round trip: send the picture somewhere, get different pixels back,
+ * keep the edit. Only a browser can answer whether the canvas really repaints
+ * and the history really survives.
+ */
+test("replacing the source keeps the edit, the history and the annotations", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      replaceSource(input: Blob): Promise<void>;
+      editor: {
+        document: { source: { resourceId: string; width: number }; layers: unknown[]; crop: unknown };
+        historyState: { depth: number; canUndo: boolean };
+        addLayer(layer: unknown, options?: unknown): unknown;
+        setCropRect(rect: { x: number; y: number; width: number; height: number }): unknown;
+        undo(): boolean;
+      };
+    };
+    const { createRectLayer } = (window as unknown as { pixen: Record<string, unknown> }).pixen as {
+      createRectLayer: (frame: unknown, options?: unknown) => unknown;
+    };
+
+    element.editor.setCropRect({ x: 100, y: 100, width: 600, height: 400 });
+    element.editor.addLayer(createRectLayer({ x: 200, y: 200, width: 300, height: 200 }, { id: "mark" }));
+
+    const before = {
+      resource: element.editor.document.source.resourceId,
+      width: element.editor.document.source.width,
+      layers: element.editor.document.layers.length,
+      crop: element.editor.document.crop,
+      depth: element.editor.historyState.depth,
+    };
+
+    // A stand-in for whatever the host sent the picture to: same size, all green.
+    const canvas = document.createElement("canvas");
+    canvas.width = before.width;
+    canvas.height = Math.round((before.width * 1067) / 1600);
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#00b140";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const replacement: Blob = await new Promise((resolve) =>
+      canvas.toBlob((blob) => resolve(blob!), "image/png"),
+    );
+
+    await element.replaceSource(replacement);
+
+    const after = {
+      resource: element.editor.document.source.resourceId,
+      layers: element.editor.document.layers.length,
+      crop: element.editor.document.crop,
+      depth: element.editor.historyState.depth,
+      canUndo: element.editor.historyState.canUndo,
+    };
+
+    element.editor.undo();
+    const undone = element.editor.document.source.resourceId;
+
+    return { before, after, undone };
+  });
+
+  // Different pixels, same edit.
+  expect(outcome.after.resource).not.toBe(outcome.before.resource);
+  expect(outcome.after.layers).toBe(outcome.before.layers);
+  expect(outcome.after.crop).toEqual(outcome.before.crop);
+  // One more step, and it goes back — a swap is an edit like any other.
+  expect(outcome.after.depth).toBe(outcome.before.depth + 1);
+  expect(outcome.after.canUndo).toBe(true);
+  expect(outcome.undone).toBe(outcome.before.resource);
+});
+
+/** Closing lets the picture go without destroying the editor. */
+test("closing returns the editor to its empty state, and it can load again", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & {
+      close(): void;
+      load(input: unknown): Promise<void>;
+      editor: { ready: boolean };
+    };
+    const shadow = element.shadowRoot!;
+    const emptyVisible = (): boolean => !(shadow.querySelector(".empty") as HTMLElement).hidden;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 240;
+    canvas.getContext("2d")!.fillRect(0, 0, 320, 240);
+    const blob: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/png"));
+
+    element.close();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const closed = { ready: element.editor.ready, empty: emptyVisible() };
+
+    await element.load(blob);
+    return { closed, reopened: { ready: element.editor.ready, empty: emptyVisible() } };
+  });
+
+  expect(outcome.closed).toEqual({ ready: false, empty: true });
+  expect(outcome.reopened).toEqual({ ready: true, empty: false });
+});
+
+/**
+ * The status message and the actions share the top row.
+ *
+ * They did not always: the message was centred and absolutely positioned, so on
+ * any host under about 500px it sat on top of the export button. Overlap is a
+ * question only a laid-out browser can answer.
+ */
+test("the status message never covers the actions, at any width", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const measurements = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as HTMLElement & { status: string | null };
+    const frame = element.parentElement as HTMLElement;
+    const shadow = element.shadowRoot!;
+    element.status = "Sending to a service that takes its time…";
+
+    const results: Array<{ width: number; overlaps: boolean; shown: boolean }> = [];
+    for (const width of [1200, 700, 440, 320]) {
+      frame.style.width = `${width}px`;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const busy = shadow.querySelector(".busy")!.getBoundingClientRect();
+      const actions = shadow.querySelector(".actions")!.getBoundingClientRect();
+      results.push({
+        width,
+        shown: busy.width > 0 && busy.height > 0,
+        overlaps:
+          busy.right > actions.left &&
+          busy.left < actions.right &&
+          busy.bottom > actions.top &&
+          busy.top < actions.bottom,
+      });
+    }
+    return results;
+  });
+
+  for (const measurement of measurements) {
+    expect(measurement.shown, `status visible at ${measurement.width}px`).toBe(true);
+    expect(measurement.overlaps, `status overlaps the actions at ${measurement.width}px`).toBe(false);
+  }
+});

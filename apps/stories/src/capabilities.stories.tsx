@@ -22,6 +22,7 @@ import {
   codeBlock,
   evidenceCell,
   hostButton,
+  logList,
   note,
   panelTitle,
   table,
@@ -213,6 +214,100 @@ export const Variants: Story = () => {
     </Row>
   );
 };
+
+/**
+ * The host round trip.
+ *
+ * Everything a host does between "give me the picture" and "here is a different
+ * picture" — a background remover, an upscaler, a retouching service — looks
+ * the same from the editor: slow, invisible, and it must not lose the edit.
+ * Crop something and draw on it first, then send it: the crop, the marks and
+ * the undo stack all survive.
+ */
+export const RoundTrip: Story = () => {
+  const image = useSampleImage();
+  const handle = useRef<PixenImageEditorHandle>(null);
+  const [log, setLog] = useState<string[]>([]);
+
+  async function roundTrip(): Promise<void> {
+    const element = handle.current?.element;
+    const editor = handle.current?.editor;
+    if (!element || !editor) return;
+
+    const before = {
+      layers: editor.document.layers.length,
+      depth: editor.historyState.depth,
+    };
+
+    // Stands in for the service: the same picture, in monochrome.
+    element.status = "Sending to the service…";
+    element.disabled = true;
+    try {
+      const replacement = await monochrome(editor);
+      await new Promise((resolve) => setTimeout(resolve, DEMO_SERVICE_DELAY_MS));
+      await element.replaceSource(replacement);
+      setLog((entries) => [
+        ...entries,
+        `pixels replaced · ${before.layers} annotation(s) kept · history ${before.depth} → ${editor.historyState.depth}`,
+      ]);
+    } finally {
+      element.status = null;
+      element.disabled = false;
+    }
+  }
+
+  return (
+    <Row>
+      <Stage
+        title="Round trip"
+        note="Crop and annotate, then send. The picture underneath changes; the edit does not. Undo puts the original pixels back."
+      >
+        <PixenImageEditor
+          ref={handle}
+          src={image}
+          onLoad={() => {
+            const editor = handle.current?.editor;
+            if (editor) seedStyling(editor);
+          }}
+          style={{ height: "100%" }}
+        />
+      </Stage>
+      <section style={{ display: "grid", gap: 12, alignContent: "start" }}>
+        <h2 style={panelTitle}>Service</h2>
+        <p style={note}>
+          While it runs the editor is disabled and says so — the picture stays on screen, and nothing responds.
+        </p>
+        <button type="button" onClick={() => void roundTrip()} style={{ ...hostButton, justifySelf: "start" }}>
+          Remove the colour
+        </button>
+        {log.length === 0 ? (
+          <p style={note}>Nothing sent yet.</p>
+        ) : (
+          <ul style={logList}>
+            {log.map((entry, index) => (
+              <li key={index}>{entry}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </Row>
+  );
+};
+
+/** How long the pretend service takes, so the disabled state is visible. */
+const DEMO_SERVICE_DELAY_MS = 900;
+
+/** Draws the current source in monochrome: a stand-in for a real service. */
+async function monochrome(editor: Editor): Promise<Blob> {
+  const { width, height } = editor.resource;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d")!;
+  context.filter = "grayscale(1) contrast(1.1)";
+  context.drawImage(editor.resource.source, 0, 0, width, height);
+  return await new Promise<Blob>((resolve) => canvas.toBlob((blob) => resolve(blob!), "image/png"));
+}
 
 /**
  * The verification table.

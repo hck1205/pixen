@@ -1,5 +1,5 @@
 import "@pixen/web";
-import { ImageWorker, layerHandlePosition } from "@pixen/core";
+import { ImageWorker, createRectLayer, layerHandlePosition } from "@pixen/core";
 import type { ExportResult, ImageFormat } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
 import { attachBatch } from "./batch.js";
@@ -13,7 +13,11 @@ import { sampleImage } from "./sample.js";
  * come from the engine itself — re-deriving a handle position in the test would
  * only prove the test agrees with itself.
  */
-(window as unknown as { pixen: Record<string, unknown> }).pixen = { layerHandlePosition, ImageWorker };
+(window as unknown as { pixen: Record<string, unknown> }).pixen = {
+  layerHandlePosition,
+  ImageWorker,
+  createRectLayer,
+};
 
 const editor = document.querySelector<PixenImageEditorElement>("#editor")!;
 const preset = document.querySelector<HTMLSelectElement>("#preset")!;

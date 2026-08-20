@@ -138,6 +138,48 @@ describe("Editor", () => {
     expect(editor.document.adjustments.brightness).toBe(0.5);
   });
 
+  it("applies a list of intents as one undo step", () => {
+    // The shape a host writes to open an image pre-edited — the same values the
+    // interface would have produced.
+    const before = editor.historyState.depth;
+    editor.dispatchAll([
+      { kind: "rotate-quarter-turns", turns: 1 },
+      { kind: "set-aspect-ratio", ratio: 1 },
+    ]);
+
+    expect(editor.document.aspectRatio).toBe(1);
+    expect(editor.historyState.depth).toBe(before + 1);
+
+    editor.undo();
+    expect(editor.document.aspectRatio).toBeNull();
+    expect(editor.document.transform.rotation).toBe(0);
+  });
+
+  it("records nothing for an empty list, and no transaction for a single intent", () => {
+    const before = editor.historyState.depth;
+    editor.dispatchAll([]);
+    expect(editor.historyState.depth).toBe(before);
+
+    editor.dispatchAll([{ kind: "rotate-quarter-turns", turns: 1 }]);
+    expect(editor.historyState.depth).toBe(before + 1);
+  });
+
+  it("closes the picture without destroying the editor, and opens another after", async () => {
+    expect(editor.ready).toBe(true);
+    editor.close();
+    expect(editor.ready).toBe(false);
+    expect(editor.destroyed).toBe(false);
+    expect(editor.selectedLayer).toBeNull();
+
+    // Closing twice is not an error; there is simply nothing left to close.
+    expect(() => editor.close()).not.toThrow();
+  });
+
+  it("reports whether there was anything to call off", () => {
+    expect(editor.cancelLoad()).toBe(false);
+    expect(editor.cancelExport()).toBe(false);
+  });
+
   it("releases the shared resource on destroy without disposing the manager", () => {
     editor.destroy();
     expect(editor.destroyed).toBe(true);
