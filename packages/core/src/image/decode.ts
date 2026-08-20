@@ -1,7 +1,7 @@
 import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import type { StepReporter } from "../util/progress.js";
-import { assertDrawableSize, createSurface, releaseSurface } from "./canvas.js";
+import { assertDrawableSize, createSurface, releaseCanvas } from "./canvas.js";
 import { toBlob } from "./bytes.js";
 import { imageWorker } from "./worker/client.js";
 import {
@@ -246,10 +246,10 @@ export function disposeImageSource(source: CanvasImageSource | null | undefined)
     return;
   }
   if (typeof OffscreenCanvas !== "undefined" && source instanceof OffscreenCanvas) {
-    releaseSurface({ canvas: source, context: null as never });
+    releaseCanvas(source);
     return;
   }
   if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) {
-    releaseSurface({ canvas: source, context: null as never });
+    releaseCanvas(source);
   }
 }

@@ -206,8 +206,26 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
         transform: intent.transform,
         ...(intent.silent === undefined ? {} : { silent: intent.silent }),
       };
-    default:
+
+    // Not changes to the document. The session machine handles selection,
+    // transactions and history itself, and they are listed rather than left to
+    // a catch-all so the check below can do its job.
+    case "select":
+    case "begin-transaction":
+    case "commit-transaction":
+    case "rollback-transaction":
+    case "undo":
+    case "redo":
       return null;
+
+    default: {
+      // Adding a document-changing intent without a case here fails to compile.
+      // Without this the union and the table drift apart silently, and the
+      // first anyone hears of it is an "unknown intent" at runtime.
+      const unhandled: never = intent;
+      void unhandled;
+      return null;
+    }
   }
 }
 

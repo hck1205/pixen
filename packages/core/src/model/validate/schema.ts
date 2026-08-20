@@ -91,7 +91,7 @@ export const rect: Validator<Rect> = (value, path) => {
 export const stroke: Validator<Stroke> = object<Stroke>({
   color: field("color", text),
   width: field("width", finiteNumber),
-  dash: field("dash", optional(arrayOf(finiteNumber))) as never,
+  dash: field("dash", optional(arrayOf(finiteNumber))),
 });
 
 /**

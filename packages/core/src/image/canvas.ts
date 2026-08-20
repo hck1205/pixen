@@ -62,11 +62,19 @@ export function createSurface(width: number, height: number, alpha = true): Canv
   return { canvas, context };
 }
 
-/** Releases the backing store of a canvas that is about to be dropped. */
+/**
+ * Releases the backing store of a canvas that is about to be dropped.
+ *
+ * Zeroing the dimensions is the only portable way to free canvas memory
+ * immediately, which matters a lot on mobile Safari.
+ */
+export function releaseCanvas(canvas: AnyCanvas | null | undefined): void {
+  if (!canvas) return;
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+/** The same, for a surface. The context is not involved either way. */
 export function releaseSurface(surface: CanvasSurface | null | undefined): void {
-  if (!surface) return;
-  // Zeroing the dimensions is the only portable way to free canvas memory
-  // immediately, which matters a lot on mobile Safari.
-  surface.canvas.width = 0;
-  surface.canvas.height = 0;
+  releaseCanvas(surface?.canvas);
 }

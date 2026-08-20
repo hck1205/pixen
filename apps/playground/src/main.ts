@@ -1,9 +1,10 @@
 import "@pixen/web";
 import { ImageWorker, createRectLayer, layerHandlePosition } from "@pixen/core";
-import type { ExportResult, ImageFormat } from "@pixen/core";
+import type { ExportResult, ImageFormat, PresetName } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
 import { attachBatch } from "./batch.js";
 import { formatBytes } from "./bytes.js";
+import { configSnippet } from "./config.js";
 import { sampleImage } from "./sample.js";
 
 /**
@@ -29,26 +30,28 @@ const theme = document.querySelector<HTMLSelectElement>("#theme")!;
 const fileInput = document.querySelector<HTMLInputElement>("#file")!;
 const download = document.querySelector<HTMLAnchorElement>("#download")!;
 const configCode = document.querySelector<HTMLElement>("#config code")!;
+const statSize = document.querySelector<HTMLElement>("#stat-size")!;
+const statBytes = document.querySelector<HTMLElement>("#stat-bytes")!;
+const statSaved = document.querySelector<HTMLElement>("#stat-saved")!;
+const openButton = document.querySelector<HTMLButtonElement>("#open")!;
+const exportButton = document.querySelector<HTMLButtonElement>("#export")!;
 
 let lastUrl: string | null = null;
 
 function renderConfig(): void {
-  const lines = [`<pixen-image-editor`, `  src="/photo.jpg"`, `  theme="${theme.value}"`];
-  if (locale.value !== "en") lines.push(`  locale="${locale.value}"`);
-  if (format.value) lines.push(`  format="${format.value}"`);
-  lines.push(`  quality="${quality.value}"`);
-  if (preset.value) lines.push(`  preset="${preset.value}"`);
-  lines.push(`></pixen-image-editor>`, "", "// or headless, no UI at all:", "const result = await processImage(file, {");
-  if (preset.value === "profile") lines.push("  width: 1024,", "  height: 1024,");
-  else lines.push("  maxWidth: 1600,");
-  lines.push(`  format: "${format.value || "image/webp"}",`, `  quality: ${quality.value},`, "});");
-  configCode.textContent = lines.join("\n");
+  configCode.textContent = configSnippet({
+    theme: theme.value,
+    locale: locale.value,
+    format: format.value,
+    quality: quality.value,
+    preset: preset.value,
+  });
 }
 
 function showResult(result: ExportResult): void {
-  document.querySelector("#stat-size")!.textContent = `${result.width} × ${result.height}`;
-  document.querySelector("#stat-bytes")!.textContent = formatBytes(result.bytes);
-  document.querySelector("#stat-saved")!.textContent =
+  statSize.textContent = `${result.width} × ${result.height}`;
+  statBytes.textContent = formatBytes(result.bytes);
+  statSaved.textContent =
     result.sourceBytes == null
       ? "—"
       : `${formatBytes(result.sourceBytes - result.bytes)} (${Math.round(
@@ -63,7 +66,7 @@ function showResult(result: ExportResult): void {
 }
 
 preset.addEventListener("change", () => {
-  editor.policy = (preset.value || null) as never;
+  editor.policy = (preset.value || null) as PresetName | null;
   renderConfig();
 });
 
@@ -89,13 +92,13 @@ theme.addEventListener("change", () => {
   renderConfig();
 });
 
-document.querySelector("#open")!.addEventListener("click", () => fileInput.click());
+openButton.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (file) void editor.load(file);
 });
 
-document.querySelector("#export")!.addEventListener("click", () => {
+exportButton.addEventListener("click", () => {
   void editor.export().catch((error) => console.error(error));
 });
 

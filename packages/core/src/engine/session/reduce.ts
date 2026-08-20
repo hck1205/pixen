@@ -59,7 +59,14 @@ export function pruneSelection(document: EditorDocument, selection: string | nul
   return document.layers.some((layer) => layer.id === selection) ? selection : null;
 }
 
-function toPixenError(failure: HistoryFailure): PixenError {
+/**
+ * A history refusal, as an error a host can act on.
+ *
+ * Not called `toPixenError`: `errors/index.ts` exports a function by that name
+ * which wraps an unknown cause, and two different meanings under one name in
+ * neighbouring modules is a collision waiting for whoever imports the other.
+ */
+function historyError(failure: HistoryFailure): PixenError {
   return new PixenError("INVALID_STATE", describeFailure(failure), { details: { ...failure } });
 }
 
@@ -80,7 +87,12 @@ function applyDocumentChange(state: SessionState, change: DocumentChange): Sessi
   return { state: { document: after, selection, history }, events };
 }
 
-function restoreSnapshot(state: SessionState, snapshot: EditorDocument, reason: string, history: HistoryState<EditorDocument>): SessionOutcome {
+function restoreSnapshot(
+  state: SessionState,
+  snapshot: EditorDocument,
+  reason: string,
+  history: HistoryState<EditorDocument>,
+): SessionOutcome {
   const selection = pruneSelection(snapshot, state.selection);
   const events: SessionEvent[] = [
     { type: "change", document: snapshot, reason, transient: false },
@@ -105,7 +117,7 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
 
     case "begin-transaction": {
       const opened = begin(state.history, intent.label, state.document);
-      if (!opened.ok) return err(toPixenError(opened.error));
+      if (!opened.ok) return err(historyError(opened.error));
       return ok({
         state: { ...state, history: opened.value },
         events: [{ type: "history", summary: summarise(opened.value) }],
@@ -114,7 +126,7 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
 
     case "commit-transaction": {
       const committed = commit(state.history, state.document);
-      if (!committed.ok) return err(toPixenError(committed.error));
+      if (!committed.ok) return err(historyError(committed.error));
       const { state: history, recorded } = committed.value;
       const events: SessionEvent[] = [{ type: "history", summary: summarise(history) }];
       if (recorded) {
@@ -125,7 +137,7 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
 
     case "rollback-transaction": {
       const rolledBack = rollback(state.history);
-      if (!rolledBack.ok) return err(toPixenError(rolledBack.error));
+      if (!rolledBack.ok) return err(historyError(rolledBack.error));
       return ok(
         restoreSnapshot(state, rolledBack.value.snapshot, "rollback", rolledBack.value.state),
       );
@@ -134,15 +146,16 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
     case "undo":
     case "redo": {
       const stepped = intent.kind === "undo" ? undo(state.history) : redo(state.history);
-      if (!stepped.ok) return err(toPixenError(stepped.error));
+      if (!stepped.ok) return err(historyError(stepped.error));
       const { state: history, snapshot } = stepped.value;
       if (!snapshot) return ok({ state, events: [] });
       return ok(restoreSnapshot(state, snapshot, intent.kind, history));
     }
 
     case "add-layer": {
-      const change = documentChangeFor(intent)!;
-      const outcome = applyDocumentChange(state, change);
+      // Never null: `add-layer` has a case in the table, and the table is
+      // checked against the union at compile time.
+      const outcome = applyDocumentChange(state, documentChangeFor(intent)!);
       if (intent.select === false || outcome.state === state) return ok(outcome);
       return ok({
         state: { ...outcome.state, selection: intent.layer.id },

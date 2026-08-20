@@ -265,7 +265,8 @@ export class Viewport {
     return toImage(this.#gestureContext(), point);
   }
 
-  #eventPoint(event: PointerEvent | WheelEvent): Point {
+  /** `MouseEvent`, because pointer, wheel and double-click all are one. */
+  #eventPoint(event: MouseEvent): Point {
     const rect = this.canvas.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
@@ -433,7 +434,7 @@ export class Viewport {
   #onDoubleClick = (event: MouseEvent): void => {
     if (!this.#editor.ready) return;
     const context = this.#gestureContext();
-    const hit = hitLayer(context, toImage(context, this.#eventPoint(event as unknown as PointerEvent)));
+    const hit = hitLayer(context, toImage(context, this.#eventPoint(event)));
     if (hit?.type !== "text") return;
     event.preventDefault();
     this.#editor.select(hit.id);
