@@ -4,7 +4,7 @@ Four suites, each answering a different question.
 
 | Command | Answers |
 | --- | --- |
-| `pnpm test` | Do the pure functions decide correctly? Also runs the independence and unused-export scans |
+| `pnpm test` | Do the pure functions decide correctly? Also runs the four scans below |
 | `pnpm test:browser` | Does the real bundle behave, in a real engine, driven by a real pointer? |
 | `pnpm test:visual` | Does it still *look* the same? Opt-in; see below |
 | `pnpm stories` | What does it look like now — for a person, not an assertion. Its *Coverage* story is the feature list, checked by `pnpm test` |
@@ -25,6 +25,41 @@ suite can never run against a stale bundle.
 These cover what only a real engine can answer: canvas output, pointer gestures,
 encoders, workers, and layout. The rule of thumb is the one in `CLAUDE.md` — the
 layout bugs this project has actually shipped were invisible to unit tests.
+
+## The scans
+
+Four checks run inside `pnpm test`, each turning a rule from the working
+agreement into a failing test rather than a good intention:
+
+| Scan | Fails on |
+| --- | --- |
+| `check:independence` | A third-party name, dependency or vendored code |
+| `check:exports` | An export nothing imports |
+| `check:duplication` | The same four meaningful lines in three places |
+| `check:size` | A source file past 300 lines with no recorded reason |
+
+### Why four lines, and why three copies
+
+Both numbers were tuned by running the scan, not chosen in the abstract. At
+three lines every finding is import boilerplate and closing tags; at five, the
+clones this repository has actually shipped would have slipped through. Three
+copies is the working agreement's own threshold — two similar pieces of code
+can wait, and abstracting the first similarity is its own mistake.
+
+Deliberate repetition goes in `ACCEPTED_DUPLICATION` with its reason. There are
+two entries: the nine locale files, whose sameness is the point, and the story
+files' shared title, which is what keeps a story's id stable when stories move
+between files.
+
+### The size budget is a tripwire, not a cap
+
+Crossing 300 lines means one of two things has to happen: split the file, or
+write down in `scripts/module-budget.mjs` why it is one concern that grew. The
+point is not the number — it is that "this one is fine" stops being a private
+judgement and becomes a recorded one the next reader can disagree with.
+
+An exemption is pinned to the size it was written at, so a file that is exempt
+still cannot grow without someone deciding again.
 
 ## The coverage page
 
