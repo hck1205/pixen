@@ -18,7 +18,13 @@
  * the same request of the same engine, and a worker's decoder is not a
  * different decoder.
  */
-import { assertDrawableSize, createSurface, releaseSurface, sourceSize } from "./canvas.js";
+import {
+  assertDrawableSize,
+  createSurface,
+  disposeImageSource,
+  releaseSurface,
+  sourceSize,
+} from "./canvas.js";
 import { applyOrientationToSize, orientationTransform, type ExifOrientation } from "./exif.js";
 import type { Size } from "../geometry/types.js";
 import { encodeSurface } from "./encode.js";
@@ -84,10 +90,9 @@ async function probe(decode: (blob: Blob) => Promise<CanvasImageSource>): Promis
   const width = Number((decoded as { width?: number }).width);
   const height = Number((decoded as { height?: number }).height);
   if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
-  if (typeof ImageBitmap !== "undefined" && decoded instanceof ImageBitmap) decoded.close();
+  disposeImageSource(decoded);
   return height > width;
 }
-
 
 export interface UprightImage extends Size {
   source: CanvasImageSource;
@@ -128,6 +133,6 @@ function turn(source: CanvasImageSource, size: Size, orientation: ExifOrientatio
   context.drawImage(source, -size.width / 2, -size.height / 2, size.width, size.height);
   context.setTransform(1, 0, 0, 1, 0, 0);
 
-  if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) source.close();
+  disposeImageSource(source);
   return { source: surface.canvas, ...upright };
 }

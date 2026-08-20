@@ -1,7 +1,7 @@
 import { PixenError, toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
 import type { StepReporter } from "../util/progress.js";
-import { assertDrawableSize, releaseCanvas, sourceSize } from "./canvas.js";
+import { assertDrawableSize, disposeImageSource, sourceSize } from "./canvas.js";
 import { toBlob } from "./bytes.js";
 import { imageWorker } from "./worker/client.js";
 import { uprightImage, type UprightImage } from "./auto-orient.js";
@@ -238,19 +238,4 @@ async function runAfterDecode(image: UprightImage, options: DecodeOptions): Prom
   assertDrawableSize(size, "image");
   if (replacement !== image.source) disposeImageSource(image.source);
   return { source: replacement, ...size };
-}
-
-export function disposeImageSource(source: CanvasImageSource | null | undefined): void {
-  if (!source) return;
-  if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) {
-    source.close();
-    return;
-  }
-  if (typeof OffscreenCanvas !== "undefined" && source instanceof OffscreenCanvas) {
-    releaseCanvas(source);
-    return;
-  }
-  if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) {
-    releaseCanvas(source);
-  }
 }

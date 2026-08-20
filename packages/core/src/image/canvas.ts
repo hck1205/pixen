@@ -77,7 +77,7 @@ export function createSurface(width: number, height: number, alpha = true): Canv
  * Zeroing the dimensions is the only portable way to free canvas memory
  * immediately, which matters a lot on mobile Safari.
  */
-export function releaseCanvas(canvas: AnyCanvas | null | undefined): void {
+function releaseCanvas(canvas: AnyCanvas | null | undefined): void {
   if (!canvas) return;
   canvas.width = 0;
   canvas.height = 0;
@@ -86,4 +86,36 @@ export function releaseCanvas(canvas: AnyCanvas | null | undefined): void {
 /** The same, for a surface. The context is not involved either way. */
 export function releaseSurface(surface: CanvasSurface | null | undefined): void {
   releaseCanvas(surface?.canvas);
+}
+
+/**
+ * Lets a drawable go.
+ *
+ * The three kinds hold memory the garbage collector will not hurry over: an
+ * `ImageBitmap` owns pixels outside the heap, and a canvas is worth handing back
+ * to the pool rather than reallocating. Anything else — an `<img>`, a video —
+ * is not ours to release.
+ *
+ * Every kind is guarded by a `typeof` because this package runs on the main
+ * thread, in a worker, and in node, and each of those is missing a different
+ * one of them.
+ */
+export function disposeImageSource(source: CanvasImageSource | null | undefined): void {
+  if (!source) return;
+  if (isImageBitmap(source)) {
+    source.close();
+    return;
+  }
+  if (typeof OffscreenCanvas !== "undefined" && source instanceof OffscreenCanvas) {
+    releaseCanvas(source);
+    return;
+  }
+  if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) {
+    releaseCanvas(source);
+  }
+}
+
+/** Narrowing that also survives an environment with no `ImageBitmap` at all. */
+function isImageBitmap(source: CanvasImageSource): source is ImageBitmap {
+  return typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap;
 }

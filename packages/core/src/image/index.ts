@@ -3,6 +3,7 @@ export * from "./auto-orient.js";
 export * from "./exif.js";
 export * from "./jpeg.js";
 export * from "./metadata.js";
+export * from "./tiff.js";
 export * from "./bytes.js";
 export * from "./decode.js";
 export * from "./encode.js";

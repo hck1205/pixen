@@ -1,7 +1,7 @@
 import { PixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
-import { createSurface, releaseSurface } from "../image/canvas.js";
-import { decodeImage, disposeImageSource, type DecodeOptions, type ImageInput } from "../image/decode.js";
+import { createSurface, disposeImageSource, releaseSurface } from "../image/canvas.js";
+import { decodeImage, type DecodeOptions, type ImageInput } from "../image/decode.js";
 import { drawResized } from "../image/resize.js";
 import { createId } from "../util/id.js";
 import { planPreview } from "./preview.js";

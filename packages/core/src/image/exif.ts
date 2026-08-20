@@ -1,5 +1,6 @@
 import { QUARTER_TURN } from "../geometry/angles.js";
 import { findExifSegment } from "./jpeg.js";
+import { findEntry, firstDirectory, readShort, readTiffBlock } from "./tiff.js";
 import type { Size } from "../geometry/types.js";
 
 /** TIFF orientation values as stored in EXIF tag 0x0112. */
@@ -13,42 +14,31 @@ export interface OrientationTransform {
 }
 
 const ORIENTATION_TAG = 0x0112;
+const FIRST_ORIENTATION = 1;
+const LAST_ORIENTATION = 8;
 
 /**
  * Reads the EXIF orientation from a JPEG byte range.
  *
  * Returns `null` when the bytes are not a JPEG, carry no EXIF block, or the
- * orientation tag is absent — all of which mean "treat as orientation 1".
+ * orientation tag is absent or nonsense — all of which mean "treat as
+ * orientation 1". Walking the directory is `tiff.ts`; what the tag means is
+ * here.
  */
 export function readExifOrientation(buffer: ArrayBufferLike): ExifOrientation | null {
-  const view = new DataView(buffer as ArrayBuffer);
-  const segment = findExifSegment(view);
+  const bytes = new Uint8Array(buffer as ArrayBuffer);
+  const segment = findExifSegment(new DataView(buffer as ArrayBuffer));
   if (!segment) return null;
-  return readOrientationFromTiff(view, segment.tiffStart, segment.end);
-}
 
-function readOrientationFromTiff(view: DataView, tiffStart: number, end: number): ExifOrientation | null {
-  if (tiffStart + 8 > end) return null;
+  const block = readTiffBlock(bytes, segment.tiffStart, segment.end);
+  const directory = block && firstDirectory(block);
+  if (!block || directory === null) return null;
 
-  const byteOrder = view.getUint16(tiffStart, false);
-  const littleEndian = byteOrder === 0x4949;
-  if (!littleEndian && byteOrder !== 0x4d4d) return null;
-  if (view.getUint16(tiffStart + 2, littleEndian) !== 0x002a) return null;
+  const entry = findEntry(block, directory, ORIENTATION_TAG);
+  if (!entry) return null;
 
-  const ifdOffset = view.getUint32(tiffStart + 4, littleEndian);
-  const ifdStart = tiffStart + ifdOffset;
-  if (ifdStart + 2 > end) return null;
-
-  const entryCount = view.getUint16(ifdStart, littleEndian);
-  for (let i = 0; i < entryCount; i += 1) {
-    const entry = ifdStart + 2 + i * 12;
-    if (entry + 12 > end) return null;
-    if (view.getUint16(entry, littleEndian) === ORIENTATION_TAG) {
-      const value = view.getUint16(entry + 8, littleEndian);
-      return value >= 1 && value <= 8 ? (value as ExifOrientation) : null;
-    }
-  }
-  return null;
+  const value = readShort(block, entry.valueAt);
+  return value >= FIRST_ORIENTATION && value <= LAST_ORIENTATION ? (value as ExifOrientation) : null;
 }
 
 /** The transform that brings an image stored with `orientation` upright. */
