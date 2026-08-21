@@ -7,18 +7,14 @@ import type {
   ExportResult,
   HistorySummary,
   ImageFormat,
-  ImagePolicy,
-  PixenError,
-  PresetName,
-  ProgressReport,
+    PixenError,
+    ProgressReport,
 } from "@pixen/core";
 import {
   applyProperty,
   attachEvents,
-  type AspectRatioOption,
   type PixenElementProperties,
   type PixenImageEditorElement,
-  type ToolDefinition,
   type ToolId,
 } from "@pixen/web";
 import "@pixen/web";

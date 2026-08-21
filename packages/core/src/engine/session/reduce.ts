@@ -1,6 +1,5 @@
 import { PixenError } from "../../errors/index.js";
 import { err, ok, type Result } from "../../fp/result.js";
-import { cloneDocument } from "../../model/document.js";
 import type { EditorDocument } from "../../model/types.js";
 import {
   begin,
@@ -35,6 +34,16 @@ export interface SessionState {
 export interface SessionOutcome {
   readonly state: SessionState;
   readonly events: readonly SessionEvent[];
+  /**
+   * Whether committing a gesture actually recorded a step.
+   *
+   * Only `commit-transaction` sets it, and it is here because the reducer is the
+   * only thing that knows. `commit` compares the document against the snapshot
+   * the gesture opened with; a shell counting history entries cannot tell a
+   * gesture that changed nothing from one that changed something at a history
+   * that is already full and drops its oldest entry to make room.
+   */
+  readonly recorded?: boolean;
 }
 
 export interface SessionOptions {
@@ -132,7 +141,7 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
       if (recorded) {
         events.push({ type: "change", document: state.document, reason: "commit", transient: false });
       }
-      return ok({ state: { ...state, history }, events });
+      return ok({ state: { ...state, history }, events, recorded });
     }
 
     case "rollback-transaction": {

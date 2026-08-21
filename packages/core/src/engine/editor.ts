@@ -1,4 +1,4 @@
-import { PixenError, toPixenError } from "../errors/index.js";
+import { PixenError,  } from "../errors/index.js";
 import * as commands from "./commands/index.js";
 import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
@@ -43,6 +43,7 @@ import {
   createSession,
   reduce,
   type Intent,
+  type SessionOutcome,
   type SessionState,
 } from "./session/index.js";
 import { TaskRunner, tracked, type TaskAttempt } from "./tasks/index.js";
@@ -328,6 +329,12 @@ export class Editor {
    * intent and hands it here; hosts and plugins can do the same.
    */
   dispatch(intent: Intent): this {
+    this.#dispatchFor(intent);
+    return this;
+  }
+
+  /** `dispatch`, handing back what the reducer decided. See `commitTransaction`. */
+  #dispatchFor(intent: Intent): SessionOutcome {
     this.#assertAlive();
     const outcome = reduce(this.session, intent);
     if (!outcome.ok) {
@@ -340,7 +347,7 @@ export class Editor {
       // the payload still matches once the pair is packed into one value.
       this.#emitter.emit(emission.type, emission.payload as never);
     }
-    return this;
+    return outcome.value;
   }
 
   /**
@@ -393,11 +400,17 @@ export class Editor {
     return this.dispatch({ kind: "begin-transaction", label });
   }
 
-  /** Returns whether the gesture actually changed anything. */
+  /**
+   * Closes the gesture. Returns whether it actually changed anything.
+   *
+   * Asked of the reducer, which compares the document against the snapshot the
+   * gesture opened with. Working it out from the history depth instead — as this
+   * did — is wrong once the stack is full: a recorded step then pushes the
+   * oldest one off and the count does not move, so every gesture after the
+   * hundredth reported that nothing had happened.
+   */
   commitTransaction(): boolean {
-    const before = this.historyState.depth;
-    this.dispatch({ kind: "commit-transaction" });
-    return this.historyState.depth > before;
+    return this.#dispatchFor({ kind: "commit-transaction" }).recorded === true;
   }
 
   /** Abandons the gesture and restores the pre-transaction document. */

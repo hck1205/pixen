@@ -44,7 +44,7 @@ import {
   SELECTION_CORNERS,
 } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
-import { clampZoom, fitView, insetsFor, insetsFromChrome, MAX_ZOOM, MIN_ZOOM, type EdgeBox } from "./view.js";
+import { clampZoom, fitView, insetsFor, insetsFromChrome, type EdgeBox } from "./view.js";
 
 /** One label for the whole of "someone edited a text layer". */
 const TEXT_EDIT_LABEL = "Text";

@@ -20,7 +20,6 @@ import {
   type PixenElementProperties,
   type PixenImageEditorElement,
   type StickerDefinition,
-  type ToolDefinition,
   type ToolInput,
   type ToolId,
 } from "@pixen/web";

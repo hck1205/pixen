@@ -7,7 +7,7 @@
  * next door in `capabilities.stories.tsx`.
  */
 import { useRef, useState } from "react";
-import type { Editor, ExportHooks, ProgressReport } from "@pixen/core";
+import type { Editor, ProgressReport } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import { seedStyling } from "./fixtures.js";
 import { Row, SeededEditor, Stage, formatBytes, useSampleImage } from "./harness.js";

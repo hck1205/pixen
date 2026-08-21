@@ -1,4 +1,4 @@
-import type { Editor, EditorLayer, ImageFormat } from "@pixen/core";
+import type { Editor, ImageFormat } from "@pixen/core";
 import type { PixenStrings } from "../../i18n/index.js";
 import type { AnnotationStyle, StickerDefinition, ToolDefinition, ToolId } from "../../tools/index.js";
 import type { PluginRegistry } from "../../plugins/index.js";

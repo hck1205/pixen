@@ -186,3 +186,47 @@ describe("Editor", () => {
     expect(() => editor.rotateRight()).toThrowError(/destroyed/);
   });
 });
+
+/**
+ * `commitTransaction` answers "did that gesture change anything", and a host
+ * uses the answer to decide whether to mark itself dirty or announce an edit.
+ *
+ * It used to work the answer out by watching the history depth, which saturates:
+ * once the stack is at its limit a recorded step pushes the oldest one off and
+ * the count does not move. Every gesture after the hundredth reported that
+ * nothing had happened while recording perfectly well.
+ */
+describe("committing a gesture at a full history", () => {
+  const HISTORY_LIMIT = 100;
+
+  function editorWithLayers(count: number, editor = new Editor()) {
+    editor.open(fakeResource(editor.resources));
+    const reported: boolean[] = [];
+    for (let index = 0; index < count; index += 1) {
+      editor.beginTransaction(`gesture ${index}`);
+      editor.dispatch({
+        kind: "add-layer",
+        layer: createRectLayer({ x: index, y: 0, width: 10, height: 10 }),
+      });
+      reported.push(editor.commitTransaction());
+    }
+    return { editor, reported };
+  }
+
+  it("reports every gesture as a change, however full the stack is", () => {
+    const { editor, reported } = editorWithLayers(HISTORY_LIMIT + 5);
+
+    expect(reported.every(Boolean)).toBe(true);
+    // The stack really is saturated, which is the condition under test.
+    expect(editor.historyState.depth).toBe(HISTORY_LIMIT);
+    // And every gesture really did happen.
+    expect(editor.document.layers).toHaveLength(HISTORY_LIMIT + 5);
+  });
+
+  it("still reports a gesture that changed nothing", () => {
+    // The other half: the answer has to stay useful, not just be true more often.
+    const { editor } = editorWithLayers(HISTORY_LIMIT + 5);
+    editor.beginTransaction("nothing at all");
+    expect(editor.commitTransaction()).toBe(false);
+  });
+});

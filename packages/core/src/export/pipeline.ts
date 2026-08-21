@@ -9,7 +9,7 @@ import { effectiveCrop, outputSize as documentOutputSize } from "../model/docume
 import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../model/types.js";
 import { renderScene } from "../render/canvas2d/index.js";
 import { createScene } from "../render/scene.js";
-import type { ImageResource, ResourceManager } from "../resources/manager.js";
+import type { ResourceManager } from "../resources/manager.js";
 import { throwIfAborted } from "../util/abort.js";
 import type { StepReporter } from "../util/progress.js";
 import type { ExportHooks } from "./hooks.js";

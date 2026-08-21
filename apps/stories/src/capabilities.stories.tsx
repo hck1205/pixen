@@ -7,21 +7,8 @@
  * The coverage table that ties each of these to the suite proving it is next
  * door, in `coverage.stories.tsx`.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  createEllipseLayer,
-  createLineLayer,
-  createRectLayer,
-  createTextLayer,
-  srcset,
-  type Editor,
-  type ExportVariant,
-  type ProgressReport,
-} from "@pixen/core";
-import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import { seedStyling } from "./fixtures.js";
-import { Row, SeededEditor, Stage, formatBytes, useSampleImage } from "./harness.js";
-import { codeBlock, hostButton, logList, note, panelTitle, table, tableCell, tableHeader } from "./styles.js";
+import { SeededEditor, Stage, useSampleImage } from "./harness.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
 export default {

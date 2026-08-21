@@ -5,7 +5,7 @@ import {
   FONT_RATIO_RANGE,
   STROKE_WIDTH_RANGE,
 } from "../../constants.js";
-import { cornerRadiusFor, fontSizeFor, TEXT_PLATE_COLOUR, type AnnotationStyle } from "../../../tools/index.js";
+import { cornerRadiusFor, fontSizeFor, TEXT_PLATE_COLOUR } from "../../../tools/index.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
 import { styleControlsFor, type StyleControl, type StyleSubject } from "./style-controls.js";

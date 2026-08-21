@@ -1,5 +1,4 @@
 import { PixenError, toPixenError } from "../errors/index.js";
-import type { Size } from "../geometry/types.js";
 import type { StepReporter } from "../util/progress.js";
 import { assertDrawableSize, disposeImageSource, sourceSize } from "./canvas.js";
 import { throwIfAborted } from "../util/abort.js";

@@ -5,11 +5,9 @@
  * is that a layer stays inside the image: a gesture can take a handle past the
  * edge, and a document that stored it would render a mark nobody can reach.
  */
-import { PixenError } from "../../errors/index.js";
 import { clamp } from "../../fp/function.js";
 import { clampInside } from "../../geometry/rect.js";
 import type { Point, Rect } from "../../geometry/types.js";
-import { stageRect } from "../../model/document.js";
 import { layerBounds, translateLayer } from "../../model/layers.js";
 import { resizeLayer, rotateLayer, type LayerHandle } from "../../model/transform.js";
 import type { EditorDocument, EditorLayer } from "../../model/types.js";

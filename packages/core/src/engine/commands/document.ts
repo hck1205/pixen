@@ -7,7 +7,7 @@
  * document, and are here because there is nowhere narrower for them to be.
  */
 import { PixenError } from "../../errors/index.js";
-import { compose, scaling } from "../../geometry/matrix.js";
+import { scaling } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
 import { clampAdjustments } from "../../model/adjustments.js";
 import { clampClip, type ClipRange } from "../../model/clip.js";

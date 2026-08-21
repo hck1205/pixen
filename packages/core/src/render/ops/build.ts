@@ -1,5 +1,5 @@
 import { longestEdge } from "../../geometry/rect.js";
-import type { Rect, Size } from "../../geometry/types.js";
+import type { Rect } from "../../geometry/types.js";
 import type { FrameSettings } from "../../model/types.js";
 import type { Scene } from "../scene.js";
 import { layerOps } from "./layers.js";

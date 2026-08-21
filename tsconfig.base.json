@@ -5,6 +5,13 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
+    // Dead imports are invisible to all four scans — they look at exports,
+    // duplication, file size and dependencies, not at what a file brought in and
+    // never used. Six had accumulated, four of them from one module split, each
+    // telling a reader that a file uses something it does not. The compiler is
+    // the only thing that can see them, so it is asked to.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,

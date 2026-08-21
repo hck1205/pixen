@@ -1,5 +1,4 @@
 import { PixenError } from "../errors/index.js";
-import type { Size } from "../geometry/types.js";
 import { disposeImageSource, releaseSurface } from "../image/canvas.js";
 import { decodeImage, type DecodeOptions, type ImageInput } from "../image/decode.js";
 import { createId } from "../util/id.js";

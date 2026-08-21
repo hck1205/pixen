@@ -5,7 +5,7 @@
  * One slice of the coverage table. See `coverage/index.ts` for what the table
  * is and the rules it is kept honest by.
  */
-import { browser, doc, list, story, unit, visual, type CoverageGroup } from "./evidence.js";
+import { browser, doc, list, story, unit, type CoverageGroup } from "./evidence.js";
 import { ADJUSTMENT_KEYS, ADJUSTMENT_PRESETS, FRAME_STYLES, REDACTION_MODES, WATERMARK_POSITIONS } from "@pixen/core";
 import { DEFAULT_ASPECT_RATIOS, DEFAULT_TOOLS } from "@pixen/web";
 

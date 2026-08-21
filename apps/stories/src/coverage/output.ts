@@ -4,7 +4,7 @@
  * One slice of the coverage table. See `index.ts` for what the table is and the
  * rules it is kept honest by.
  */
-import { browser, doc, list, story, unit, visual, type CoverageGroup } from "./evidence.js";
+import { browser, doc, list, story, unit, type CoverageGroup } from "./evidence.js";
 import { PRESETS, RESIZE_FITS, SCHEMA_VERSION } from "@pixen/core";
 import { OUTPUT_FORMATS, formatLabel } from "@pixen/web";
 

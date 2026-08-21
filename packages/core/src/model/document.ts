@@ -2,14 +2,11 @@ import { rectFromSize, roundedSize } from "../geometry/rect.js";
 import { stageSizeFor } from "../geometry/spaces.js";
 import type { Rect, Size } from "../geometry/types.js";
 import { deepClone } from "../util/clone.js";
-import { createId } from "../util/id.js";
 import {
   DEFAULT_ADJUSTMENTS,
   DEFAULT_OUTPUT,
   SCHEMA_VERSION,
   type EditorDocument,
-  type EditorLayer,
-  type LayerType,
   type SourceDescriptor,
 } from "./types.js";
 

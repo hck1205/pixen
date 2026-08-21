@@ -44,7 +44,17 @@ export const EXEMPT = {
   // The public imperative API: very nearly one line per method, each building
   // an intent and handing it to `dispatch`. Splitting it would scatter the
   // surface a host reads as one thing, and the decisions are already elsewhere.
-  "packages/core/src/engine/editor.ts": 728,
+  //
+  // Raised from 728 to fix a bug, which is a decision and not a licence.
+  // `commitTransaction` answered "did that gesture change anything" by watching
+  // the history depth, which saturates once the stack is full, so every gesture
+  // after the hundredth reported that nothing had happened. Getting the answer
+  // from the reducer needs `dispatch` to hand its outcome back, which is the
+  // thirteen lines. I looked for a split first: the export methods are the only
+  // part that is not a one-line delegation, and moving them leaves the class the
+  // same size because the methods have to stay. Commonising the two lines
+  // `export` and `exportTo` share cost two more than it saved.
+  "packages/core/src/engine/editor.ts": 739,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's
