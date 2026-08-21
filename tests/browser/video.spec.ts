@@ -151,6 +151,43 @@ test.describe("video", () => {
     }
   });
 
+  test("letting the source go releases the file it was reading from", async ({ page }) => {
+    await openVideoPage(page);
+
+    const outcome = await page.evaluate(async () => {
+      const element = document.querySelector("#editor") as HTMLElement & {
+        editor: { document: { source: { resourceId: string } }; resources: { dispose(id: string): void } };
+      };
+      const demo = window.pixenVideoDemo;
+      const clip = await demo.recordSampleClip({ seconds: 1 });
+      const source = await demo.openVideo(element.editor, clip);
+
+      const url = source.element.src;
+      const readable = async (): Promise<boolean> => {
+        try {
+          const response = await fetch(url);
+          return response.ok;
+        } catch {
+          return false;
+        }
+      };
+
+      // While the resource is alive the element is still reading from it.
+      const before = await readable();
+      element.editor.resources.dispose(element.editor.document.source.resourceId);
+      // A revoked object URL stops resolving, which is the observable half of
+      // "the file is no longer being held in memory".
+      const after = await readable();
+      return { url: url.startsWith("blob:"), before, after, src: source.element.getAttribute("src") };
+    });
+
+    expect(outcome.url).toBe(true);
+    expect(outcome.before).toBe(true);
+    expect(outcome.after).toBe(false);
+    // And the element is not left pointing at bytes that are gone.
+    expect(outcome.src).toBeNull();
+  });
+
   test("an export can be called off while it is recording", async ({ page }) => {
     await openVideoPage(page);
 

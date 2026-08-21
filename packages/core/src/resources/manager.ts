@@ -40,6 +40,8 @@ interface ResourceEntry {
   preview: PreviewBitmap | null;
   previewLimit: number;
   released: boolean;
+  /** The adopter's own teardown, run once when the entry is let go. */
+  dispose?: () => void;
 }
 
 /**
@@ -102,6 +104,16 @@ export class ResourceManager {
     id?: string;
     /** Seconds, for a source that runs. See `ImageResource.duration`. */
     duration?: number;
+    /**
+     * Undoes whatever the caller set up, when the resource is let go.
+     *
+     * `disposeImageSource` can close an `ImageBitmap` and hand a canvas back to
+     * the pool, because it can recognise those. It cannot know that a source is
+     * a `<video>` reading from an object URL, or a texture on a context it has
+     * never heard of — so a caller that adopted something with a tail says so
+     * here, and the manager calls it exactly once.
+     */
+    dispose?: () => void;
   }): ImageResource {
     const resource: ImageResource = {
       id: input.id ?? createId("res"),
@@ -120,6 +132,7 @@ export class ResourceManager {
       preview: null,
       previewLimit: this.#previewMaxSize,
       released: false,
+      ...(input.dispose ? { dispose: input.dispose } : {}),
     });
     return resource;
   }
@@ -227,6 +240,14 @@ export class ResourceManager {
     if (!entry) return;
     this.#disposePreview(entry);
     disposeImageSource(entry.resource.source);
+    // The caller's own teardown runs after ours and cannot stop the rest of the
+    // release: a host that throws in here would otherwise leak the entry it was
+    // trying to clean up after.
+    try {
+      entry.dispose?.();
+    } catch {
+      // Nothing useful to do with it, and nothing left that depends on it.
+    }
     entry.released = true;
     this.#entries.delete(id);
   }

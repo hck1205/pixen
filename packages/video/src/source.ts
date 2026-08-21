@@ -12,9 +12,12 @@
  * that the picture moves.
  */
 import { PixenError, type Editor, type ImageResource, type ResourceManager } from "@pixen/core";
+import { awaitEvent } from "./playback.js";
 
 /** How long to wait for a browser to tell us what it just opened. */
 const METADATA_TIMEOUT_MS = 30_000;
+/** What a cancelled open calls itself, in the message a host sees. */
+const OPENING = "Opening the video";
 
 export interface VideoSourceOptions {
   /** Abandons the load. The element is torn down either way. */
@@ -78,10 +81,19 @@ async function loadVideo(
     duration: element.duration,
     mimeType: typeof input === "string" ? "" : input.type,
     ...(name ? { name } : {}),
+    // The object URL has to outlive this call — the element reads from it for
+    // as long as the resource is alive — so it is released with the resource
+    // rather than at the end of the load. Without this the whole file stays in
+    // memory for the life of the page, and `disposeImageSource` cannot know to
+    // do it: all it can see is an element it does not recognise.
+    dispose: () => {
+      element.pause();
+      element.removeAttribute("src");
+      element.load();
+      revoke();
+    },
   });
 
-  // The object URL outlives this call: the element reads from it for as long as
-  // the resource is alive, and revoking it here would empty the picture.
   return { element, resource, duration: element.duration };
 }
 
@@ -92,49 +104,26 @@ async function loadVideo(
  * finite number is a stream rather than a file — live, or one the server
  * described badly — and there is no clip to take out of something with no end.
  */
-function untilReady(element: HTMLVideoElement, signal: AbortSignal | undefined): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const done = (settle: () => void) => {
-      element.removeEventListener("loadedmetadata", onMetadata);
-      element.removeEventListener("error", onError);
-      signal?.removeEventListener("abort", onAbort);
-      clearTimeout(timer);
-      settle();
-    };
-    const onMetadata = () =>
-      done(() => {
-        if (!Number.isFinite(element.duration) || element.duration <= 0) {
-          reject(
-            new PixenError("UNSUPPORTED_FORMAT", "This source has no duration, so there is nothing to trim", {
-              details: { duration: element.duration },
-            }),
-          );
-          return;
-        }
-        resolve();
-      });
-    const onError = () =>
-      done(() =>
-        reject(
-          new PixenError("DECODE_FAILED", "The video could not be opened", {
-            details: { code: element.error?.code ?? null },
-          }),
-        ),
-      );
-    const onAbort = () => done(() => reject(new PixenError("ABORTED", "Loading the video was aborted")));
-    const timer = setTimeout(
-      () => done(() => reject(new PixenError("DECODE_FAILED", "The video did not report its metadata"))),
-      METADATA_TIMEOUT_MS,
-    );
-
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
-    element.addEventListener("loadedmetadata", onMetadata);
-    element.addEventListener("error", onError);
-    signal?.addEventListener("abort", onAbort);
+async function untilReady(element: HTMLVideoElement, signal: AbortSignal | undefined): Promise<void> {
+  await awaitEvent(element, "loadedmetadata", {
+    failOn: {
+      event: "error",
+      error: () =>
+        new PixenError("DECODE_FAILED", "The video could not be opened", {
+          details: { code: element.error?.code ?? null },
+        }),
+    },
+    timeoutMs: METADATA_TIMEOUT_MS,
+    onTimeout: () => new PixenError("DECODE_FAILED", "The video did not report its metadata"),
+    what: OPENING,
+    ...(signal ? { signal } : {}),
   });
+
+  if (!Number.isFinite(element.duration) || element.duration <= 0) {
+    throw new PixenError("UNSUPPORTED_FORMAT", "This source has no duration, so there is nothing to trim", {
+      details: { duration: element.duration },
+    });
+  }
 }
 
 /**

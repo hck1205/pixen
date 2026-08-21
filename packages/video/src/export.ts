@@ -19,18 +19,16 @@ import {
   renderScene,
   throwIfAborted,
   wholeClip,
-  type ClipRange,
   type EditorDocument,
   type ResourceManager,
   type Size,
   type StepReporter,
 } from "@pixen/core";
 import { canvasRecorder, type ClipRecorder, type RecorderOptions } from "./encode.js";
+import { runClip, seekTo } from "./playback.js";
 
 /** What a cancelled video export calls itself, in one place. */
 const VIDEO_EXPORT = "Video export";
-/** Long enough for a seek on a slow file, short enough to fail rather than hang. */
-const SEEK_TIMEOUT_MS = 10_000;
 
 export type VideoExportStage = "render" | "encode";
 
@@ -97,7 +95,7 @@ export async function exportClip(
   const startedAt = element.currentTime;
 
   try {
-    await seekTo(element, clip.start, options.signal);
+    await seekTo(element, clip.start, options.signal, VIDEO_EXPORT);
 
     // The first frame is painted before recording starts, so the stream has
     // something to sample the instant it does rather than a blank canvas.
@@ -105,7 +103,7 @@ export async function exportClip(
     options.onProgress?.({ stage: "render", loaded: 0, total: length });
     await recorder.start();
 
-    await runClip(element, clip, options.signal, async (seconds) => {
+    await runClip(element, clip, options.signal, VIDEO_EXPORT, async (seconds) => {
       paint(context, document, element, target, resources);
       await recorder.frame(seconds);
       options.onProgress?.({ stage: "render", loaded: seconds, total: length });
@@ -148,90 +146,4 @@ function paint(
     { region: "crop", target },
   );
   renderScene(context, scene);
-}
-
-/**
- * Plays from the start of the clip to its end, calling back per frame.
- *
- * `requestVideoFrameCallback` is the right event and is asked for first: it
- * fires once per decoded frame, which is exactly one callback per frame that
- * exists. Where it is missing, `requestAnimationFrame` stands in — that fires
- * per *display* refresh instead, so a 24fps clip on a 60Hz screen paints some
- * frames more than once. Harmless for a recording, and the reason the frame
- * count is never claimed to be exact.
- */
-function runClip(
-  element: HTMLVideoElement,
-  clip: ClipRange,
-  signal: AbortSignal | undefined,
-  onFrame: (seconds: number) => Promise<void>,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let stopped = false;
-    const stop = (settle: () => void) => {
-      if (stopped) return;
-      stopped = true;
-      element.removeEventListener("ended", onEnded);
-      signal?.removeEventListener("abort", onAbort);
-      element.pause();
-      settle();
-    };
-    const onEnded = () => stop(resolve);
-    const onAbort = () => stop(() => reject(new PixenError("ABORTED", `${VIDEO_EXPORT} was aborted`)));
-
-    const step = (): void => {
-      if (stopped) return;
-      // The clip's end is the other way this finishes, and the usual one: a
-      // trimmed clip stops long before the source runs out.
-      if (element.currentTime >= clip.end) {
-        stop(resolve);
-        return;
-      }
-      void onFrame(element.currentTime - clip.start).then(
-        () => {
-          if (!stopped) schedule();
-        },
-        (error: unknown) => stop(() => reject(error)),
-      );
-    };
-    const schedule = (): void => {
-      if (typeof element.requestVideoFrameCallback === "function") element.requestVideoFrameCallback(() => step());
-      else requestAnimationFrame(() => step());
-    };
-
-    element.addEventListener("ended", onEnded);
-    signal?.addEventListener("abort", onAbort);
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
-
-    element.play().then(schedule, (error: unknown) => stop(() => reject(error)));
-  });
-}
-
-/** Moves the playhead and waits for the picture to actually be there. */
-function seekTo(element: HTMLVideoElement, seconds: number, signal: AbortSignal | undefined): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const done = (settle: () => void) => {
-      element.removeEventListener("seeked", onSeeked);
-      signal?.removeEventListener("abort", onAbort);
-      clearTimeout(timer);
-      settle();
-    };
-    const onSeeked = () => done(resolve);
-    const onAbort = () => done(() => reject(new PixenError("ABORTED", `${VIDEO_EXPORT} was aborted`)));
-    const timer = setTimeout(
-      () => done(() => reject(new PixenError("EXPORT_FAILED", "The video would not seek to the start of the clip"))),
-      SEEK_TIMEOUT_MS,
-    );
-
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
-    element.addEventListener("seeked", onSeeked);
-    signal?.addEventListener("abort", onAbort);
-    element.currentTime = seconds;
-  });
 }
