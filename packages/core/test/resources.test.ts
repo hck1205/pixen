@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ResourceManager } from "@pixen/core";
+import { PreviewProxy, ResourceManager } from "@pixen/core";
 
 /**
  * What happens when the manager lets a resource go.
@@ -89,5 +89,34 @@ describe("releasing by reference count", () => {
 
     resources.release(resource.id);
     expect(closed).toBe(1);
+  });
+});
+
+describe("the preview proxy", () => {
+  const size = { width: 4000, height: 3000 };
+
+  it("costs nothing until one is asked for", () => {
+    const proxy = new PreviewProxy(drawable(), size, false);
+    expect(proxy.bytes()).toBe(0);
+  });
+
+  it("costs nothing when the source is already small enough to be its own proxy", () => {
+    // The plan says "source" rather than "render", so there is no second bitmap
+    // — which is a different reason for zero than "none has been made yet", and
+    // the same answer.
+    const small = { width: 64, height: 48 };
+    const proxy = new PreviewProxy(drawable(), small, false);
+    const bitmap = proxy.get(1024);
+    expect(bitmap.scale).toBe(1);
+    expect(proxy.bytes()).toBe(0);
+  });
+
+  it("never proxies a moving source, however large it is", () => {
+    // A downscaled copy of a video is one frame of it, held forever.
+    const proxy = new PreviewProxy(drawable(), size, true);
+    const bitmap = proxy.get(256);
+    expect(bitmap.width).toBe(size.width);
+    expect(bitmap.scale).toBe(1);
+    expect(proxy.bytes()).toBe(0);
   });
 });

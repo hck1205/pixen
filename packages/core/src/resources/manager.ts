@@ -1,18 +1,9 @@
 import { PixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
-import { createSurface, disposeImageSource, releaseSurface } from "../image/canvas.js";
+import { disposeImageSource, releaseSurface } from "../image/canvas.js";
 import { decodeImage, type DecodeOptions, type ImageInput } from "../image/decode.js";
-import { drawResized } from "../image/resize.js";
 import { createId } from "../util/id.js";
-import { planPreview } from "./preview.js";
-
-export interface PreviewBitmap {
-  source: CanvasImageSource;
-  width: number;
-  height: number;
-  /** preview pixels per source pixel */
-  scale: number;
-}
+import { BYTES_PER_PIXEL, PreviewProxy, type PreviewBitmap } from "./preview.js";
 
 export interface ImageResource {
   readonly id: string;
@@ -37,9 +28,7 @@ export interface ImageResource {
 interface ResourceEntry {
   resource: ImageResource;
   refCount: number;
-  preview: PreviewBitmap | null;
-  previewLimit: number;
-  released: boolean;
+  preview: PreviewProxy;
   /** The adopter's own teardown, run once when the entry is let go. */
   dispose?: () => void;
 }
@@ -124,14 +113,12 @@ export class ResourceManager {
       mimeType: input.mimeType ?? "",
       ...(input.name ? { name: input.name } : {}),
       ...(input.duration === undefined ? {} : { duration: input.duration }),
-      byteSize: input.blob?.size ?? input.width * input.height * 4,
+      byteSize: input.blob?.size ?? input.width * input.height * BYTES_PER_PIXEL,
     };
     this.#entries.set(resource.id, {
       resource,
       refCount: 1,
-      preview: null,
-      previewLimit: this.#previewMaxSize,
-      released: false,
+      preview: new PreviewProxy(resource.source, { width: resource.width, height: resource.height }, resource.duration !== undefined),
       ...(input.dispose ? { dispose: input.dispose } : {}),
     });
     return resource;
@@ -155,23 +142,32 @@ export class ResourceManager {
    */
   resolve = (id: string): CanvasImageSource | null => this.#entries.get(id)?.resource.source ?? null;
 
-  /** Like `get`, but states which invariant broke instead of returning undefined. */
-  require(id: string): ImageResource {
+  /**
+   * The entry behind an id, or the reason there is not one.
+   *
+   * Three callers wanted this and each threw its own copy of the same message.
+   *
+   * There used to be a second branch here for an entry that had been released,
+   * raising a friendlier `RESOURCE_RELEASED`. It could never fire: `dispose`
+   * deletes the entry in the line after it sets the flag, so a released id is
+   * an absent id by the time anybody looks. A disposed resource says
+   * `RESOURCE_MISSING`, which is the truth.
+   */
+  #entry(id: string): ResourceEntry {
     const entry = this.#entries.get(id);
     if (!entry) {
       throw new PixenError("RESOURCE_MISSING", `No resource registered for id "${id}"`, { details: { id } });
     }
-    if (entry.released) {
-      throw new PixenError("RESOURCE_RELEASED", `Resource "${id}" has already been released`, { details: { id } });
-    }
-    return entry.resource;
+    return entry;
+  }
+
+  /** Like `get`, but states which invariant broke instead of returning undefined. */
+  require(id: string): ImageResource {
+    return this.#entry(id).resource;
   }
 
   retain(id: string): ImageResource {
-    const entry = this.#entries.get(id);
-    if (!entry) {
-      throw new PixenError("RESOURCE_MISSING", `No resource registered for id "${id}"`, { details: { id } });
-    }
+    const entry = this.#entry(id);
     entry.refCount += 1;
     return entry.resource;
   }
@@ -185,60 +181,19 @@ export class ResourceManager {
   }
 
   /**
-   * A downscaled bitmap for interactive rendering. Editing at preview resolution
-   * and exporting at full resolution is deliberate: a 48 MP source stays
-   * responsive without ever degrading the exported pixels.
+   * A downscaled bitmap for interactive rendering. Editing at preview
+   * resolution and exporting at full resolution is deliberate: a 48 MP source
+   * stays responsive without ever degrading the exported pixels.
    */
   getPreview(id: string, maxSize = this.#previewMaxSize): PreviewBitmap {
-    const entry = this.#entries.get(id);
-    if (!entry || entry.released) {
-      throw new PixenError("RESOURCE_MISSING", `No resource registered for id "${id}"`, { details: { id } });
-    }
-
-    const { resource } = entry;
-    const size: Size = { width: resource.width, height: resource.height };
-
-    // A moving source is drawn from directly, however large it is. The proxy
-    // exists to keep a 48-megapixel photograph interactive by drawing a smaller
-    // copy of it — and a copy of a video is one frame of it, so the picture
-    // would freeze the moment the proxy was built.
-    if (resource.duration !== undefined) return { source: resource.source, ...size, scale: 1 };
-
-    const cached = entry.preview;
-    const plan = planPreview(size, maxSize, cached ? entry.previewLimit : null);
-    if (cached) {
-      if (plan.kind === "cached") return cached;
-      // Released only once a new one is called for: until then the old proxy is
-      // the one on screen.
-      this.#disposePreview(entry);
-    }
-
-    entry.previewLimit = maxSize;
-    entry.preview =
-      plan.kind === "render"
-        ? this.#renderPreview(resource.source, size, plan.target)
-        : { source: resource.source, ...size, scale: 1 };
-    return entry.preview;
-  }
-
-  #renderPreview(source: CanvasImageSource, size: Size, target: Size): PreviewBitmap {
-    const surface = createSurface(target.width, target.height);
-    drawResized(surface.context, source, size, target);
-    return { source: surface.canvas, ...target, scale: target.width / size.width };
-  }
-
-  #disposePreview(entry: ResourceEntry): void {
-    if (entry.preview && entry.preview.source !== entry.resource.source) {
-      disposeImageSource(entry.preview.source);
-    }
-    entry.preview = null;
+    return this.#entry(id).preview.get(maxSize);
   }
 
   /** Frees a resource regardless of its reference count. */
   dispose(id: string): void {
     const entry = this.#entries.get(id);
     if (!entry) return;
-    this.#disposePreview(entry);
+    entry.preview.dispose();
     disposeImageSource(entry.resource.source);
     // The caller's own teardown runs after ours and cannot stop the rest of the
     // release: a host that throws in here would otherwise leak the entry it was
@@ -248,7 +203,6 @@ export class ResourceManager {
     } catch {
       // Nothing useful to do with it, and nothing left that depends on it.
     }
-    entry.released = true;
     this.#entries.delete(id);
   }
 
@@ -260,10 +214,8 @@ export class ResourceManager {
   stats(): { count: number; approximateBytes: number } {
     let approximateBytes = 0;
     for (const entry of this.#entries.values()) {
-      approximateBytes += entry.resource.width * entry.resource.height * 4;
-      if (entry.preview && entry.preview.source !== entry.resource.source) {
-        approximateBytes += entry.preview.width * entry.preview.height * 4;
-      }
+      approximateBytes += entry.resource.width * entry.resource.height * BYTES_PER_PIXEL;
+      approximateBytes += entry.preview.bytes();
     }
     return { count: this.#entries.size, approximateBytes };
   }
