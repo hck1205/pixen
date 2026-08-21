@@ -58,6 +58,9 @@ was supplied to an AI tool as input at any point.
 | `export/placement.ts` | Placing a watermark in one of nine positions, and a sticker in the middle of the crop | First principles: a fraction of the longest edge, inset by a margin; the crop brought back through `stageToImage` before anything is placed in it |
 | `export/*` | Full-resolution export, headless processing, policies | Original design for this project |
 | `web/viewport/gestures/*` | Pointer gestures as a state machine | Original design for this project |
+| `video/source.ts` | Opening a moving source | MDN/WHATWG: `HTMLVideoElement`, `loadedmetadata`, `URL.createObjectURL`. That a video element is already a `CanvasImageSource` is the HTML specification's own list for `drawImage`, and adopting it as the editor's source rather than decoding frames is our own choice |
+| `video/playback.ts` | Driving the playhead through a range | MDN/WHATWG: `HTMLVideoElement.currentTime`, the `seeked` and `ended` events, and `requestVideoFrameCallback` (W3C **HTMLVideoElement.requestVideoFrameCallback**), with `requestAnimationFrame` where it is absent |
+| `video/encode.ts` | Recording a canvas to a file | MDN/WHATWG: `HTMLCanvasElement.captureStream` and the W3C **MediaStream Recording** specification. The codec preference order and the recorder seam are our own choices, both recorded in the module with the measurement behind them |
 | `web/viewport/overlay.ts` | Crop chrome geometry | Rule-of-thirds guides and corner brackets, laid out here |
 | `web/element/*`, `web/viewport/*` | Custom element, viewport, event plumbing | Web Components, Pointer Events and Resize Observer as specified by WHATWG/W3C. Layout, interaction model and chrome are original |
 | `web/theme/icons.ts` | Icon set | Drawn for this project as single-weight stroked primitives on a 24×24 grid |

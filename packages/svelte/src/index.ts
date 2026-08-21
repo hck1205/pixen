@@ -64,6 +64,10 @@ export function pixen(node: Element, options: PixenActionOptions = {}): PixenAct
     },
     destroy() {
       detach();
+      // The same reason React and Vue do it: the element releases its decoded
+      // bitmaps on `destroy` and nowhere else, so without this a route change
+      // leaks the full-resolution image and every sticker with it.
+      element.destroy();
     },
   };
 }

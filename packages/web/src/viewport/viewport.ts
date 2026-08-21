@@ -459,6 +459,7 @@ export class Viewport {
     this.canvas.removeEventListener("pointerup", this.#onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.#onPointerCancel);
     this.canvas.removeEventListener("wheel", this.#onWheel);
+    this.canvas.removeEventListener("dblclick", this.#onDoubleClick);
     for (const off of this.#unsubscribe) off();
     this.#unsubscribe = [];
   }

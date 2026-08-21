@@ -1,8 +1,9 @@
 # Pixen — working agreement
 
 A browser image editing SDK: crop, rotate, annotate, resize and re-encode on the
-client. Read this before changing anything; it is the short version of the rules
-the rest of the documentation explains.
+client, with trimming and video export as a separate package. Read this before
+changing anything; it is the short version of the rules the rest of the
+documentation explains.
 
 ## Packages
 
@@ -13,9 +14,11 @@ the rest of the documentation explains.
 | `@pixen/react` | React bindings | core, web |
 | `@pixen/vue` | Vue 3 bindings | core, web |
 | `@pixen/svelte` | Svelte bindings, as an action | core, web |
+| `@pixen/video` | Trimming and video export, sold separately | core |
 
-`apps/playground` is the demo and the browser-test fixture. `apps/stories` is the
-Ladle story browser — the visual reference for the UI.
+`apps/playground` is the demo and the browser-test fixture — two pages, one for
+stills and one for video. `apps/stories` is the Ladle story browser — the visual
+reference for the UI.
 
 ## Non-negotiables
 
