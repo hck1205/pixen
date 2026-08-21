@@ -17,7 +17,7 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
       {
         capability: "Crop",
         layer: "Engine",
-        detail: `Drag, handles, keyboard nudge; ratios ${list(DEFAULT_ASPECT_RATIOS.map((ratio) => ratio.label))}`,
+        detail: `Drag and handles; ratios ${list(DEFAULT_ASPECT_RATIOS.map((ratio) => ratio.label))}`,
         evidence: [unit("crop.test.ts"), story("AspectRatios"), browser("editor.spec.ts")],
       },
       {
@@ -107,8 +107,10 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
       {
         capability: "Handles",
         layer: "Element",
-        detail: "Corner resize and a rotate grip, both one undo step per gesture",
-        evidence: [unit("transform.test.ts"), story("LayerHandles"), browser("editor.spec.ts")],
+        detail:
+          "Corner resize and a rotate grip, both one undo step per gesture, and arrow-key nudge — " +
+          "which moves the selected layer, and does nothing without one, so the page can still scroll",
+        evidence: [unit("transform.test.ts"), unit("keyboard.test.ts"), story("LayerHandles"), browser("editor.spec.ts")],
       },
     ],
   },
@@ -120,7 +122,7 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
         capability: "Modes",
         layer: "Engine",
         detail: list(REDACTION_MODES),
-        evidence: [unit("ops.test.ts"), story("RedactionModes"), browser("editor.spec.ts")],
+        evidence: [unit("layers.test.ts"), story("RedactionModes"), browser("editor.spec.ts")],
       },
       {
         capability: "Only solid removes information",
@@ -155,7 +157,12 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
         capability: "Watermark placement",
         layer: "Engine",
         detail: list(WATERMARK_POSITIONS),
-        evidence: [unit("decoration.test.ts"), story("Watermark"), browser("editor.spec.ts")],
+        evidence: [
+          unit("decoration.test.ts"),
+          unit("layers.test.ts"),
+          story("Watermark"),
+          browser("editor.spec.ts"),
+        ],
       },
       {
         capability: "Text watermark",

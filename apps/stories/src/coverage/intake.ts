@@ -40,7 +40,7 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
           "takes the decoded pixels before anyone edits them, upright, for a colour profile or a " +
           "denoiser. Set decodeOptions on the element and they reach a drop and a paste too, which is " +
           "how the format nobody can read actually arrives",
-        evidence: [browser("editor.spec.ts"), doc("docs/FRAMEWORKS.md")],
+        evidence: [unit("decode.test.ts"), browser("editor.spec.ts"), doc("docs/FRAMEWORKS.md")],
       },
       {
         capability: "EXIF orientation",

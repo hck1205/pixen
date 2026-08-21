@@ -67,10 +67,20 @@ use `solid`.
 
 Two implementation notes that matter for the guarantee:
 
-- Every mode except `solid` reads the canvas back. A cross-origin source without
-  CORS taints the canvas, and an engine without canvas filters cannot blur —
-  **all of them fall back to the solid fill**, because a redaction that quietly
-  does nothing is the one outcome that must never happen.
+- **Every mode falls back to the solid fill rather than painting nothing**,
+  because a redaction that quietly does nothing is the one outcome that must
+  never happen. That is the promise; here is exactly when each fallback fires,
+  which is narrower than this paragraph used to claim:
+
+  | Mode | Falls back when |
+  | --- | --- |
+  | `blur` | The engine has no canvas `filter`, so there is no way to blur |
+  | `scramble` | The pixels cannot be read back — a cross-origin source without CORS taints the canvas, and `getImageData` on a tainted one throws |
+  | `pixelate` | Only if the downscale-and-redraw itself fails |
+
+  `blur` and `pixelate` reach their region with `drawImage` rather than
+  `getImageData`, so a tainted canvas does **not** stop them — reading is what
+  taint prevents, and only `scramble` reads.
 - The strength is measured in image pixels and applied in device pixels, so it
   travels through the render transform. A rotated picture is redacted exactly as
   hard as an upright one.

@@ -31,6 +31,10 @@ export function obscureRegion(context: Canvas2D, op: Extract<DrawOp, { op: "obsc
 
   const canvas = context.canvas;
   const clamped = clampRect(transformBounds(transform, frame), canvas.width, canvas.height);
+  // Reachable only for a transform that collapses the region to nothing, since
+  // `clampRect` floors the near edge and ceils the far one and so never returns
+  // less than a pixel of a region that has any area at all. There is nothing to
+  // paint over in that case, and nothing a fill would land on either.
   if (clamped.width < 1 || clamped.height < 1) return;
 
   try {

@@ -40,7 +40,10 @@ export const SURFACE_COVERAGE: CoverageGroup[] = [
       {
         capability: "Theming",
         layer: "Element",
-        detail: "Light, dark and system, driven by custom properties on the host",
+        detail:
+          "Light and dark, driven by custom properties on the host. There is no `system` — nothing in " +
+          "the package reads `prefers-color-scheme`, so a host that wants to follow the operating " +
+          "system reads it and sets the attribute",
         evidence: [story("Themes"), story("Theming"), visual("visual.spec.ts")],
       },
       {
