@@ -89,8 +89,19 @@ export function canvasRecorder(canvas: HTMLCanvasElement, options: RecorderOptio
   });
 
   const chunks: Blob[] = [];
+  let failure: PixenError | null = null;
+
   recorder.ondataavailable = (event) => {
     if (event.data.size > 0) chunks.push(event.data);
+  };
+
+  // Attached now rather than in `finish`, which is the whole point. A recorder
+  // that fails mid-clip — a track ending, an encoder fault — goes `inactive`
+  // with nobody listening, and `finish` would then find it already stopped and
+  // hand back whatever partial chunks existed as though the export had worked.
+  // A zero-byte file reported as success is the worst outcome an export API has.
+  recorder.onerror = () => {
+    failure ??= new PixenError("EXPORT_FAILED", "The recorder failed part way through the clip");
   };
 
   const stopTracks = () => {
@@ -104,18 +115,39 @@ export function canvasRecorder(canvas: HTMLCanvasElement, options: RecorderOptio
     },
     finish: () =>
       new Promise<Blob>((resolve, reject) => {
-        recorder.onstop = () => {
+        const settle = (): void => {
           stopTracks();
-          resolve(new Blob(chunks, { type: mimeType }));
+          if (failure) {
+            reject(failure);
+            return;
+          }
+          const blob = new Blob(chunks, { type: mimeType });
+          // Nothing came out. Better to say so than to hand back a file that
+          // opens as nothing.
+          if (blob.size === 0) {
+            reject(new PixenError("EXPORT_FAILED", "The recorder produced no video"));
+            return;
+          }
+          resolve(blob);
         };
+
+        recorder.onstop = settle;
         recorder.onerror = () => {
-          stopTracks();
-          reject(new PixenError("EXPORT_FAILED", "Recording the video failed"));
+          failure ??= new PixenError("EXPORT_FAILED", "Recording the video failed");
+          settle();
         };
+
+        // Already stopped, and we never asked it to: the recorder gave up on its
+        // own, which is never good news even when some chunks arrived.
+        if (recorder.state === "inactive") {
+          failure ??= new PixenError("EXPORT_FAILED", "The recorder stopped before the clip did");
+          settle();
+          return;
+        }
+
         // `stop` is what flushes the last chunk, so the blob is only whole once
         // `onstop` has run — which is why this is a promise and not a return.
-        if (recorder.state === "inactive") recorder.onstop(new Event("stop"));
-        else recorder.stop();
+        recorder.stop();
       }),
     cancel: () => {
       if (recorder.state !== "inactive") recorder.stop();

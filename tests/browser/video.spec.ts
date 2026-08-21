@@ -24,8 +24,6 @@ type Demo = {
     resources: unknown,
     options?: Record<string, unknown>,
   ): Promise<{ blob: Blob; width: number; height: number; duration: number; bytes: number; type: string }>;
-  commands: { setClip(document: unknown, range: { start: number; end: number } | null): unknown };
-  opened(): { element: HTMLVideoElement; duration: number } | null;
 };
 
 declare global {
@@ -85,13 +83,14 @@ test.describe("video", () => {
 
       // Keep the middle second, inset from both edges so a frame either side of
       // the boundary cannot drift into the answer.
-      element.dispatchEvent(new Event("noop"));
       (element.editor as { dispatch(intent: unknown): unknown }).dispatch({
         kind: "set-clip",
         range: { start: 1.2, end: 1.8 },
       });
 
+      const startedAt = performance.now();
       const written = await demo.exportClip(element.editor.document, source.element, element.editor.resources);
+      const elapsed = performance.now() - startedAt;
 
       // Read the exported file back and sample it in the middle.
       const played = document.createElement("video");
@@ -120,6 +119,7 @@ test.describe("video", () => {
       };
 
       return {
+        elapsed,
         sourceDuration: source.duration,
         written: { width: written.width, height: written.height, bytes: written.bytes, type: written.type },
         reportedDuration: written.duration,
@@ -134,10 +134,22 @@ test.describe("video", () => {
     expect(outcome.written.type).toContain("webm");
     expect(outcome.written.width).toBeGreaterThan(0);
 
-    // The clip is the trimmed length, not the source's three seconds.
+    // The clip is the trimmed length, not the source's three seconds — read off
+    // the decoded file, which is the only one of the two that can disagree with
+    // the exporter. `written.duration` is the input range restated, so it would
+    // hold even if nothing had been recorded at all.
     expect(outcome.sourceDuration).toBeGreaterThan(2.5);
-    expect(outcome.reportedDuration).toBeCloseTo(0.6, 1);
-    expect(outcome.exportedDuration).toBeLessThan(1.5);
+    // Bounds rather than a tolerance: recording is realtime, so the file ends on
+    // the last frame that made it and runs a frame or two short of the 0.6s
+    // asked for. What has to hold is that it is the trimmed part and not the
+    // three-second source, which these bounds separate and a tight tolerance
+    // only made flaky.
+    expect(outcome.exportedDuration).toBeGreaterThan(0.35);
+    expect(outcome.exportedDuration).toBeLessThan(0.9);
+
+    // And it took about as long as the clip runs for, because recording is
+    // realtime — the cost the package documents, asserted rather than described.
+    expect(outcome.elapsed).toBeGreaterThan(outcome.reportedDuration * 1000 * 0.5);
 
     // And it is green throughout — the second that was asked for, rather than
     // the red one it starts with or the blue one it ends with.
@@ -186,6 +198,99 @@ test.describe("video", () => {
     expect(outcome.after).toBe(false);
     // And the element is not left pointing at bytes that are gone.
     expect(outcome.src).toBeNull();
+  });
+
+  /**
+   * The seam that exists because Pixen's own recorder has costs a host may not
+   * accept — realtime, and WebM only. It was declared, documented and never
+   * driven by anything, which for a seam is the same as not having one.
+   */
+  test("a host's own recorder receives the frames, and its file is the one returned", async ({ page }) => {
+    await openVideoPage(page);
+
+    const outcome = await page.evaluate(async () => {
+      const element = document.querySelector("#editor") as HTMLElement & {
+        editor: { document: unknown; resources: unknown };
+      };
+      const demo = window.pixenVideoDemo;
+      const clip = await demo.recordSampleClip({ seconds: 1 });
+      const source = await demo.openVideo(element.editor, clip);
+
+      const calls: string[] = [];
+      let frames = 0;
+      let sawPixels = false;
+
+      const written = await demo.exportClip(element.editor.document, source.element, element.editor.resources, {
+        recorder: (canvas: HTMLCanvasElement) => ({
+          start: () => calls.push("start"),
+          frame: () => {
+            frames += 1;
+            // The canvas handed over is the one being painted, not a blank.
+            if (!sawPixels) {
+              const data = canvas.getContext("2d")!.getImageData(0, 0, 1, 1).data;
+              sawPixels = data[3]! > 0;
+            }
+          },
+          finish: () => {
+            calls.push("finish");
+            return Promise.resolve(new Blob(["host's own bytes"], { type: "video/mp4" }));
+          },
+          cancel: () => calls.push("cancel"),
+        }),
+      });
+
+      const text = await written.blob.text();
+      return { calls, frames, sawPixels, text, type: written.type, bytes: written.bytes };
+    });
+
+    // Started once, finished once, and never cancelled — the export succeeded.
+    expect(outcome.calls).toEqual(["start", "finish"]);
+    // Frames actually arrived, and on a canvas with the picture already on it.
+    expect(outcome.frames).toBeGreaterThan(0);
+    expect(outcome.sawPixels).toBe(true);
+
+    // What the host wrote is what came back, including a container Pixen's own
+    // recorder cannot produce — which is the entire point of the seam.
+    expect(outcome.text).toBe("host's own bytes");
+    expect(outcome.type).toBe("video/mp4");
+    expect(outcome.bytes).toBeGreaterThan(0);
+  });
+
+  test("a recorder that fails takes the export down with it, rather than returning nothing", async ({ page }) => {
+    await openVideoPage(page);
+
+    const outcome = await page.evaluate(async () => {
+      const element = document.querySelector("#editor") as HTMLElement & {
+        editor: { document: unknown; resources: unknown };
+      };
+      const demo = window.pixenVideoDemo;
+      const clip = await demo.recordSampleClip({ seconds: 1 });
+      const source = await demo.openVideo(element.editor, clip);
+
+      let cancelled = false;
+      try {
+        await demo.exportClip(element.editor.document, source.element, element.editor.resources, {
+          recorder: () => ({
+            start: () => undefined,
+            frame: () => undefined,
+            finish: () => Promise.reject(new Error("the encoder gave up")),
+            cancel: () => {
+              cancelled = true;
+            },
+          }),
+        });
+        return { outcome: "returned a file", cancelled };
+      } catch (error) {
+        return { outcome: "threw", message: (error as Error).message, cancelled };
+      }
+    });
+
+    // An export that cannot write a file says so. Handing back an empty one is
+    // the worst failure an export API has, because it is indistinguishable from
+    // success until somebody opens it.
+    expect(outcome.outcome).toBe("threw");
+    // And the recorder is told to let go of whatever it had.
+    expect(outcome.cancelled).toBe(true);
   });
 
   test("an export can be called off while it is recording", async ({ page }) => {

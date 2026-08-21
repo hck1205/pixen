@@ -47,9 +47,9 @@ export const VIDEO_COVERAGE: CoverageGroup[] = [
         capability: "Export runs in real time",
         layer: "Engine",
         detail:
-          "A thirty-second clip takes thirty seconds. MediaRecorder samples a canvas as it is painted " +
-          "and cannot be asked to hurry — which is also the reason an export can be called off halfway, " +
-          "because there is a whole clip's worth of time to change your mind in",
+          "A thirty-second clip takes thirty seconds — timed, not just described. MediaRecorder samples " +
+          "a canvas as it is painted and cannot be asked to hurry, which is also the reason an export " +
+          "can be called off halfway: there is a whole clip's worth of time to change your mind in",
         evidence: [browser("video.spec.ts"), doc("docs/ROADMAP.md")],
       },
       {
@@ -58,8 +58,18 @@ export const VIDEO_COVERAGE: CoverageGroup[] = [
         detail:
           "Measured, MediaRecorder writes VP8 and VP9 in WebM here and refuses H.264 and MP4 outright, " +
           "while VideoEncoder is undefined even with the flags on. So WebCodecs is not what Pixen " +
-          "depends on, and is exactly what a host reaches for through the recorder seam",
+          "depends on, and is exactly what a host reaches for through the recorder seam — which is " +
+          "driven by a test that hands back an MP4 Pixen's own recorder could not have written",
         evidence: [browser("video.spec.ts"), doc("docs/ROADMAP.md")],
+      },
+      {
+        capability: "A failed export says so",
+        layer: "Engine",
+        detail:
+          "A recorder that fails, or stops before the clip does, or produces nothing at all, rejects " +
+          "rather than handing back an empty file — which is the worst outcome an export API has, " +
+          "because it is indistinguishable from success until somebody opens it",
+        evidence: [browser("video.spec.ts")],
       },
       {
         capability: "The source is released with the resource",

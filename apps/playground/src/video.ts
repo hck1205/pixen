@@ -7,7 +7,7 @@
  * thing that exercises both.
  */
 import "@pixen/web";
-import { commands, type EditorDocument } from "@pixen/core";
+import type { EditorDocument } from "@pixen/core";
 import { exportClip, openVideo, supportedRecordingType, type VideoSource } from "@pixen/video";
 import { recordSampleClip, SAMPLE_SECONDS } from "./sample-clip.js";
 
@@ -88,7 +88,7 @@ if (supportedRecordingType() === null) {
 }
 
 // The browser suite drives this page rather than reaching into the bundle, so
-// the two things it cannot get at from the DOM are put where it can.
+// the three module functions it cannot get at from the DOM are put where it can.
 Object.assign(window as unknown as Record<string, unknown>, {
-  pixenVideoDemo: { recordSampleClip, exportClip, openVideo, commands, opened: () => opened },
+  pixenVideoDemo: { recordSampleClip, exportClip, openVideo },
 });
