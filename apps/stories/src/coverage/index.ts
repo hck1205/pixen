@@ -12,14 +12,16 @@
  * And the evidence is structured rather than prose, so `coverage.test.ts` can
  * check that every file and story named here exists.
  *
- * The table is assembled from four slices, in the order a picture travels:
- * getting in, being edited, coming out, and the surface a person and a host
- * touch.
+ * The table is assembled in the order a picture travels: getting in, being
+ * edited, coming out, and the surface a person and a host touch — then video,
+ * which is a separate package and belongs here anyway, because "can it do
+ * video" is exactly the question this page exists to answer.
  */
 import { EDITING_COVERAGE } from "./editing.js";
 import { INTAKE_COVERAGE } from "./intake.js";
 import { OUTPUT_COVERAGE } from "./output.js";
 import { SURFACE_COVERAGE } from "./surface.js";
+import { VIDEO_COVERAGE } from "./video.js";
 import type { CoverageGroup } from "./evidence.js";
 
 export * from "./evidence.js";
@@ -29,6 +31,7 @@ export const COVERAGE: CoverageGroup[] = [
   ...EDITING_COVERAGE,
   ...OUTPUT_COVERAGE,
   ...SURFACE_COVERAGE,
+  ...VIDEO_COVERAGE,
 ];
 
 export function coverageCount(): number {

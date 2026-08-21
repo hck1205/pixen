@@ -64,9 +64,37 @@ unit tests and a browser suite driving the real bundle.
 - [ ] Smart crop, background removal, upscale via those adapters
 - [ ] Enterprise policy engine: shared, versioned output rules
 
+## Phase 5 — video · started
+
+Sold and shipped separately, as `@pixen/video`, because it is a different
+product with different costs — not because the editor could not carry it. It
+turned out that it could, and cheaply: an `HTMLVideoElement` is already a
+drawable source, so a clip goes through the same scene as a photograph and the
+crop, the straightening, the adjustments and every annotation reach each frame
+without one of them learning that the picture moves.
+
+- [x] A clip range in the document, stored the way a crop is — absolute seconds
+      against a source that states its own duration ([DOCUMENT-SCHEMA.md](DOCUMENT-SCHEMA.md))
+- [x] Open a moving source, and never proxy it into a preview bitmap
+- [x] Export the trimmed clip, with a seam for a host's own encoder
+- [ ] Timeline UI for the trim handles
+- [ ] A plugin surface that can carry its own locale strings, which an extension
+      shipped as a separate package needs and does not have yet
+
+Two costs, both measured rather than assumed. Recording runs at wall-clock speed
+— a thirty-second clip takes thirty seconds — because `MediaRecorder` samples a
+canvas as it is painted. And it writes WebM: in the Chromium this repository
+tests against, `VideoEncoder` is undefined even with the flags on, so WebCodecs
+is what a host reaches for through the encoder seam rather than something Pixen
+can depend on.
+
 ## Deliberately out of scope for now
 
-Video editing, generative fill, a full multi-layer compositing system, camera
-raw and layered-source formats, advanced typography, real-time collaboration,
-WebGPU, and native mobile SDKs. Each is a product of its own, and none of them
-is what makes the first release useful.
+Generative fill, a full multi-layer compositing system, camera raw and
+layered-source formats, advanced typography, real-time collaboration, WebGPU,
+and native mobile SDKs. Each is a product of its own, and none of them is what
+makes the first release useful.
+
+Video editing was on this list until it was not. What moved it was measuring the
+cost rather than assuming it: trimming and re-encoding a clip needed one new
+concept in the document and three files in a package of its own.
