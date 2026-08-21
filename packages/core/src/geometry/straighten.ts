@@ -15,7 +15,16 @@ import type { Matrix, Rect, Size } from "./types.js";
 /** Beyond 45° a straighten is a quarter turn plus a smaller straighten. */
 export const MAX_STRAIGHTEN = Math.PI / 4;
 
-/** How many quarter turns a rotation is nearest to. */
+/**
+ * How many quarter turns a rotation is nearest to.
+ *
+ * `Math.round` breaks a tie upward, so a rotation of exactly 45° counts as one
+ * quarter turn and its remainder is -45°. That makes the remainder's range
+ * [-45°, 45°) — closed at the bottom, open at the top. It has to be open at one
+ * end: 45° is "no turns and +45°" and equally "one turn and -45°", so the
+ * decomposition is genuinely ambiguous there and no tie-break makes both ends
+ * stable. `clampStraighten` is what keeps the excluded end unreachable.
+ */
 export function nearestQuarterTurns(rotation: number): number {
   return Math.round(rotation / QUARTER_TURN);
 }
@@ -23,17 +32,34 @@ export function nearestQuarterTurns(rotation: number): number {
 /**
  * The straighten part of a rotation: what is left after the quarter turns.
  *
- * Always in (-45°, 45°], so a slider showing it never jumps when the rotation
- * crosses a quarter turn.
+ * In [-45°, 45°), so a slider showing it never jumps when the rotation crosses
+ * a quarter turn.
  */
 export function straightenAngleOf(rotation: number): number {
   return rotation - nearestQuarterTurns(rotation) * QUARTER_TURN;
 }
 
-/** Folds an angle into the range a straighten may express. */
+/**
+ * Folds an angle into the range a straighten may express.
+ *
+ * Just inside 45° rather than up to it, and the sliver matters. `straighten` is
+ * absolute — it rebuilds the rotation as "the quarter turns it is nearest to,
+ * plus this angle" — so it is only idempotent while the angle it is handed reads
+ * back as itself. At exactly 45° it does not: the decomposition is ambiguous
+ * there, `nearestQuarterTurns` calls it one turn, and the command adds a quarter
+ * turn *every time it is dispatched* while the slider stays frozen at -45°.
+ * Holding the straighten slider at its maximum spun the picture.
+ *
+ * A billionth of a radian is six hundredths of a millionth of a degree. No
+ * interface can show the difference and no picture can be drawn to it; what it
+ * buys is that every angle a caller can produce has exactly one decomposition.
+ */
+const STRAIGHTEN_EPSILON = 1e-9;
+
 export function clampStraighten(radians: number): number {
   if (!Number.isFinite(radians)) return 0;
-  return Math.min(MAX_STRAIGHTEN, Math.max(-MAX_STRAIGHTEN, radians));
+  const limit = MAX_STRAIGHTEN - STRAIGHTEN_EPSILON;
+  return Math.min(limit, Math.max(-limit, radians));
 }
 
 /**

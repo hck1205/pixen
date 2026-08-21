@@ -15,6 +15,7 @@ import {
 } from "@pixen/core";
 
 const DEGREE = Math.PI / 180;
+const QUARTER = Math.PI / 2;
 
 function document(width = 1600, height = 1000) {
   return createDocument({ resourceId: "res_1", width, height });
@@ -41,6 +42,51 @@ describe("angle arithmetic", () => {
   it("clamps an absurd angle rather than passing it on", () => {
     expect(clampStraighten(Math.PI)).toBeCloseTo(MAX_STRAIGHTEN);
     expect(clampStraighten(Number.NaN)).toBe(0);
+  });
+
+  it("clamps just inside the end of the range, not up to it", () => {
+    // 45° is "no turns and +45°" and equally "one turn and -45°". The clamp is
+    // what keeps a caller out of that ambiguity, so what comes back has to be
+    // strictly inside it — while still reading as 45° to anything that rounds.
+    const clamped = clampStraighten(MAX_STRAIGHTEN);
+    expect(clamped).toBeLessThan(MAX_STRAIGHTEN);
+    expect(clamped).toBeCloseTo(MAX_STRAIGHTEN, 6);
+    // `Math.abs` because `Math.round` of a small negative is -0, and -0 is not 0
+    // to `Object.is`.
+    expect(Math.abs(nearestQuarterTurns(clamped))).toBe(0);
+    expect(Math.abs(nearestQuarterTurns(clampStraighten(-MAX_STRAIGHTEN)))).toBe(0);
+  });
+
+  it("reads a clamped angle back as itself, at either end", () => {
+    for (const end of [MAX_STRAIGHTEN, -MAX_STRAIGHTEN]) {
+      const clamped = clampStraighten(end);
+      expect(straightenAngleOf(clamped)).toBeCloseTo(clamped, 12);
+    }
+  });
+});
+
+describe("straighten is absolute, so setting the same angle twice changes nothing", () => {
+  /**
+   * The command is documented as absolute "because a slider that accumulated
+   * would drift away from the number it displays". At exactly +45° it did
+   * accumulate: each dispatch added a quarter turn, and the readback stayed
+   * frozen at -45°, so holding the slider at its maximum spun the picture.
+   */
+  it("holds at every angle the slider can reach, including both ends", () => {
+    for (let degrees = -45; degrees <= 45; degrees += 5) {
+      const angle = clampStraighten(degrees * DEGREE);
+      const once = commands.straighten(document(), angle);
+      const twice = commands.straighten(once, angle);
+      expect(twice.transform.rotation, `${degrees}° twice`).toBeCloseTo(once.transform.rotation, 9);
+      expect(straightenAngleOf(once.transform.rotation), `${degrees}° reads back`).toBeCloseTo(angle, 9);
+    }
+  });
+
+  it("does not drift over many dispatches at the maximum", () => {
+    const angle = clampStraighten(MAX_STRAIGHTEN);
+    let doc = document();
+    for (let i = 0; i < 5; i += 1) doc = commands.straighten(doc, angle);
+    expect(doc.transform.rotation).toBeCloseTo(angle, 12);
   });
 });
 
