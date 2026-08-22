@@ -2636,3 +2636,32 @@ test("a style control never writes onto a layer of another kind", async ({ page 
   expect(rect).toBeDefined();
   expect(rect).not.toHaveProperty("align");
 });
+
+test("the crop tool's configured ratio is applied to a picture as it loads", async ({ page }) => {
+  const ratio = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      tools: unknown;
+      load(input: Blob): Promise<void>;
+      editor: { document: { aspectRatio: number | null }; cropRect: { width: number; height: number } };
+    };
+    // Configure the tool the way a host would, then load a picture into it.
+    element.tools = [{ type: "crop", options: { defaultRatio: 1 } }, "select"];
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#3366cc";
+    context.fillRect(0, 0, 800, 600);
+    const blob = await new Promise<Blob>((resolve) => canvas.toBlob((result) => resolve(result!), "image/png"));
+    await element.load(blob);
+
+    const crop = element.editor.cropRect;
+    return { aspectRatio: element.editor.document.aspectRatio, crop: crop.width / crop.height };
+  });
+
+  // `defaultRatio` was documented and read by nothing, so a host that asked for
+  // square crops got freeform ones with no sign the option had been ignored.
+  expect(ratio.aspectRatio).toBe(1);
+  expect(ratio.crop).toBeCloseTo(1, 2);
+});

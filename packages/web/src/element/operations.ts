@@ -30,6 +30,11 @@ export interface OperationPorts {
   decodeOptions(): DecodeOptions;
   /** The policy in force, or null. Read per load, since it can change between them. */
   policy(): ImagePolicy | PresetName | null;
+  /**
+   * The ratio the crop tool was configured with, or undefined when the host
+   * named none. See `CropToolOptions.defaultRatio`.
+   */
+  defaultAspectRatio(): number | null | undefined;
   /** For re-applying the output attributes to a freshly loaded picture. */
   attributePorts(): AttributePorts;
   attribute(name: string): string | null;
@@ -65,6 +70,10 @@ export class EditorOperations {
       if (token !== this.#loadToken) return;
       const policy = ports.policy();
       if (policy) applyPolicy(ports.editor, policy);
+      // What the crop tool was configured with. Undefined means the host said
+      // nothing, which is not the same as asking for freeform.
+      const ratio = ports.defaultAspectRatio();
+      if (ratio !== undefined) ports.editor.setAspectRatio(ratio);
       // The rules the attributes carry, not a second copy of them.
       for (const name of OUTPUT_ATTRIBUTES) applyAttribute(name, ports.attribute(name), ports.attributePorts());
       ports.emit("pixen-load", { document: ports.editor.toJSON() });

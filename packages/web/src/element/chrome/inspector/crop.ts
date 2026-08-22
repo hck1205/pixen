@@ -1,7 +1,7 @@
 import { straightenAngleOf, toDegrees, toRadians } from "@pixen/core";
 import { button, divider, textButton } from "../../dom/index.js";
 import { STRAIGHTEN_RANGE } from "../../constants.js";
-import { ratiosEqual } from "../../ratios.js";
+import { ratioButtonLabel, ratiosEqual } from "../../ratios.js";
 import { transactedSlider } from "./slider.js";
 import type { ChromeContext } from "../context.js";
 
@@ -16,14 +16,15 @@ export function buildCropControls(context: ChromeContext): Node[] {
   const { strings, editor } = context;
   const current = editor.document.aspectRatio;
 
-  const ratioButtons = context.ratios.map((ratio) =>
-    textButton({
-      label: `${strings.aspectRatio}: ${ratio.label}`,
-      text: ratio.label,
+  const ratioButtons = context.ratios.map((ratio) => {
+    const label = ratioButtonLabel(ratio, strings);
+    return textButton({
+      label: `${strings.aspectRatio}: ${label}`,
+      text: label,
       active: ratiosEqual(current, ratio.value),
       onClick: () => editor.setAspectRatio(ratio.value),
-    }),
-  );
+    });
+  });
 
   // The slider shows the angle the document holds, not one the UI accumulates,
   // so it stays truthful across undo and across a quarter turn.

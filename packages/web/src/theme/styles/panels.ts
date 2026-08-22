@@ -23,8 +23,6 @@ export const panels = `
   z-index: 3;
 }
 
-.text-input[hidden] { display: none; }
-
 .inspector {
   display: flex;
   /* Wraps rather than squashing: the adjust panel carries a dozen controls, and
@@ -78,7 +76,7 @@ export const panels = `
 .field input[type="number"] {
   padding: 6px 8px;
   color: var(--pixen-text);
-  background: rgba(127, 140, 170, 0.14);
+  background: rgb(var(--pixen-tint) / 0.14);
   border: 1px solid var(--pixen-border);
   border-radius: 6px;
   font: inherit;
@@ -102,7 +100,7 @@ export const panels = `
   border-radius: var(--pixen-radius-small);
 }
 
-.layer-row:hover { background: rgba(127, 140, 170, 0.1); }
+.layer-row:hover { background: rgb(var(--pixen-tint) / 0.1); }
 
 /* The name takes the room the buttons do not, and is clipped rather than
    pushing them off the end. */

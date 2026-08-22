@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { en, ko } from "../src/i18n/index.js";
-import {
+import { shortcutLabel,
   isAppleShortcutPlatform,
   modifierLabel,
   redoLabel,
@@ -37,7 +37,7 @@ describe("platform modifier", () => {
 
 describe("undo and redo labels", () => {
   it("shows the shortcut when there is nothing to undo", () => {
-    expect(undoLabel(en, history(), false)).toBe("Undo (CtrlZ)");
+    expect(undoLabel(en, history(), false)).toBe("Undo (Ctrl+Z)");
     expect(undoLabel(en, null, true)).toBe("Undo (⌘Z)");
   });
 
@@ -46,12 +46,12 @@ describe("undo and redo labels", () => {
   });
 
   it("ignores a stale label when the stack is empty", () => {
-    expect(undoLabel(en, history({ canUndo: false, undoLabel: "Crop" }), false)).toBe("Undo (CtrlZ)");
+    expect(undoLabel(en, history({ canUndo: false, undoLabel: "Crop" }), false)).toBe("Undo (Ctrl+Z)");
   });
 
   it("does the same for redo, with the shift modifier", () => {
     expect(redoLabel(en, history({ canRedo: true, redoLabel: "Rotate" }), true)).toBe("Redo: Rotate (⌘⇧Z)");
-    expect(redoLabel(en, history(), false)).toBe("Redo (Ctrl⇧Z)");
+    expect(redoLabel(en, history(), false)).toBe("Redo (Ctrl+⇧Z)");
   });
 
   it("follows the active locale", () => {
@@ -84,5 +84,23 @@ describe("sizeLabel", () => {
 
   it("rounds sub-pixel sizes", () => {
     expect(sizeLabel({ width: 799.6, height: 450.2 })).toBe("800 × 450");
+  });
+});
+
+/**
+ * Two spellings of the same modifier were in use: the undo button read
+ * "Undo (CtrlZ)" beside a Fit button reading "Fit (Ctrl+0)". The plus is not
+ * decoration — on Apple the symbol reads as a modifier by itself, and on
+ * Windows the word does not.
+ */
+describe("shortcutLabel", () => {
+  it("joins the Windows modifier with a plus and the Apple one without", () => {
+    expect(shortcutLabel(false, "Z")).toBe("Ctrl+Z");
+    expect(shortcutLabel(true, "Z")).toBe("⌘Z");
+  });
+
+  it("is the spelling the undo button uses, so the chrome cannot disagree with itself", () => {
+    expect(undoLabel(en, history(), false)).toContain(`(${shortcutLabel(false, "Z")})`);
+    expect(undoLabel(en, history(), true)).toContain(`(${shortcutLabel(true, "Z")})`);
   });
 });

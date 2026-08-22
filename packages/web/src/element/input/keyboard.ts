@@ -85,7 +85,10 @@ export function resolveKeyboardAction(stroke: KeyStroke, context: KeyboardContex
     };
   }
 
-  if (!modifier) {
+  // Only with a picture open: the rail's own buttons are disabled without one,
+  // and a shortcut that arms a tool the rail says is unavailable is the two
+  // disagreeing about the same thing.
+  if (!modifier && context.ready) {
     const tool = context.tools.find((candidate) => TOOL_META[candidate.id]?.shortcut === lower);
     if (tool) return { action: { kind: "select-tool", tool: tool.id }, preventDefault: false };
   }

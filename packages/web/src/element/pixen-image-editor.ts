@@ -154,6 +154,7 @@ export class PixenImageEditorElement extends ElementBase {
       busy: this.#busy,
       decodeOptions: () => this.decodeOptions,
       policy: () => this.#policy,
+      defaultAspectRatio: () => cropToolSettings(this.#tools).defaultRatio,
       attributePorts: () => this.#attributePorts,
       attribute: (name) => this.getAttribute(name),
       emit: (type, detail) => this.#emit(type, detail),

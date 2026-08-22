@@ -27,7 +27,7 @@ button {
 
 button svg { inline-size: 20px; block-size: 20px; }
 
-button:hover:not(:disabled) { background: rgba(127, 140, 170, 0.18); }
+button:hover:not(:disabled) { background: rgb(var(--pixen-tint) / 0.18); }
 
 /* :focus first so engines without :focus-visible still show a ring, then the
    modern rule takes the ring away for pointer focus. */

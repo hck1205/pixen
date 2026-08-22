@@ -1,5 +1,5 @@
 import { DEFAULT_MIN_CROP_SIZE } from "@pixen/core";
-import type { ToolDefinition } from "./types.js";
+import type { CropToolOptions, ToolDefinition } from "./types.js";
 
 /**
  * What the crop tool was configured with, read out of the tool list.
@@ -21,16 +21,23 @@ import type { ToolDefinition } from "./types.js";
  */
 export interface CropToolSettings {
   ratios?: (number | null)[];
+  /**
+   * The ratio to lock a freshly loaded picture to, if the host named one.
+   *
+   * Undefined and null are different answers: null is "freeform", which a host
+   * can ask for deliberately, and undefined is "the host said nothing" — so it
+   * cannot be flattened to a default here.
+   */
+  defaultRatio?: number | null;
   minSize: number;
 }
 
 export function cropToolSettings(tools: readonly ToolDefinition[]): CropToolSettings {
-  const options = tools.find((tool) => tool.id === "crop")?.options as
-    | { ratios?: (number | null)[]; minSize?: number }
-    | undefined;
+  const options = tools.find((tool) => tool.id === "crop")?.options as CropToolOptions | undefined;
 
   return {
     ...(options?.ratios ? { ratios: options.ratios } : {}),
+    ...("defaultRatio" in (options ?? {}) ? { defaultRatio: options?.defaultRatio } : {}),
     // A host that asked for nothing gets the default rather than whatever the
     // last tool list left behind on a viewport that outlived it.
     minSize: options?.minSize ?? DEFAULT_MIN_CROP_SIZE,

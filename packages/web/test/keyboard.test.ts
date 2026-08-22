@@ -102,6 +102,12 @@ describe("tool shortcuts", () => {
     expect(resolveKeyboardAction({ key: "c" }, limited)?.action).toEqual({ kind: "select-tool", tool: "crop" });
   });
 
+  it("does nothing with no picture open, since the rail's buttons are disabled too", () => {
+    // A shortcut arming a tool the rail says is unavailable is the two
+    // disagreeing about the same thing.
+    expect(resolveKeyboardAction({ key: "c" }, context({ ready: false }))).toBeNull();
+  });
+
   it("leaves the key alone so a host shortcut can still use it", () => {
     expect(resolveKeyboardAction({ key: "c" }, context())?.preventDefault).toBe(false);
   });

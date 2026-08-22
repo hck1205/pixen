@@ -41,3 +41,23 @@ describe("cropToolSettings", () => {
     expect(cropToolSettings(tools).minSize).toBe(DEFAULT_MIN_CROP_SIZE);
   });
 });
+
+/**
+ * `defaultRatio` was documented on `CropToolOptions` and read by nothing: a host
+ * that set it got a freeform crop and no sign that the option had been ignored.
+ * The type it describes was unused too — the settings re-declared the shape
+ * inline — which is how the two drifted apart in the first place.
+ */
+describe("the ratio a picture loads at", () => {
+  it("is what the host asked for", () => {
+    expect(cropToolSettings([{ id: "crop", options: { defaultRatio: 16 / 9 } }]).defaultRatio).toBe(16 / 9);
+  });
+
+  it("tells freeform apart from unset, since a host can ask for freeform", () => {
+    // null is a choice; undefined is silence, and only silence leaves the
+    // document's own ratio alone.
+    expect(cropToolSettings([{ id: "crop", options: { defaultRatio: null } }])).toHaveProperty("defaultRatio", null);
+    expect(cropToolSettings([{ id: "crop", options: {} }])).not.toHaveProperty("defaultRatio");
+    expect(cropToolSettings([{ id: "crop" }])).not.toHaveProperty("defaultRatio");
+  });
+});

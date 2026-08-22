@@ -40,8 +40,9 @@ export const EXEMPT = {
   // extracted out of it — on-canvas text editing, sticker placement, every way
   // an image arrives, what each attribute means, what the engine's events do,
   // the busy pill, and the three operations that take time — and what is left
-  // is the element itself.
-  "packages/web/src/element/pixen-image-editor.ts": 698,
+  // is the element itself. The one line over the split's own count is the port
+  // that hands the crop tool's configured ratio to the load.
+  "packages/web/src/element/pixen-image-editor.ts": 699,
   // The public imperative API: very nearly one line per method, each building
   // an intent and handing it to `dispatch`. Splitting it would scatter the
   // surface a host reads as one thing, and the decisions are already elsewhere.

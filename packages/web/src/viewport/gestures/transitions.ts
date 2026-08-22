@@ -43,8 +43,9 @@ function aspectRatioOf(layer: EditorLayer | null, handle: LayerHandle): number |
 }
 
 /**
- * Pointer down. A middle button or a held shift always pans the view, whatever
- * tool is active — the one gesture that never edits the document.
+ * Pointer down. A middle button or a held shift pans the view whatever tool is
+ * active — the one gesture that never edits the document — unless it grabbed a
+ * resize handle first, which is what the comment below is about.
  */
 export function beginGesture(sample: PointerSample, context: GestureContext): GestureOutcome {
   // Grabbing a handle outranks the pan shortcut, so shift can mean "lock the

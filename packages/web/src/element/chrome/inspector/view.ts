@@ -1,5 +1,5 @@
 import { button, divider, readout } from "../../dom/index.js";
-import { sizeLabel, zoomLabel } from "../../labels.js";
+import { shortcutLabel, sizeLabel, zoomLabel } from "../../labels.js";
 import { ZOOM_STEP } from "../../constants.js";
 import type { ChromeBuild, ChromeContext } from "../context.js";
 
@@ -16,7 +16,7 @@ export function buildViewControls(context: ChromeContext): ChromeBuild {
 
   const zoom = readout(zoomLabel(context.zoom));
   const size = readout(editor.ready ? sizeLabel(editor.outputSize) : "—");
-  const fitShortcut = apple ? "⌘0" : "Ctrl+0";
+  const fitShortcut = shortcutLabel(apple, "0");
 
   return {
     nodes: [

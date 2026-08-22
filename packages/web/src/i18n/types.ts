@@ -18,7 +18,6 @@ export interface PixenStrings {
   exporting: string;
   loading: string;
   freeform: string;
-  original: string;
   aspectRatio: string;
   zoomIn: string;
   zoomOut: string;
@@ -37,7 +36,6 @@ export interface PixenStrings {
   toolbarTools: string;
   toolbarActions: string;
   toolbarOptions: string;
-  zoomLevel: string;
   adjustments: string;
   redactSolid: string;
   redactBlur: string;

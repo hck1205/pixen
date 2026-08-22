@@ -19,15 +19,27 @@ export function modifierLabel(apple: boolean): string {
   return apple ? "⌘" : "Ctrl";
 }
 
+/**
+ * A shortcut as one string: "⌘Z", or "Ctrl+Z".
+ *
+ * The plus is not decoration and not optional — on Apple the symbol reads as a
+ * modifier by itself, and on Windows "CtrlZ" does not. Both spellings were in
+ * use, so the undo button read "Undo (CtrlZ)" beside a Fit button reading
+ * "Fit (Ctrl+0)".
+ */
+export function shortcutLabel(apple: boolean, key: string): string {
+  return apple ? `${modifierLabel(apple)}${key}` : `${modifierLabel(apple)}+${key}`;
+}
+
 /** "Undo (⌘Z)", or "Undo crop (⌘Z)" once there is something named to undo. */
 export function undoLabel(strings: PixenStrings, history: HistorySummary | null, apple: boolean): string {
-  const shortcut = `${modifierLabel(apple)}Z`;
+  const shortcut = shortcutLabel(apple, "Z");
   const action = history?.canUndo ? history.undoLabel : null;
   return action ? `${strings.undo}: ${action} (${shortcut})` : `${strings.undo} (${shortcut})`;
 }
 
 export function redoLabel(strings: PixenStrings, history: HistorySummary | null, apple: boolean): string {
-  const shortcut = `${modifierLabel(apple)}⇧Z`;
+  const shortcut = shortcutLabel(apple, "⇧Z");
   const action = history?.canRedo ? history.redoLabel : null;
   return action ? `${strings.redo}: ${action} (${shortcut})` : `${strings.redo} (${shortcut})`;
 }
