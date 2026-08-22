@@ -36,11 +36,12 @@ export const BUDGET = 300;
  */
 export const EXEMPT = {
   // The custom element: lifecycle, observed attributes, properties, the
-  // imperative API and the wiring between them. Six concerns have been
+  // imperative API and the wiring between them. Seven concerns have been
   // extracted out of it — on-canvas text editing, sticker placement, every way
   // an image arrives, what each attribute means, what the engine's events do,
-  // and the busy pill — and what is left is the element itself.
-  "packages/web/src/element/pixen-image-editor.ts": 723,
+  // the busy pill, and the three operations that take time — and what is left
+  // is the element itself.
+  "packages/web/src/element/pixen-image-editor.ts": 698,
   // The public imperative API: very nearly one line per method, each building
   // an intent and handing it to `dispatch`. Splitting it would scatter the
   // surface a host reads as one thing, and the decisions are already elsewhere.
@@ -58,8 +59,9 @@ export const EXEMPT = {
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's
-  // decision and the multi-touch bookkeeping have been lifted out of it.
-  "packages/web/src/viewport/viewport.ts": 473,
+  // decision, its drawing and the multi-touch bookkeeping have all been lifted
+  // out of it.
+  "packages/web/src/viewport/viewport.ts": 462,
 };
 
 const SOURCE = /^(packages|apps)\/[^/]+\/src\/.*\.tsx?$/;

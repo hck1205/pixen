@@ -1,5 +1,16 @@
-import { midpoint, toArray, type CropHandle, type Matrix, type Point, type Rect } from "@pixen/core";
-import { CORNER_ARM, cornerSegments, gridSegments, type Segment } from "./overlay.js";
+import {
+  applyToPoint,
+  layerHandlePosition,
+  midpoint,
+  toArray,
+  type CropHandle,
+  type EditorLayer,
+  type LayerHandle,
+  type Matrix,
+  type Point,
+  type Rect,
+} from "@pixen/core";
+import { CORNER_ARM, cornerSegments, gridSegments, projectRect, type OverlayPlan, type Segment } from "./overlay.js";
 
 /**
  * Painting the crop chrome and the selection outline.
@@ -46,7 +57,7 @@ const HANDLE_RIM_WIDTH = 1.5;
 const SCRIM_OVERSHOOT = 1e4;
 
 /** Dims everything outside the crop, in stage coordinates. */
-export function drawCropScrim(
+function drawCropScrim(
   context: CanvasRenderingContext2D,
   { stage, crop, matrix, colour }: { stage: Rect; crop: Rect; matrix: Matrix; colour: string },
 ): void {
@@ -67,7 +78,7 @@ export function drawCropScrim(
 }
 
 /** Guides, frame and corner brackets, in device pixels. */
-export function drawCropFrame(
+function drawCropFrame(
   context: CanvasRenderingContext2D,
   { rect, palette, dpr }: { rect: Rect; palette: OverlayPalette; dpr: number },
 ): void {
@@ -86,7 +97,7 @@ export function drawCropFrame(
 }
 
 /** The four corners of the selection box, in the order a path visits them. */
-export const SELECTION_CORNERS: readonly CropHandle[] = [
+const SELECTION_CORNERS: readonly CropHandle[] = [
   "top-left",
   "top-right",
   "bottom-right",
@@ -111,7 +122,7 @@ export interface LayerSelectionChrome {
  * axis-aligned, and a dashed rectangle around it would sit visibly off the
  * thing it claims to select.
  */
-export function drawLayerSelection(context: CanvasRenderingContext2D, chrome: LayerSelectionChrome): void {
+function drawLayerSelection(context: CanvasRenderingContext2D, chrome: LayerSelectionChrome): void {
   const { quad, handles, rotate, colour, dpr } = chrome;
   if (quad.length === 0) return;
 
@@ -186,4 +197,56 @@ function strokeSegments(
   }
   context.stroke();
   context.restore();
+}
+
+/** Everything the overlay is drawn from, read once by the viewport per frame. */
+export interface OverlayScene {
+  plan: OverlayPlan;
+  selected: EditorLayer | null;
+  /** Both in stage space. */
+  crop: Rect;
+  stage: Rect;
+  stageFromImage: Matrix;
+  /** Stage space to CSS pixels. */
+  stageToScreen: (point: Point) => Point;
+  palette: OverlayPalette;
+  /** Image space to device pixels, for the scrim. */
+  matrix: Matrix;
+  dpr: number;
+}
+
+/**
+ * The overlay the plan calls for.
+ *
+ * The viewport reads the state and this draws it, which keeps the two apart:
+ * `planOverlay` decides *whether* there are handles and which ones, this turns
+ * that into strokes, and neither needs to know the other's reasons.
+ */
+export function drawOverlay(context: CanvasRenderingContext2D, scene: OverlayScene): void {
+  const { plan, palette, dpr } = scene;
+  if (plan.kind === "none") return;
+
+  if (plan.kind === "crop") {
+    drawCropScrim(context, { stage: scene.stage, crop: scene.crop, matrix: scene.matrix, colour: palette.scrim });
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    drawCropFrame(context, { rect: projectRect(scene.crop, scene.stageToScreen, dpr), palette, dpr });
+    return;
+  }
+
+  const selected = scene.selected;
+  if (!selected) return;
+
+  // Handles are image space; everything drawn here is device pixels.
+  const at = (handle: LayerHandle): Point => {
+    const screen = scene.stageToScreen(applyToPoint(scene.stageFromImage, layerHandlePosition(selected, handle)));
+    return { x: screen.x * dpr, y: screen.y * dpr };
+  };
+
+  drawLayerSelection(context, {
+    quad: SELECTION_CORNERS.map(at),
+    handles: plan.grips.map(at),
+    rotate: plan.rotate ? at("rotate") : null,
+    colour: palette.selection,
+    dpr,
+  });
 }

@@ -5,12 +5,10 @@ import {
   createScene,
   Editor,
   imageToStage,
-  layerHandlePosition,
   longestEdge,
   renderScene,
   scaling,
   stageToView,
-  type LayerHandle,
   type Matrix,
   type Point,
   type Size,
@@ -34,15 +32,9 @@ import {
 // Straight from the module rather than the barrel: these are the gesture's own
 // tuning, and the barrel deliberately keeps tuning out of the package's API.
 import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/constants.js";
-import { planOverlay, projectRect } from "./overlay.js";
+import { planOverlay } from "./overlay.js";
 import { PINCH_POINTERS, TouchPoints } from "./touch.js";
-import {
-  drawCropFrame,
-  drawCropScrim,
-  drawLayerSelection,
-  readOverlayPalette,
-  SELECTION_CORNERS,
-} from "./chrome.js";
+import { drawOverlay, readOverlayPalette } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
 import { clampZoom, fitView, insetsFor, insetsFromChrome, renderScale, type EdgeBox } from "./view.js";
 
@@ -57,8 +49,13 @@ export interface ViewportCallbacks {
   /**
    * Fired when a text layer should be edited: after one is created, and when an
    * existing one is double-clicked.
+   *
+   * The viewport has already opened the transaction the edit belongs to, so a
+   * host that cannot open an editor must say so by returning `false` — nothing
+   * else would ever close it. Returning nothing means it opened, which is what
+   * a host that simply shows its own editor does.
    */
-  onEditText?: (layerId: string) => void;
+  onEditText?: (layerId: string) => void | boolean;
   /**
    * The chrome as it currently measures, for fitting.
    *
@@ -223,7 +220,6 @@ export class Viewport {
     return {
       tool: this.#tool,
       crop: this.#editor.cropRect,
-      stage: this.#editor.stageRect,
       layers: document.layers,
       selectedId: this.#editor.selectedLayer?.id ?? null,
       viewMatrix: this.#viewMatrix(),
@@ -316,33 +312,15 @@ export class Viewport {
   }
 
   #drawOverlay(context: CanvasRenderingContext2D, matrix: Matrix, dpr: number): void {
-    const selected = this.#editor.selectedLayer;
-    const plan = planOverlay(this.#tool, selected);
-    if (plan.kind === "none") return;
-    const palette = readOverlayPalette(getComputedStyle(this.canvas));
-
-    if (plan.kind === "crop") {
-      const crop = this.#editor.cropRect;
-      drawCropScrim(context, { stage: this.#editor.stageRect, crop, matrix, colour: palette.scrim });
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      const frame = projectRect(crop, (point) => this.stageToScreen(point), dpr);
-      drawCropFrame(context, { rect: frame, palette, dpr });
-      return;
-    }
-    if (!selected) return;
-
-    // Handles are image space; everything drawn here is device pixels.
-    const stageFromImage = this.#stageFromImage();
-    const at = (handle: LayerHandle): Point => {
-      const screen = this.stageToScreen(applyToPoint(stageFromImage, layerHandlePosition(selected, handle)));
-      return { x: screen.x * dpr, y: screen.y * dpr };
-    };
-
-    drawLayerSelection(context, {
-      quad: SELECTION_CORNERS.map(at),
-      handles: plan.grips.map(at),
-      rotate: plan.rotate ? at("rotate") : null,
-      colour: palette.selection,
+    drawOverlay(context, {
+      plan: planOverlay(this.#tool, this.#editor.selectedLayer),
+      selected: this.#editor.selectedLayer,
+      crop: this.#editor.cropRect,
+      stage: this.#editor.stageRect,
+      stageFromImage: this.#stageFromImage(),
+      stageToScreen: (point) => this.stageToScreen(point),
+      palette: readOverlayPalette(getComputedStyle(this.canvas)),
+      matrix,
       dpr,
     });
   }
@@ -362,16 +340,29 @@ export class Viewport {
       case "view-pan":
         this.panBy(effect.delta);
         break;
-      case "view-zoom":
-        this.zoomBy(effect.factor, effect.anchor);
-        break;
       case "select-tool":
         this.tool = effect.tool;
         break;
       case "focus-text":
-        this.#callbacks.onEditText?.(effect.layerId);
+        this.#handOverTextEdit(effect.layerId);
         break;
     }
+  }
+
+  /**
+   * Hands an open transaction to whoever edits the text, or takes it back.
+   *
+   * Both openers — the text tool and the double-click — begin the transaction
+   * before asking for an editor, so that creating a layer and typing into it
+   * are one undo step. That leaves the transaction stranded if no editor
+   * appears: `onEditText` is optional, and the editor that Pixen ships declines
+   * when there is no view matrix yet. A stranded transaction is not a small
+   * thing — the next gesture cannot begin one, and rolling *its* one back tears
+   * up the edit that opened this one.
+   */
+  #handOverTextEdit(layerId: string): void {
+    const opened = this.#callbacks.onEditText?.(layerId);
+    if (opened === false || this.#callbacks.onEditText === undefined) this.#editor.rollbackTransaction();
   }
 
   #onPointerDown = (event: PointerEvent): void => {
@@ -441,7 +432,7 @@ export class Viewport {
     // Opened here for the same reason the text tool opens it: the editor closes
     // whatever was opened for it, and transactions do not nest.
     this.#editor.beginTransaction(TEXT_EDIT_LABEL);
-    this.#callbacks.onEditText?.(hit.id);
+    this.#handOverTextEdit(hit.id);
   };
 
   #onWheel = (event: WheelEvent): void => {

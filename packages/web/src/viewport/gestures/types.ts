@@ -31,9 +31,8 @@ export interface PointerSample {
 
 export interface GestureContext {
   tool: ToolId;
-  /** Crop rect and stage bounds, both in stage space. */
+  /** The crop rect, in stage space. */
   crop: Rect;
-  stage: Rect;
   layers: readonly EditorLayer[];
   /** The layer wearing the handles, if any. */
   selectedId?: string | null;
@@ -51,7 +50,6 @@ export interface GestureContext {
 export type GestureEffect =
   | { kind: "intent"; intent: Intent }
   | { kind: "view-pan"; delta: Point }
-  | { kind: "view-zoom"; factor: number; anchor: Point }
   | { kind: "select-tool"; tool: ToolId }
   | { kind: "focus-text"; layerId: string };
 

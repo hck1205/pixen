@@ -1,8 +1,6 @@
 import {
   applyPolicy,
   Editor,
-  isPixenError,
-  PixenError,
   type DecodeOptions,
   type EditorDocument,
   type ExportOptions,
@@ -36,6 +34,7 @@ import {
 } from "./chrome/index.js";
 import { applyAttribute, type AttributePorts } from "./attributes.js";
 import { BusyIndicator } from "./busy.js";
+import { EditorOperations } from "./operations.js";
 import { isTypingTarget } from "./dom/index.js";
 import { observeEditor, type ObserverPorts } from "./observe.js";
 import { ImageIntake } from "./input/image-intake.js";
@@ -45,7 +44,6 @@ import { isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
 import { normaliseAspectRatios } from "./ratios.js";
 import {
   OBSERVED_ATTRIBUTES,
-  OUTPUT_ATTRIBUTES,
   TOOL_META,
   ZOOM_STEP,
   type AspectRatioOption,
@@ -120,7 +118,6 @@ export class PixenImageEditorElement extends ElementBase {
   /** True when the host set `dir` itself, which then outranks the locale. */
   #explicitDirection = false;
   #pendingSrc: string | null = null;
-  #loadToken = 0;
   /** Readout nodes are updated in place so a drag does not rebuild the chrome. */
   #readouts: Readouts = {};
   #apple = isAppleShortcutPlatform(typeof navigator === "undefined" ? "" : navigator.platform);
@@ -134,6 +131,7 @@ export class PixenImageEditorElement extends ElementBase {
    * does.
    */
   readonly #busy: BusyIndicator;
+  readonly #operations: EditorOperations;
 
   constructor() {
     super();
@@ -149,6 +147,18 @@ export class PixenImageEditorElement extends ElementBase {
         // builds it from the state this has already recorded.
         if (this.#actionsHost) refreshActions(this.#actionsHost, this.#context());
       },
+    });
+
+    this.#operations = new EditorOperations({
+      editor: this.editor,
+      busy: this.#busy,
+      decodeOptions: () => this.decodeOptions,
+      policy: () => this.#policy,
+      attributePorts: () => this.#attributePorts,
+      attribute: (name) => this.getAttribute(name),
+      emit: (type, detail) => this.#emit(type, detail),
+      refresh: () => this.#syncUI(),
+      invalidate: () => this.#viewport?.invalidate(),
     });
   }
 
@@ -201,10 +211,9 @@ export class PixenImageEditorElement extends ElementBase {
     this.#unsubscribe.push(...observeEditor(this.editor, this.#observerPorts));
 
     this.addEventListener("keydown", this.#onKeyDown);
-    // The viewport calls preventDefault() on pointerdown to own the gesture,
-    // which also suppresses the browser's focus-on-click. Restore it, or the
-    // keyboard shortcuts stop working the moment someone touches the canvas.
-    this.addEventListener("pointerdown", this.#onPointerDownFocus, true);
+    // Capture, so an open caption is finished before the gesture underneath it
+    // begins. See `#onPointerDownInside`.
+    this.addEventListener("pointerdown", this.#onPointerDownInside, true);
 
     this.#intake = new ImageIntake({
       host: this,
@@ -227,7 +236,7 @@ export class PixenImageEditorElement extends ElementBase {
     // A component can be moved in the DOM, which disconnects and reconnects it.
     // Tear down listeners either way; bitmaps are released only on destroy().
     this.removeEventListener("keydown", this.#onKeyDown);
-    this.removeEventListener("pointerdown", this.#onPointerDownFocus, true);
+    this.removeEventListener("pointerdown", this.#onPointerDownInside, true);
     this.#plugins.dispose();
     this.#viewport?.destroy();
     this.#viewport = null;
@@ -421,57 +430,14 @@ export class PixenImageEditorElement extends ElementBase {
 
   // --- imperative API ------------------------------------------------------
 
-  /**
-   * The token is not the same guard as the engine's.
-   *
-   * The engine aborts a superseded decode, which stops it wasting work. This
-   * stops the *continuation* of a superseded load — applying the policy, the
-   * format, the busy state — from running against an editor that has moved on.
-   * Both are needed; neither replaces the other.
-   */
+  /** See `EditorOperations`, which owns the busy state and the load token. */
   async load(input: Parameters<Editor["load"]>[0], options?: DecodeOptions): Promise<void> {
-    const token = ++this.#loadToken;
-    this.#busy.begin("load");
-    try {
-      await this.editor.load(input, { ...this.decodeOptions, ...options });
-      // A newer load started while this one was decoding: drop the stale result.
-      if (token !== this.#loadToken) return;
-      if (this.#policy) applyPolicy(this.editor, this.#policy);
-      // The rules the attributes carry, not a second copy of them.
-      for (const name of OUTPUT_ATTRIBUTES) applyAttribute(name, this.getAttribute(name), this.#attributePorts);
-      this.#emit("pixen-load", { document: this.editor.toJSON() });
-    } catch (error) {
-      // The editor already emitted this failure; only surface errors raised
-      // after the load itself (policy application, attribute parsing).
-      if (token === this.#loadToken && !isPixenError(error)) {
-        this.#emit("pixen-error", {
-          error: new PixenError("INVALID_IMAGE", "The image could not be loaded", { cause: error }),
-        });
-      }
-    } finally {
-      if (token === this.#loadToken) {
-        this.#busy.end();
-        this.#syncUI();
-      }
-    }
+    return this.#operations.load(input, options);
   }
 
-  /**
-   * Swaps the pixels under the current edit, keeping the edit. The host round
-   * trip this exists for — a background remover, an upscaler — is slow and
-   * invisible, so the busy state is held for its duration.
-   */
+  /** Swaps the pixels under the current edit, keeping the edit. */
   async replaceSource(input: Parameters<Editor["replaceSource"]>[0]): Promise<void> {
-    this.#busy.begin("load");
-    try {
-      await this.editor.replaceSource(input);
-      this.#viewport?.invalidate();
-      this.#syncUI();
-    } catch {
-      // Already on the engine's error channel; a second one would double-count.
-    } finally {
-      this.#busy.end();
-    }
+    return this.#operations.replaceSource(input);
   }
 
   /** Back to the empty state, letting the picture go. */
@@ -480,14 +446,7 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   async export(options: ExportOptions = {}): Promise<ExportResult> {
-    // `pixen-export` is forwarded from the engine, so a host's own export
-    // reaches the same listeners as this one.
-    this.#busy.begin("export");
-    try {
-      return await this.editor.export(options);
-    } finally {
-      this.#busy.end();
-    }
+    return this.#operations.export(options);
   }
 
   undo(): boolean {
@@ -679,7 +638,22 @@ export class PixenImageEditorElement extends ElementBase {
 
   // --- input ---------------------------------------------------------------
 
-  #onPointerDownFocus = (): void => {
+  /**
+   * The two things a pointerdown would have done by itself.
+   *
+   * The viewport calls `preventDefault()` to own the gesture, which suppresses
+   * the browser's focus-on-click — and with it the blur that ends an open
+   * caption. Restoring the focus was done here from the start; the blur was
+   * not, so a caption stayed open with its transaction pending. The next
+   * gesture then threw on `begin-transaction`, and rolled back a transaction it
+   * did not own on the way out: drawing a rectangle after typing a caption
+   * deleted the caption.
+   *
+   * A pointerdown inside the caption's own box is the caret being placed, and
+   * ends nothing.
+   */
+  #onPointerDownInside = (event: PointerEvent): void => {
+    if (event.composedPath()[0] !== this.#textInput) this.#textEditing.close();
     if (this.contains(document.activeElement) || document.activeElement === this) return;
     this.focus({ preventScroll: true });
   };
@@ -708,9 +682,10 @@ export class PixenImageEditorElement extends ElementBase {
     selectTool: (tool) => this.#actions.selectTool(tool),
     editText: (layer) => {
       // The transaction is opened by whoever opens the editor, so creating and
-      // typing collapse into one undo step.
+      // typing collapse into one undo step — and taken back when no editor
+      // opens, because nothing else would ever close it. See `open`.
       this.editor.beginTransaction(this.#strings.text);
-      this.#textEditing.open(layer.id);
+      if (!this.#textEditing.open(layer.id)) this.editor.rollbackTransaction();
     },
   };
 

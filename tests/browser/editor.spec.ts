@@ -2546,3 +2546,45 @@ test("controls announce their shortcut and their state, and the editor can speak
   // The panel that just opened was announced into it.
   expect(polite.some((node) => node.text.length > 0)).toBe(true);
 });
+
+test("a caption is finished by the click that starts the next gesture", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).tool = "text";
+  });
+  const stage = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement).editor.stageSize,
+  );
+  const caption = await stageToClient(page, { x: stage.width * 0.2, y: stage.height * 0.2 });
+  await page.mouse.click(caption.x, caption.y);
+  const box = page.locator("pixen-image-editor").locator("textarea.text-input");
+  await box.waitFor({ state: "visible" });
+  await page.keyboard.type("hello");
+
+  // Draw a rectangle without pressing Escape first, which is what anyone does.
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement & { tool: string }).tool = "rect";
+  });
+  const from = await stageToClient(page, { x: stage.width * 0.55, y: stage.height * 0.75 });
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 60, from.y + 40, { steps: 3 });
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+
+  // The caption used to survive none of this: its transaction was still open,
+  // so the rectangle's begin-transaction threw, and the rollback on the way out
+  // tore up the caption instead of the rectangle that never got drawn.
+  expect(errors).toEqual([]);
+  await expect(box).toBeHidden();
+
+  const after = await state(page);
+  const kinds = after.document.layers.map((layer) => (layer as { type: string }).type);
+  expect(kinds).toEqual(["text", "rect"]);
+  expect((after.document.layers[0] as { text: string; visible: boolean }).text).toBe("hello");
+  expect((after.document.layers[0] as { visible: boolean }).visible).toBe(true);
+  // Two edits, two steps: the caption is not swept into the rectangle's.
+  expect(after.history.depth).toBe(2);
+});

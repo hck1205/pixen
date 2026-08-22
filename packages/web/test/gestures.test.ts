@@ -49,7 +49,6 @@ function context(overrides: Partial<GestureContext> = {}): GestureContext {
   return {
     tool: "crop",
     crop: { x: 100, y: 100, width: 400, height: 200 },
-    stage: { x: 0, y: 0, width: 1000, height: 500 },
     layers: [],
     viewMatrix: IDENTITY,
     stageFromImage: IDENTITY,
