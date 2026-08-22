@@ -28,7 +28,11 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
       {
         capability: "Quality and byte budget",
         layer: "Engine",
-        detail: "Quality for the lossy formats, and a maxBytes search that re-encodes until it fits",
+        detail:
+          "Quality for the lossy formats, and a maxBytes search that re-encodes until it fits — aiming " +
+          "lower each attempt, reporting each against a ceiling rather than an estimate, and stopping " +
+          "at a quality floor rather than writing a picture nobody could use, which means a file over " +
+          "budget is possible and the size in the result is the one to trust",
         evidence: [unit("processing.test.ts"), story("ExportFlow"), browser("editor.spec.ts")],
       },
       {

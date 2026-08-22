@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkPolicy,
+  encodeWithinBudget,
   exportBackground,
   extensionForFormat,
   isLossy,
@@ -137,6 +138,98 @@ describe("exportBackground", () => {
     // as "unset" and paint white over a transparency the caller asked for.
     expect(exportBackground(withBackground("#123456"), { background: null }, "image/png")).toBeNull();
     expect(exportBackground(document, { background: null }, "image/jpeg")).toBeNull();
+  });
+});
+
+/**
+ * The byte-budget search: re-encode at a lower quality until the result fits.
+ *
+ * The coverage page has claimed this since it was written and the only evidence
+ * was a preset-to-options mapping assertion — the loop itself had no test at
+ * all, because it needed a canvas and node has none. It needs the *encoder*, not
+ * the canvas, so the encoder is now the seam.
+ *
+ * A stand-in whose size falls with quality the way a real one roughly does.
+ */
+function shrinkingEncoder(sizeAtFullQuality: number) {
+  const attempts: number[] = [];
+  return {
+    attempts,
+    encode: (quality: number) => {
+      attempts.push(quality);
+      return Promise.resolve(new Blob([new Uint8Array(Math.round(sizeAtFullQuality * quality))]));
+    },
+  };
+}
+
+describe("encodeWithinBudget", () => {
+  const canvas = null as never;
+  const JPEG = "image/jpeg" as const;
+
+  it("stops at the first attempt when the picture already fits", () => {
+    const encoder = shrinkingEncoder(1_000);
+    return encodeWithinBudget(canvas, JPEG, 1, 10_000, { encode: encoder.encode }).then((result) => {
+      expect(result.attempts).toBe(1);
+      expect(result.quality).toBe(1);
+      expect(encoder.attempts).toEqual([1]);
+    });
+  });
+
+  it("re-encodes until it fits, and says what it settled on", async () => {
+    // 10,000 bytes at full quality against a 5,000-byte budget: one attempt
+    // cannot do it, and the budget is reachable without going under the quality
+    // floor, so the search runs and comes back inside it.
+    const encoder = shrinkingEncoder(10_000);
+    const result = await encodeWithinBudget(canvas, JPEG, 1, 5_000, { encode: encoder.encode });
+
+    expect(result.attempts).toBeGreaterThan(1);
+    expect(result.blob.size).toBeLessThanOrEqual(5_000);
+    expect(result.quality).toBeLessThan(1);
+    // Each attempt aims lower than the last rather than wandering.
+    for (let index = 1; index < encoder.attempts.length; index += 1) {
+      expect(encoder.attempts[index]!).toBeLessThan(encoder.attempts[index - 1]!);
+    }
+  });
+
+  it("reports every attempt against a ceiling, so a bar can finish early", async () => {
+    const encoder = shrinkingEncoder(10_000);
+    const reported: Array<[number, number]> = [];
+    await encodeWithinBudget(canvas, JPEG, 1, 3_000, {
+      encode: encoder.encode,
+      onAttempt: (attempt, steps) => reported.push([attempt, steps]),
+    });
+
+    expect(reported.length).toBe(encoder.attempts.length);
+    expect(reported.map(([attempt]) => attempt)).toEqual(reported.map((_, index) => index + 1));
+    // The second number is the limit, not an estimate: most pictures stop early.
+    expect(new Set(reported.map(([, steps]) => steps)).size).toBe(1);
+  });
+
+  it("gives up at the quality floor, and hands back a file over budget", async () => {
+    // The behaviour worth knowing about. A budget nothing can meet has to end
+    // somewhere, and going to a quality of zero would hand back a picture nobody
+    // asked for — so it stops at the floor and returns a file that is *larger*
+    // than the caller asked for rather than one they cannot use. A host that
+    // must not exceed the budget has to check the size it got back.
+    const encoder = shrinkingEncoder(1_000_000);
+    const result = await encodeWithinBudget(canvas, JPEG, 1, 1, { encode: encoder.encode, minQuality: 0.4 });
+
+    expect(result.quality).toBeGreaterThanOrEqual(0.4);
+    expect(result.blob.size).toBeGreaterThan(1);
+  });
+
+  it("does not search at all for a format where quality means nothing", async () => {
+    // PNG is lossless: re-encoding it at a lower quality is the same file again.
+    const encoder = shrinkingEncoder(10_000);
+    const result = await encodeWithinBudget(canvas, "image/png", 1, 1, { encode: encoder.encode });
+    expect(result.attempts).toBe(1);
+  });
+
+  it("never makes more attempts than it was allowed", async () => {
+    const encoder = shrinkingEncoder(1_000_000);
+    const result = await encodeWithinBudget(canvas, JPEG, 1, 1, { encode: encoder.encode, steps: 3, minQuality: 0 });
+    expect(result.attempts).toBeLessThanOrEqual(3);
+    expect(encoder.attempts.length).toBeLessThanOrEqual(3);
   });
 });
 

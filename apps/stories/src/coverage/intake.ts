@@ -55,7 +55,11 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
       {
         capability: "Off-thread decode and encode",
         layer: "Engine",
-        detail: "A worker built from a blob URL, used above 512 KB in and 1 MP out; falls back in place",
+        detail:
+          "A worker built from a blob URL, used above 512 KB in and 1 MP out — thresholds that are now " +
+          "named decisions with tests rather than numbers quoted in a sentence. A lossless encode is " +
+          "never moved at any size, because reading the canvas back costs more than it saves. Falls " +
+          "back in place",
         evidence: [unit("worker.test.ts"), browser("editor.spec.ts")],
       },
       {

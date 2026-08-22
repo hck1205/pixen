@@ -107,10 +107,21 @@ async function readOrientation(blob: Blob): Promise<ExifOrientation> {
  */
 const WORKER_DECODE_MIN_BYTES = 512 * 1024;
 
+/**
+ * Whether a decode is worth moving off the main thread.
+ *
+ * Named and exported for the same reason as its encode counterpart: the
+ * threshold is quoted on the coverage page, and a number stated in prose and
+ * checked by nothing is a number that drifts.
+ */
+export function worthDecodingOffThread(bytes: number): boolean {
+  return bytes >= WORKER_DECODE_MIN_BYTES;
+}
+
 async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<CanvasImageSource> {
   throwIfAborted(signal, DECODE);
 
-  if (blob.size >= WORKER_DECODE_MIN_BYTES) {
+  if (worthDecodingOffThread(blob.size)) {
     // Null when the environment has no worker, or a policy forbids one; the
     // main-thread path below is then exactly what ran before.
     const offloaded = await imageWorker().decode(blob);

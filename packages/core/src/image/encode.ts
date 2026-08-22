@@ -110,14 +110,20 @@ export async function encodeSurface(
 const WORKER_ENCODE_MIN_PIXELS = 1_000_000;
 
 /**
- * Encodes on the worker, or returns null so the caller does it here.
+ * Whether an encode is worth moving off the main thread.
  *
  * Only lossy formats and only large surfaces: PNG encoding is comparatively
- * cheap, and below a megapixel the readback costs more than the encode saves.
+ * cheap, and below a megapixel reading the canvas back costs more than the
+ * offload saves. Named and exported because it is a threshold the coverage page
+ * quotes — a number stated in prose and checked by nothing is a number that
+ * drifts.
  */
+export function worthEncodingOffThread(format: ImageFormat, pixels: number): boolean {
+  return isLossy(format) && pixels >= WORKER_ENCODE_MIN_PIXELS;
+}
+
 async function encodeOnWorker(canvas: AnyCanvas, format: ImageFormat, quality: number): Promise<Blob | null> {
-  if (!isLossy(format)) return null;
-  if (canvas.width * canvas.height < WORKER_ENCODE_MIN_PIXELS) return null;
+  if (!worthEncodingOffThread(format, canvas.width * canvas.height)) return null;
 
   try {
     const context = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
@@ -141,6 +147,15 @@ export interface BudgetOptions {
    * finishes early rather than crawling.
    */
   onAttempt?: (attempt: number, steps: number) => void;
+  /**
+   * The encode itself, for a test that has no canvas to encode.
+   *
+   * The search is the part worth checking — how many attempts it makes, where it
+   * aims next, which result it keeps — and none of that needs a real encoder.
+   * Node has no canvas at all, so without this seam the whole loop could only be
+   * exercised through a browser, which is why it never was.
+   */
+  encode?: (quality: number) => Promise<Blob>;
 }
 
 /**
@@ -156,6 +171,8 @@ export async function encodeWithinBudget(
 ): Promise<{ blob: Blob; quality: number; attempts: number }> {
   const minQuality = options.minQuality ?? MIN_BUDGET_QUALITY;
   const steps = options.steps ?? MAX_BUDGET_ATTEMPTS;
+  const encodeOne =
+    options.encode ?? ((attemptQuality: number) => encodeSurface(canvas, format, attemptQuality, { offload: false }));
 
   let attempt = 0;
   let currentQuality = quality;
@@ -164,7 +181,7 @@ export async function encodeWithinBudget(
 
   while (attempt < steps) {
     attempt += 1;
-    const blob = await encodeSurface(canvas, format, currentQuality, { offload: false });
+    const blob = await encodeOne(currentQuality);
     options.onAttempt?.(attempt, steps);
     if (!best || blob.size < best.size) {
       best = blob;
