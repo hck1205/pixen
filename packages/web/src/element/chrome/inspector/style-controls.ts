@@ -32,9 +32,32 @@ export interface StyleSubject {
 const SHAPE_CONTROLS: StyleControl[] = ["colour", "fill", "width", "dash"];
 const TEXT_CONTROLS: StyleControl[] = ["colour", "fontSize", "align", "textPlate"];
 
-export function styleControlsFor(subject: StyleSubject): StyleControl[] {
+/** The kind of layer a subject is about: its selection if it has one, else its tool. */
+function styleSubjectKind(subject: StyleSubject): EditorLayer["type"] | null {
   // A selection is a concrete thing; the tool is only a plan for the next one.
-  const kind = subject.layerType ?? toolLayerKind(subject.tool);
+  return subject.layerType ?? toolLayerKind(subject.tool);
+}
+
+/**
+ * The layer a style control may patch, which is not simply "the selected one".
+ *
+ * Arming a tool does not clear the selection, and the style section is built
+ * from the tool alone — so a rectangle stays selected while the text tool puts
+ * up the alignment buttons. Pressing one wrote `align` onto the rectangle,
+ * through `updateLayer`, which spreads a patch without asking what it is
+ * patching: a field that means nothing on that layer, in the document and in
+ * the undo history. The arrow tool did the same with `arrowStart` on text.
+ *
+ * Two controls guarded themselves, so the answer was already known here; this
+ * is it in one place, for all of them.
+ */
+export function styleTarget(subject: StyleSubject, selected: EditorLayer | null): EditorLayer | null {
+  if (!selected) return null;
+  return selected.type === styleSubjectKind(subject) ? selected : null;
+}
+
+export function styleControlsFor(subject: StyleSubject): StyleControl[] {
+  const kind = styleSubjectKind(subject);
 
   switch (kind) {
     case "rect":

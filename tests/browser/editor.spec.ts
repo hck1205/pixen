@@ -2588,3 +2588,51 @@ test("a caption is finished by the click that starts the next gesture", async ({
   // Two edits, two steps: the caption is not swept into the rectangle's.
   expect(after.history.depth).toBe(2);
 });
+
+test("a style control never writes onto a layer of another kind", async ({ page }) => {
+  // A rectangle stays selected while the text tool is armed, and the style
+  // section is built from the tool — so the alignment buttons are on screen
+  // with a rectangle underneath them.
+  await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+      };
+      tool: string;
+    };
+    const { width, height } = element.editor.document.source;
+    element.editor.addLayer(
+      {
+        id: "rect_under_test",
+        type: "rect",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        rotation: 0,
+        frame: { x: width * 0.2, y: height * 0.2, width: width * 0.3, height: height * 0.3 },
+        color: "#ff0000",
+        fill: null,
+        strokeWidth: 4,
+        dash: null,
+        cornerRadius: 0,
+      },
+      { select: true },
+    );
+    element.tool = "text";
+  });
+
+  const align = page.locator("pixen-image-editor").locator("button", { hasText: "Left" }).first();
+  await expect(align).toBeVisible();
+  await align.click();
+
+  const rect = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    return element.editor.document.layers.find((layer) => (layer as { id: string }).id === "rect_under_test");
+  });
+  // `updateLayer` spreads a patch without asking what it is patching, so this
+  // used to leave `align: "left"` on a rectangle, in the document and in the
+  // undo history.
+  expect(rect).toBeDefined();
+  expect(rect).not.toHaveProperty("align");
+});

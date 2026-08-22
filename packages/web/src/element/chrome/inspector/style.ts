@@ -8,7 +8,7 @@ import {
 import { cornerRadiusFor, fontSizeFor, TEXT_PLATE_COLOUR } from "../../../tools/index.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
-import { styleControlsFor, type StyleControl, type StyleSubject } from "./style-controls.js";
+import { styleControlsFor, styleTarget, type StyleControl, type StyleSubject } from "./style-controls.js";
 import { styleWriter } from "./style-writer.js";
 
 /**
@@ -20,8 +20,10 @@ import { styleWriter } from "./style-writer.js";
  * knows how to draw each one and where to send its value.
  */
 export function buildStyleControls(context: ChromeContext, subject: StyleSubject): Node[] {
-  const controls = styleControlsFor(subject);
-  return controls.flatMap((control) => buildControl(context, control));
+  // Not `editor.selectedLayer`: a control may only patch a layer of the kind it
+  // is about. See `styleTarget`.
+  const target = styleTarget(subject, context.editor.selectedLayer);
+  return styleControlsFor(subject).flatMap((control) => buildControl(context, control, target));
 }
 
 const ALIGNMENTS: ReadonlyArray<{ value: TextLayer["align"]; key: keyof PixenStrings }> = [
@@ -30,9 +32,8 @@ const ALIGNMENTS: ReadonlyArray<{ value: TextLayer["align"]; key: keyof PixenStr
   { value: "right", key: "alignRight" },
 ];
 
-function buildControl(context: ChromeContext, control: StyleControl): Node[] {
+function buildControl(context: ChromeContext, control: StyleControl, selected: EditorLayer | null): Node[] {
   const { strings, annotationStyle: style, editor } = context;
-  const selected = editor.selectedLayer;
   const apply = styleWriter(context, selected);
 
   switch (control) {

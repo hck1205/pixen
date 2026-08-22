@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { styleControlsFor } from "../src/element/chrome/inspector/style-controls.js";
+import type { EditorLayer } from "@pixen/core";
+import { styleControlsFor, styleTarget } from "../src/element/chrome/inspector/style-controls.js";
 import { cornerRadiusFor, DEFAULT_STYLE, strokeFor } from "../src/tools/style.js";
 
 describe("styleControlsFor", () => {
@@ -58,5 +59,46 @@ describe("stroke style", () => {
     const style = { ...DEFAULT_STYLE, cornerRatio: 0.25 };
     expect(cornerRadiusFor(style, { width: 400, height: 200 })).toBe(50);
     expect(cornerRadiusFor(DEFAULT_STYLE, { width: 400, height: 200 })).toBe(0);
+  });
+});
+
+/**
+ * Which layer a style control is allowed to patch.
+ *
+ * Arming a tool does not clear the selection, and the style section is built
+ * from the tool alone — so a rectangle stays selected while the text tool puts
+ * up the alignment buttons. Pressing one wrote `align` onto the rectangle,
+ * which `updateLayer` spreads without asking what it is patching: a field that
+ * means nothing on that layer, in the document and in the undo history.
+ */
+describe("styleTarget", () => {
+  const rect = { id: "l1", type: "rect" } as unknown as EditorLayer;
+  const text = { id: "l2", type: "text" } as unknown as EditorLayer;
+
+  it("patches the selection when the controls are about its kind", () => {
+    expect(styleTarget({ tool: "rect" }, rect)).toBe(rect);
+    expect(styleTarget({ tool: "text" }, text)).toBe(text);
+  });
+
+  it("patches nothing when the armed tool is about another kind", () => {
+    // The text tool's alignment buttons, with a rectangle still selected.
+    expect(styleTarget({ tool: "text" }, rect)).toBeNull();
+    // The arrow tool's end buttons, with a text layer still selected.
+    expect(styleTarget({ tool: "arrow" }, text)).toBeNull();
+  });
+
+  it("follows the selection when there is one, since it outranks the tool", () => {
+    // The layer panel names the kind, and then the tool is beside the point.
+    expect(styleTarget({ tool: "text", layerType: "rect" }, rect)).toBe(rect);
+    expect(styleTarget({ tool: "rect", layerType: "rect" }, text)).toBeNull();
+  });
+
+  it("patches nothing for a tool that draws no layer at all", () => {
+    expect(styleTarget({ tool: "crop" }, rect)).toBeNull();
+    expect(styleTarget({ tool: "select" }, rect)).toBeNull();
+  });
+
+  it("patches nothing when nothing is selected", () => {
+    expect(styleTarget({ tool: "rect" }, null)).toBeNull();
   });
 });
