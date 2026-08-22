@@ -824,6 +824,72 @@ test("double-clicking existing text reopens it for editing", async ({ page }) =>
   await expect(editor).toHaveValue("edit me");
 });
 
+/**
+ * The same artwork placed twice is decoded once and referenced by id.
+ *
+ * That is the claim on the coverage page, and it is what makes a document with
+ * ten stickers small JSON rather than ten bitmaps. Nothing had ever placed one
+ * twice — the existing test places a single sticker and checks where it lands.
+ */
+test("placing the same sticker twice decodes it once and shares the bitmap", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      stickers: unknown;
+      editor: { resources: { stats(): { count: number } } };
+    };
+
+    const mark = new OffscreenCanvas(40, 20);
+    const context = mark.getContext("2d")!;
+    context.fillStyle = "#00cc66";
+    context.fillRect(0, 0, 40, 20);
+    element.stickers = [{ id: "green", src: await mark.convertToBlob({ type: "image/png" }), label: "Green" }];
+    element.tool = "sticker";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const shadow = element.shadowRoot!;
+    const offer = () =>
+      [...shadow.querySelectorAll<HTMLButtonElement>(".inspector button")].find((candidate) =>
+        candidate.textContent?.includes("Green"),
+      );
+
+    const before = element.editor.resources.stats().count;
+    offer()?.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const afterFirst = element.editor.resources.stats().count;
+
+    // Back to the sticker tool for a second placement of the *same* artwork.
+    element.tool = "sticker";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    offer()?.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const layers = element.editor.document.layers.filter((layer) => layer.type === "image") as Array<{
+      resourceId: string;
+      frame: { width: number };
+    }>;
+    return {
+      before,
+      afterFirst,
+      afterSecond: element.editor.resources.stats().count,
+      resourceIds: layers.map((layer) => layer.resourceId),
+      widths: layers.map((layer) => layer.frame.width),
+    };
+  });
+
+  // Two layers, both drawn from one bitmap.
+  expect(outcome.resourceIds).toHaveLength(2);
+  expect(outcome.resourceIds[0]).toBe(outcome.resourceIds[1]);
+  // And the manager holds one more resource than it did, not two.
+  expect(outcome.afterFirst).toBe(outcome.before + 1);
+  expect(outcome.afterSecond).toBe(outcome.afterFirst);
+  // Both are the artwork's own shape, so the second is a placement rather than
+  // a differently-sized copy that happens to share an id.
+  expect(outcome.widths[0]).toBeCloseTo(outcome.widths[1]!, 5);
+});
+
 test("a sticker lands in the middle of the crop, selected and ready to resize", async ({ page }) => {
   const placed = await page.evaluate(async () => {
     const element = document.querySelector("pixen-image-editor") as EditorElement & {

@@ -23,8 +23,12 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
       {
         capability: "Input types",
         layer: "Engine",
-        detail: "File, Blob, URL string, ImageBitmap, HTMLImageElement, HTMLCanvasElement, ArrayBuffer",
-        evidence: [unit("editor.test.ts"), browser("editor.spec.ts")],
+        detail:
+          "File, Blob, URL string, ImageBitmap, HTMLImageElement, HTMLCanvasElement, ArrayBuffer — " +
+          "sorted into the two things there are to do with one: anything carrying bytes becomes a Blob " +
+          "and goes through the decoder, anything already drawable is taken as it is and read for its " +
+          "own size",
+        evidence: [unit("decode.test.ts"), browser("editor.spec.ts")],
       },
       {
         capability: "Drag and drop, paste, file picker",

@@ -101,7 +101,10 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
       {
         capability: "Stickers",
         layer: "Element",
-        detail: "Host-supplied artwork, decoded once and referenced by id however often it is placed",
+        detail:
+          "Host-supplied artwork, decoded once and referenced by id however often it is placed — which " +
+          "is what keeps a document with ten stickers small JSON rather than ten bitmaps, and is now " +
+          "checked by placing the same one twice",
         evidence: [unit("stickers.test.ts"), story("Stickers"), browser("editor.spec.ts")],
       },
       {
