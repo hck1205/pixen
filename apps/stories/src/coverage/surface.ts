@@ -34,8 +34,11 @@ export const SURFACE_COVERAGE: CoverageGroup[] = [
       {
         capability: "Accessibility",
         layer: "Element",
-        detail: "Named controls, aria-pressed toggles, aria-keyshortcuts, and a polite live region",
-        evidence: [unit("labels.test.ts")],
+        detail:
+          "Named controls, aria-pressed toggles, aria-keyshortcuts, and a live region that is polite " +
+          "rather than assertive — it waits its turn instead of interrupting whatever a reader is in " +
+          "the middle of",
+        evidence: [unit("labels.test.ts"), browser("editor.spec.ts")],
       },
       {
         capability: "Theming",
@@ -88,7 +91,10 @@ export const SURFACE_COVERAGE: CoverageGroup[] = [
       {
         capability: "Server rendering",
         layer: "Bindings",
-        detail: "Every wrapper imports without a DOM and registers the element only in a browser",
+        detail:
+          "Every wrapper imports without a DOM and registers the element only in a browser — all four " +
+          "of them now, React included, which is the one most likely to be server-rendered and was the " +
+          "one with no test at all while this row said \"every\"",
         evidence: [unit("ssr.test.ts")],
       },
       {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { responsive } from "../src/theme/styles/responsive.js";
 import {
   CHROME_INSETS,
   clampZoom,
   COMPACT_INSETS,
+  COMPACT_FALLBACK_MAX_WIDTH,
   COMPACT_MAX_HEIGHT,
   insetsFromChrome,
   COMPACT_MAX_WIDTH,
@@ -169,5 +171,42 @@ describe("insetsFromChrome", () => {
       bottom: 0,
       left: 0,
     });
+  });
+});
+
+/**
+ * The compact layout is decided twice — once in CSS, which lays the chrome out,
+ * and once in `insetsFor`, which fits the picture into what the chrome leaves.
+ * They have to agree on where "compact" begins.
+ *
+ * They used to agree by hand, under a comment in each file asking the other to
+ * keep up. `responsive.ts` records that its two copies of the compact *rules*
+ * had already drifted apart once — one carried a stray duplicate block, and a
+ * class name was spelled differently in each — so the same hazard sitting in
+ * three numbers was a matter of time. The stylesheet interpolates them now, and
+ * this is the test that says so.
+ */
+describe("the compact breakpoints", () => {
+  it("are the numbers the stylesheet actually emits", () => {
+    // Moving a constant now moves the CSS with it — which is why this passes
+    // under a changed breakpoint and fails the moment one is written out by
+    // hand again. That is the coupling, stated as a test rather than a comment.
+    expect(responsive).toContain(`@container (max-width: ${COMPACT_MAX_WIDTH}px)`);
+    expect(responsive).toContain(`(max-height: ${COMPACT_MAX_HEIGHT}px)`);
+    expect(responsive).toContain(`@media (max-width: ${COMPACT_FALLBACK_MAX_WIDTH}px)`);
+  });
+
+  it("agree with the size at which the insets change", () => {
+    // One pixel either side of the boundary the CSS uses.
+    expect(isCompactViewport({ width: COMPACT_MAX_WIDTH, height: 900 })).toBe(true);
+    expect(isCompactViewport({ width: COMPACT_MAX_WIDTH + 1, height: 900 })).toBe(false);
+    expect(isCompactViewport({ width: 1200, height: COMPACT_MAX_HEIGHT })).toBe(true);
+    expect(isCompactViewport({ width: 1200, height: COMPACT_MAX_HEIGHT + 1 })).toBe(false);
+  });
+
+  it("errs towards compact on the viewport fallback, which cannot see the editor's box", () => {
+    // A container query knows how much room the editor has; a media query only
+    // knows the window, so it is set wider and dresses down sooner.
+    expect(COMPACT_FALLBACK_MAX_WIDTH).toBeGreaterThan(COMPACT_MAX_WIDTH);
   });
 });

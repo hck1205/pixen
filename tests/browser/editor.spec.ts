@@ -2414,3 +2414,69 @@ test("every button carries an accessible name and a tooltip", async ({ page }) =
   // A toggle says whether it is on, not merely that it exists.
   expect(buttons.some((button) => button.pressed === "true")).toBe(true);
 });
+
+/**
+ * The three accessibility affordances the coverage page names beyond the button
+ * labels: the keyboard shortcut a control announces, the toggle state it
+ * announces, and the live region that speaks without moving focus.
+ *
+ * All three are DOM attributes, and the row's only evidence was
+ * `labels.test.ts`, which contains no `aria` at all — it tests the *text* of a
+ * label, not the semantics carried beside it.
+ */
+test("controls announce their shortcut and their state, and the editor can speak", async ({ page }) => {
+  await page.goto("/");
+  await waitForImage(page);
+
+  const surface = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const shadow = element.shadowRoot!;
+
+    const status = shadow.querySelector('[part="busy"], [role="status"]') as HTMLElement | null;
+    const before = status?.textContent ?? "";
+
+    // Opening a panel is the announcement path: the editor says what opened
+    // rather than moving focus into it.
+    const layers = [...shadow.querySelectorAll("button")].find((node) =>
+      /layers/i.test(node.getAttribute("aria-label") ?? ""),
+    );
+    layers?.click();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const live = [...shadow.querySelectorAll("[aria-live]")].map((node) => ({
+      politeness: node.getAttribute("aria-live"),
+      role: node.getAttribute("role"),
+      text: node.textContent?.trim() ?? "",
+    }));
+
+    return {
+      before,
+      live,
+      shortcuts: [...shadow.querySelectorAll("[aria-keyshortcuts]")].map((node) => ({
+        label: node.getAttribute("aria-label"),
+        keys: node.getAttribute("aria-keyshortcuts"),
+      })),
+      toggles: [...shadow.querySelectorAll("[aria-pressed]")].map((node) => node.getAttribute("aria-pressed")),
+    };
+  });
+
+  // Every control with a shortcut says what it is, so a screen-reader user can
+  // learn it without reading the tooltip.
+  expect(surface.shortcuts.length).toBeGreaterThan(4);
+  for (const shortcut of surface.shortcuts) {
+    expect(shortcut.keys, `aria-keyshortcuts for "${shortcut.label}"`).toBeTruthy();
+  }
+
+  // Toggles carry a state rather than only a name, and at least one is on.
+  expect(surface.toggles.length).toBeGreaterThan(4);
+  expect(surface.toggles).toContain("true");
+  expect(surface.toggles.every((state) => state === "true" || state === "false")).toBe(true);
+
+  // And there is somewhere to speak from: polite, so it waits its turn rather
+  // than interrupting whatever the reader is in the middle of.
+  const polite = surface.live.filter((node) => node.politeness === "polite");
+  expect(polite.length).toBeGreaterThan(0);
+  expect(polite.some((node) => node.role === "status")).toBe(true);
+  // The panel that just opened was announced into it.
+  expect(polite.some((node) => node.text.length > 0)).toBe(true);
+});

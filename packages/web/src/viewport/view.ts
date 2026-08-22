@@ -24,9 +24,26 @@ export const CHROME_INSETS: ViewInsets = { top: 60, right: 60, bottom: 80, left:
  */
 export const COMPACT_INSETS: ViewInsets = { top: 52, right: 12, bottom: 132, left: 12 };
 
-/** Matches the container query in `styles.ts`; the two must stay in step. */
+/**
+ * When the editor is small enough that the chrome lies down under the picture.
+ *
+ * The stylesheet interpolates these rather than repeating them, so "the two must
+ * stay in step" is a fact rather than an instruction — which is what the old
+ * comment here asked for and could not enforce. `responsive.ts` records that its
+ * own two hand-written copies of the compact rules had already drifted apart
+ * once; these three numbers were the same hazard, unfixed.
+ */
 export const COMPACT_MAX_WIDTH = 560;
 export const COMPACT_MAX_HEIGHT = 420;
+
+/**
+ * The viewport-width fallback, for an engine with no container queries.
+ *
+ * Wider than the container breakpoint on purpose: a viewport query cannot tell
+ * how much room the editor actually has, so it errs towards the compact layout
+ * on a small screen rather than dressing a 360px editor as a desktop.
+ */
+export const COMPACT_FALLBACK_MAX_WIDTH = 640;
 
 export function isCompactViewport(viewport: Size): boolean {
   return viewport.width <= COMPACT_MAX_WIDTH || viewport.height <= COMPACT_MAX_HEIGHT;
