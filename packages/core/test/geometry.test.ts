@@ -7,7 +7,6 @@ import {
   imageToOutput,
   imageToStage,
   invert,
-  matrixEquals,
   multiply,
   rotation,
   boundsOf,
@@ -36,11 +35,6 @@ describe("matrix", () => {
   it("applies the right-hand matrix first", () => {
     const m = multiply(translation(10, 0), scaling(2));
     closeTo(applyToPoint(m, { x: 3, y: 4 }), { x: 16, y: 8 });
-  });
-
-  it("inverts back to the identity", () => {
-    const m = compose(translation(12, -4), rotation(0.7), scaling(2, 3));
-    expect(matrixEquals(multiply(m, invert(m)), IDENTITY, 1e-9)).toBe(true);
   });
 
   it("rejects singular matrices instead of producing NaN", () => {

@@ -236,5 +236,3 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
     }
   }
 }
-
-/** Selection only survives while the layer it points at does. */

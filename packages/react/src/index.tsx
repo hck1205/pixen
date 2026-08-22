@@ -7,8 +7,8 @@ import type {
   ExportResult,
   HistorySummary,
   ImageFormat,
-    PixenError,
-    ProgressReport,
+  PixenError,
+  ProgressReport,
 } from "@pixen/core";
 import {
   applyProperty,

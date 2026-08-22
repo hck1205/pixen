@@ -85,18 +85,3 @@ export function clampLayersToImage(document: EditorDocument): EditorDocument {
   });
   return { ...document, layers };
 }
-
-/**
- * Swaps the pixels under an edit, keeping the edit.
- *
- * The use for this is a round trip through something else — a background
- * remover, an upscaler, a service that retouches — after which the host wants
- * the *same* crop, the same annotations and the same undo stack, over different
- * pixels.
- *
- * Geometry is stored in image space, so a replacement of a different size would
- * leave every mark in the wrong place. A uniform rescale is unambiguous and is
- * applied; a different aspect ratio is not, so it is refused rather than
- * silently mangling the edit — the caller knows what they meant and can say so
- * by cropping first.
- */

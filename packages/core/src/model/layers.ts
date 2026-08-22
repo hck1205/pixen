@@ -25,7 +25,7 @@ import type {
   LineLayer,
   PathLayer,
   RectLayer,
-    TextLayer,
+  TextLayer,
 } from "./types.js";
 
 const layerDefaults = {

@@ -57,8 +57,12 @@ export async function recordSampleClip(options: SampleClipOptions = {}): Promise
   recorder.ondataavailable = (event) => {
     if (event.data.size > 0) chunks.push(event.data);
   };
-  const stopped = new Promise<void>((resolve) => {
+  // Rejecting on `onerror` as well as resolving on `onstop`: a recorder that
+  // fails leaves this awaited forever otherwise, hanging the demo and any
+  // browser test that asked for a sample.
+  const stopped = new Promise<void>((resolve, reject) => {
     recorder.onstop = () => resolve();
+    recorder.onerror = () => reject(new Error("The sample clip could not be recorded"));
   });
 
   const startedAt = performance.now();

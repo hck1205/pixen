@@ -184,15 +184,6 @@ function drawLayerImage(context: Canvas2D, op: Extract<DrawOp, { op: "layer-imag
   context.restore();
 }
 
-/**
- * Hides a region of what has already been drawn.
- *
- * `solid` paints over it. `blur` and `pixelate` read the pixels back, which a
- * cross-origin source forbids and an engine without canvas filters cannot do —
- * both fall back to the solid fill, because a redaction that quietly does
- * nothing is the one outcome that must not happen.
- */
-
 function drawText(context: Canvas2D, op: Extract<DrawOp, { op: "text" }>): void {
   if (op.background) {
     context.fillStyle = op.background.color;

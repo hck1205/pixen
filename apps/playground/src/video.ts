@@ -15,7 +15,7 @@ type EditorElement = HTMLElement & {
   editor: {
     document: EditorDocument;
     dispatch(intent: unknown): unknown;
-    resources: unknown;
+    resources: { dispose(id: string): void };
   };
 };
 
@@ -27,6 +27,8 @@ const exportStatus = document.querySelector<HTMLElement>("#export-status");
 const result = document.querySelector<HTMLVideoElement>("#result");
 
 let opened: VideoSource | null = null;
+/** The last exported clip's URL, revoked before the next one takes its place. */
+let lastResultUrl: string | null = null;
 
 function say(node: HTMLElement | null, message: string): void {
   if (node) node.textContent = message;
@@ -39,6 +41,10 @@ async function openSample(): Promise<void> {
 
   try {
     const blob = await recordSampleClip();
+    // Opening a second sample would otherwise leave the first video, its element
+    // and its object URL in the resource manager for the life of the page:
+    // `open` starts a new document without releasing the outgoing source.
+    if (opened) element.editor.resources.dispose(opened.resource.id);
     opened = await openVideo(element.editor as never, blob, { name: "sample.webm" });
     // Trim to the middle second, so the demo opens on something already trimmed.
     element.editor.dispatch({ kind: "set-clip", range: { start: 1, end: 2 } });
@@ -69,7 +75,12 @@ async function exportOpened(): Promise<void> {
         `${(written.bytes / 1024).toFixed(1)} KB, ${written.type}`,
     );
     if (result) {
-      result.src = URL.createObjectURL(written.blob);
+      // A WebM is orders of magnitude larger than the still export's JPEG, so an
+      // un-revoked one per click pins a whole video each time. `main.ts` gets
+      // this right for the still; this is the copy that did not.
+      if (lastResultUrl) URL.revokeObjectURL(lastResultUrl);
+      lastResultUrl = URL.createObjectURL(written.blob);
+      result.src = lastResultUrl;
       result.hidden = false;
     }
   } catch (error) {

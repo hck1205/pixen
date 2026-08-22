@@ -8,7 +8,7 @@ import type { Adjustments, FrameStyle, RedactionMode } from "../../model/types.j
  * decision — where an arrow head goes, how text wraps, whether a rotation is
  * applied around the right centre — behind a canvas context and out of reach of
  * a unit test. Building an op list first splits the two: the builders are pure
- * and fully testable in node, and `canvas2d.ts` is a small executor with no
+ * and fully testable in node, and `canvas2d/` is a small executor with no
  * decisions left in it.
  *
  * This module is the vocabulary alone — what may be said, not who says it.

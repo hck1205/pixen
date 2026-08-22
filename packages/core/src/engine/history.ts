@@ -164,9 +164,6 @@ export function redo<T>(
   });
 }
 
-export function clear<T>(state: HistoryState<T>): HistoryState<T> {
-  return createHistory<T>(state.limit);
-}
 
 export function describeFailure(failure: HistoryFailure): string {
   switch (failure.kind) {

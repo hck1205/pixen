@@ -63,6 +63,7 @@ export function historyOf(state: SessionState): HistorySummary {
   return summarise(state.history);
 }
 
+/** Selection only survives while the layer it points at does. */
 export function pruneSelection(document: EditorDocument, selection: string | null): string | null {
   if (selection === null) return null;
   return document.layers.some((layer) => layer.id === selection) ? selection : null;

@@ -73,7 +73,7 @@ const EXPORT_FAILURE = { code: "EXPORT_FAILED", message: "The image could not be
  * This class holds three things a pure function cannot: the current state, the
  * subscribers, and the decoded bitmaps. Every decision it appears to make is
  * delegated to `session.reduce`, so the interesting behaviour is unit-testable
- * without constructing an editor at all — see `engine/session.ts`.
+ * without constructing an editor at all — see `engine/session/`.
  */
 export class Editor {
   readonly resources: ResourceManager;
