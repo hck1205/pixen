@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/coverage/index.js";
 
@@ -23,14 +24,24 @@ function unitTestFiles(): Set<string> {
   return files;
 }
 
-/** Every story the browser can actually show, by its exported name. */
-function storyNames(): Set<string> {
-  const directory = `${ROOT}apps/stories/src`;
-  const names = new Set<string>();
-  for (const file of readdirSync(directory)) {
-    if (!file.endsWith(".stories.tsx")) continue;
-    const source = readFileSync(`${directory}/${file}`, "utf8");
-    for (const match of source.matchAll(/^export const (\w+): Story/gm)) names.add(match[1]!);
+/**
+ * Every story the browser can actually show, by its exported name.
+ *
+ * Walks into folders, because the stories stopped being one flat directory when
+ * the verification section arrived — and a scanner that only read the top level
+ * would have quietly started passing every claim that cited one of them.
+ */
+function storyNames(directory = `${ROOT}apps/stories/src`, names = new Set<string>()): Set<string> {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      storyNames(path, names);
+      continue;
+    }
+    if (!entry.name.endsWith(".stories.tsx")) continue;
+    for (const match of readFileSync(path, "utf8").matchAll(/^export const (\w+): Story/gm)) {
+      names.add(match[1]!);
+    }
   }
   return names;
 }

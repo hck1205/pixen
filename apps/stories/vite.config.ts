@@ -11,6 +11,7 @@ export default defineConfig({
       "@pixen/core": fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
       "@pixen/web": fileURLToPath(new URL("../../packages/web/src/index.ts", import.meta.url)),
       "@pixen/react": fileURLToPath(new URL("../../packages/react/src/index.tsx", import.meta.url)),
+      "@pixen/video": fileURLToPath(new URL("../../packages/video/src/index.ts", import.meta.url)),
     },
   },
 });

@@ -83,10 +83,14 @@ without one of them learning that the picture moves.
 
 Two costs, both measured rather than assumed. Recording runs at wall-clock speed
 — a thirty-second clip takes thirty seconds — because `MediaRecorder` samples a
-canvas as it is painted. And it writes WebM: in the Chromium this repository
-tests against, `VideoEncoder` is undefined even with the flags on, so WebCodecs
-is what a host reaches for through the encoder seam rather than something Pixen
-can depend on.
+canvas as it is painted. And it writes WebM. Measured in the
+Chromium this repository tests against, VP8, VP9 and bare WebM are all accepted;
+a bare `video/mp4` request is accepted as well, while an explicit H.264 one is
+refused; and `VideoEncoder` is absent, so WebCodecs is what a host reaches for
+through the encoder seam rather than something Pixen can depend on. That surface
+differs by browser build — another Chromium on this same machine reports
+`VideoEncoder` present — which is why the story browser asks the browser in front
+of you instead of repeating a number measured somewhere else.
 
 ## Deliberately out of scope for now
 

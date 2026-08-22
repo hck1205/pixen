@@ -56,10 +56,11 @@ export const VIDEO_COVERAGE: CoverageGroup[] = [
         capability: "WebM, or your own encoder",
         layer: "Engine",
         detail:
-          "Measured, MediaRecorder writes VP8 and VP9 in WebM here and refuses H.264 and MP4 outright, " +
-          "while VideoEncoder is undefined even with the flags on. So WebCodecs is not what Pixen " +
-          "depends on, and is exactly what a host reaches for through the recorder seam — which is " +
-          "driven by a test that hands back an MP4 Pixen's own recorder could not have written",
+          "Measured in the Chromium this suite runs against: VP8, VP9 and bare WebM are all accepted, a " +
+          "bare video/mp4 request is accepted too while an explicit H.264 one is refused, and VideoEncoder " +
+          "is absent. Pixen asks for WebM because that is the answer it can rely on; WebCodecs is what a " +
+          "host reaches for through the recorder seam — driven by a test that hands back an MP4 Pixen's " +
+          "own recorder would not have written",
         evidence: [browser("video.spec.ts"), doc("docs/ROADMAP.md")],
       },
       {

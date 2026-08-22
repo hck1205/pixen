@@ -118,6 +118,14 @@ export const tableCell: CSSProperties = {
 /** The coverage page is a reference table, so it may use the full page width. */
 export const wideTable: CSSProperties = { ...table, maxWidth: "100%" };
 
+/**
+ * The same, with the columns proportioned by a `colgroup` rather than by the
+ * browser's guess. Left to itself it hands the width to whichever cell holds
+ * the longest unbreakable word, which put the verification page's requirement
+ * column at one word per line.
+ */
+export const fixedTable: CSSProperties = { ...wideTable, tableLayout: "fixed" };
+
 /** A capability's name, which should not be broken across lines. */
 export const capabilityCell: CSSProperties = { ...tableCell, fontWeight: 600, whiteSpace: "nowrap" };
 

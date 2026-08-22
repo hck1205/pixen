@@ -45,6 +45,9 @@ importers:
       '@pixen/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@pixen/video':
+        specifier: workspace:*
+        version: link:../../packages/video
       '@pixen/web':
         specifier: workspace:*
         version: link:../../packages/web

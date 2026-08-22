@@ -6,7 +6,6 @@
  * rules it is kept honest by.
  */
 import { browser, doc, list, story, unit, type CoverageGroup } from "./evidence.js";
-import { } from "@pixen/core";
 import { PIXEN_EVENTS } from "@pixen/web";
 
 /**
