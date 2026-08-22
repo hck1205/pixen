@@ -24,6 +24,11 @@ type Demo = {
     resources: unknown,
     options?: Record<string, unknown>,
   ): Promise<{ blob: Blob; width: number; height: number; duration: number; bytes: number; type: string }>;
+  exportMedia(
+    document: unknown,
+    resources: unknown,
+    options?: Record<string, unknown>,
+  ): Promise<{ kind: string; width: number; height: number; bytes: number; duration?: number }>;
 };
 
 declare global {
@@ -340,4 +345,71 @@ test.describe("video", () => {
     // Stopped where it was asked to, rather than running the clip out first.
     expect(outcome.elapsed).toBeLessThan(2500);
   });
+});
+
+test("one call exports whichever kind of picture the document turns out to be", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+  // A host that accepts both should not have to know which of two functions to
+  // call, or state the size and the progress reporter twice.
+  const still = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 240;
+    const paint = canvas.getContext("2d")!;
+    paint.fillStyle = "#3366cc";
+    paint.fillRect(0, 0, 320, 240);
+    const blob = await new Promise<Blob>((resolve) => canvas.toBlob((result) => resolve(result!), "image/png"));
+    await (element as unknown as { load(input: Blob): Promise<void> }).load(blob);
+
+    const stages: string[] = [];
+    const result = await window.pixenVideoDemo.exportMedia(element.editor.document, element.editor.resources, {
+      size: { width: 160, height: 120 },
+      onProgress: (report: { stage: string }) => stages.push(report.stage),
+      image: { format: "image/png" },
+    });
+    return { kind: result.kind, width: result.width, height: result.height, stages: [...new Set(stages)] };
+  });
+
+  expect(still.kind).toBe("image");
+  // The size crossed over as a box and came out as axes.
+  expect({ width: still.width, height: still.height }).toEqual({ width: 160, height: 120 });
+  expect(still.stages).toContain("encode");
+
+  const moving = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 1 });
+    const opened = await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "sample.webm" });
+    const result = await window.pixenVideoDemo.exportMedia(element.editor.document, element.editor.resources, {
+      size: { width: 120, height: 68 },
+      element: opened.element,
+    });
+    return { kind: result.kind, width: result.width, bytes: result.bytes, duration: result.duration };
+  });
+
+  expect(moving.kind).toBe("video");
+  expect(moving.width).toBe(120);
+  expect(moving.bytes).toBeGreaterThan(0);
+  expect(moving.duration).toBeGreaterThan(0);
+});
+
+test("a moving document says what it needs rather than exporting a frame of it", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+  const message = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 1 });
+    await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "sample.webm" });
+    try {
+      // No element: the one thing a clip export cannot do without.
+      await window.pixenVideoDemo.exportMedia(element.editor.document, element.editor.resources, {});
+      return "no error";
+    } catch (error) {
+      return (error as { code?: string }).code ?? String(error);
+    }
+  });
+
+  // Named, not a TypeError from somewhere inside: a host reads this code.
+  expect(message).toBe("INVALID_STATE");
 });

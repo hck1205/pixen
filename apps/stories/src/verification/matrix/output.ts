@@ -25,17 +25,18 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
       {
         capability: "Raw pixels out",
         pixen:
-          "`renderDocumentToCanvas` hands back a canvas — a host reads ImageData, uploads it to WebGL, or " +
-          "encodes it itself — but there is no `imageData` output format on the export call",
-        verdict: "open",
+          "Three shapes: a file from `export`, a canvas from `renderToCanvas`, and an `ImageData` from " +
+          "`renderToImageData` — for a model's input, a WASM filter, or a pixel comparison",
+        verdict: "met",
         market: required(
           "image writer",
           "The output is a file, a canvas, or raw pixel data, chosen by the host on the same call",
         ),
         evidence: [unit("mask.test.ts"), doc("docs/ARCHITECTURE.md")],
         note:
-          "Two of the three: a file from `export`, a canvas from `renderDocumentToCanvas`. Raw pixel data " +
-          "is one `getImageData` away from the canvas, which is not the same as being offered",
+          "Three functions rather than one call with three modes, because the results are different shapes " +
+          "and a union of them would make every caller narrow it. The pixels one releases the surface " +
+          "itself: `getImageData` copies, so keeping the canvas would keep a second copy of the picture",
       },
       {
         capability: "A byte budget",
@@ -105,8 +106,8 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "Default quality",
-        pixen: "One number, 0.85, whatever the format",
-        verdict: "open",
+        pixen: "Per format, and only when neither the host nor the document has said — see `resolveQuality`",
+        verdict: "met",
         market: required(
           "image writer",
           "A default quality chosen per format — a higher one for JPEG than for WebP, because the same " +
@@ -114,9 +115,10 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
         ),
         evidence: [unit("processing.test.ts"), doc("docs/ARCHITECTURE.md")],
         note:
-          "A real difference in the bytes a host gets without asking: ours is stingier than the supplied " +
-          "default for JPEG and more generous for WebP. Changing it changes every export, so it is a " +
-          "decision rather than a line",
+          "Measured rather than adopted: three pictures encoded across the range in Chromium and compared " +
+          "to the source pixel by pixel. On the two where the error was visible at all, matching JPEG's " +
+          "error put WebP about 0.05 to 0.10 lower; on a nearly flat one the order reversed and both were " +
+          "invisible. The numbers and the method are in `docs/PROVENANCE.md`",
       },
       {
         capability: "The shape of the result",

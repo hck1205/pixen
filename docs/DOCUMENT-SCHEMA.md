@@ -16,7 +16,7 @@ migratable from v1.
   "adjustments": { "exposure": 0, "brightness": 0, "contrast": 0, "saturation": 0,
                    "hue": 0, "grayscale": 0, "sepia": 0, "invert": 0, "vignette": 0 },
   "layers": [],                                                      // image space
-  "output": { "width": null, "height": null, "format": null, "quality": 0.85, "background": null },
+  "output": { "width": null, "height": null, "format": null, "quality": null, "background": null, "upscale": false },
   "meta": {}                                                         // host data, round-tripped untouched
 }
 ```
@@ -118,7 +118,7 @@ one, applying each registered step in order:
 ```js
 import { registerMigration } from "@pixen/core";
 
-registerMigration(5, (document) => ({ ...document, /* v5 -> v6 changes */ }));
+registerMigration(6, (document) => ({ ...document, /* v6 -> v7 changes */ }));
 ```
 
 Shipped so far:
@@ -129,6 +129,7 @@ Shipped so far:
 | v2 → v3 | Widened `adjustments` from three values to nine. The new ones are filled in neutral, so a v2 document looks exactly as it did |
 | v3 → v4 | Added the optional `frame`. A v3 document had none, and `null` is exactly that |
 | v4 → v5 | Added the optional `clip`, and `duration` on the source. A v4 document is a still picture, and `null` is exactly "all of it" |
+| v5 → v6 | Added `output.upscale`, and let `output.quality` be unset. A v5 document exported through the panel *did* enlarge past its source, so `true` would preserve what it did — `false` is chosen anyway, because the panel and the batch call disagreed and only one of them can be right. The quality is left exactly as found: turning an explicit number into "unset" would re-encode somebody's archive at a different size the next time it was opened |
 
 - A document from a **newer** build fails with `UNSUPPORTED_SCHEMA_VERSION`
   rather than being partially understood.

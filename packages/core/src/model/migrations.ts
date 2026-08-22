@@ -61,6 +61,28 @@ function migrateV4ToV5(document: Record<string, unknown>): Record<string, unknow
   return { clip: null, ...document };
 }
 
+/**
+ * v5 -> v6 added `output.upscale`, and let `output.quality` be unset.
+ *
+ * Two changes to the same object, in one version because they ship together.
+ *
+ * A v5 document exported through the panel *did* enlarge when its output size
+ * was larger than the source, so `true` would preserve what those documents did
+ * — and `false` is chosen anyway. The two paths disagreed, only one of them can
+ * be right, and a stored document should mean the same thing wherever it is
+ * read. A host that was relying on the enlargement sets the flag.
+ *
+ * The quality is left exactly as it was found. A v5 document carries an
+ * explicit number, and turning that into "unset" would quietly re-encode
+ * somebody's archive at a different size the next time it was opened. Only a
+ * new document starts unset, and only then does the format choose.
+ */
+function migrateV5ToV6(document: Record<string, unknown>): Record<string, unknown> {
+  const stored = document.output;
+  const output = typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {};
+  return { ...document, output: { upscale: false, ...output } };
+}
+
 export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
   if (migrations.has(fromVersion)) {
     throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
@@ -73,6 +95,7 @@ migrations.set(1, migrateV1ToV2);
 migrations.set(2, migrateV2ToV3);
 migrations.set(3, migrateV3ToV4);
 migrations.set(4, migrateV4ToV5);
+migrations.set(5, migrateV5ToV6);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {

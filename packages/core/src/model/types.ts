@@ -1,8 +1,7 @@
 import type { Point, Rect } from "../geometry/types.js";
 import type { ClipRange } from "./clip.js";
-import { DEFAULT_QUALITY } from "./defaults.js";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -195,9 +194,30 @@ export interface OutputSettings {
   width: number | null;
   height: number | null;
   format: ImageFormat | null;
-  quality: number;
+  /**
+   * Lossy quality, or null for "whatever suits the format".
+   *
+   * Nullable because the format is not known when a document is created: a
+   * single stored number is one answer to a question two encoders ask
+   * differently. See `resolveQuality`.
+   */
+  quality: number | null;
   /** Painted under the image; needed when exporting transparency to JPEG. */
   background: string | null;
+  /**
+   * Whether a target larger than the source may enlarge the picture.
+   *
+   * Off, because enlarging is a thing to ask for rather than a thing to be
+   * given: a host that types 4000 into a width field for a 1600-pixel photograph
+   * almost always means "no larger than 4000". `resolveSize` has refused by
+   * default since it was written and `outputSize` did not, so the same request
+   * produced 1600 pixels one way and 4000 the other, depending on whether it
+   * came through the panel or the batch call.
+   *
+   * When it is on, the target is honoured exactly, which is what an export at
+   * 2× for a retina asset needs.
+   */
+  upscale: boolean;
 }
 
 export interface EditorDocument {
@@ -230,6 +250,7 @@ export const DEFAULT_OUTPUT: Readonly<OutputSettings> = Object.freeze({
   width: null,
   height: null,
   format: null,
-  quality: DEFAULT_QUALITY,
+  quality: null,
   background: null,
+  upscale: false,
 });

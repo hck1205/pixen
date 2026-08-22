@@ -26,6 +26,22 @@ export interface ExportHooks {
    */
   document?(document: EditorDocument): EditorDocument | Promise<EditorDocument>;
   /**
+   * The picture to draw from, for this export only.
+   *
+   * `replaceSource` on the editor swaps the picture in the document, which is
+   * permanent and undoable; this swaps it for one file and leaves the document
+   * exactly as it was — an optimisation pass, a format conversion, a sharpened
+   * copy for print while the screen copy stays as it is.
+   *
+   * Return a source of any size. Its own size is measured and the scene is told
+   * about it, the same way a resampled stand-in is, so a smaller or larger
+   * replacement lands in the same place at a different resolution rather than
+   * in the wrong place.
+   *
+   * Runs before `resample`, which then sees whatever this returned.
+   */
+  source?(source: CanvasImageSource, size: Size): CanvasImageSource | Promise<CanvasImageSource>;
+  /**
    * Downscales the source before the picture is drawn from it.
    *
    * Only called when the export is much smaller than the source, and only when

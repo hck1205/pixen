@@ -52,34 +52,35 @@ export const PIPELINE_CLAIMS: ClaimGroup[] = [
       {
         capability: "The source, before the edit is applied",
         pixen:
-          "Not offered as an export step: `replaceSource` swaps the picture in the document, and " +
-          "`resample` replaces the downscale, but there is no seam that hands over the source bitmap for " +
-          "one export and leaves the document alone",
-        verdict: "open",
+          "`source` hands over the picture for one export and leaves the document alone — an optimisation " +
+          "pass, a format conversion, a sharpened copy for print while the screen copy stays as it is",
+        verdict: "met",
         market: required(
           "image writer",
           "The source image data can be pre-processed for a single export — a third-party optimisation, or " +
           "a format conversion — before the edit is drawn onto it",
         ),
-        evidence: [unit("processing.test.ts"), doc("docs/ARCHITECTURE.md")],
+        evidence: [browser("editor.spec.ts"), doc("docs/ARCHITECTURE.md")],
         note:
-          "The two neighbouring seams exist, which is what makes this one a gap rather than a category: " +
-          "everything is in place except the call",
+          "A replacement of another size is measured rather than assumed, so it lands where the picture " +
+          "was rather than at its own size in a corner — which is what the browser test asserts, quadrant " +
+          "by quadrant",
       },
       {
         capability: "One writer for two media",
         pixen:
-          "Two export calls: `export` for a still, `exportClip` for a moving one, each with its own " +
-          "options — a host doing both states the shared ones twice",
-        verdict: "open",
+          "`exportMedia` takes the options both understand once and dispatches on the document: a source " +
+          "with a duration is recorded, one without is encoded, and the result says which it was",
+        verdict: "met",
         market: required(
           "media writer",
           "Image and video writers grouped behind one configuration, so shared options are stated once",
         ),
-        evidence: [doc("docs/ROADMAP.md")],
+        evidence: [browser("video.spec.ts"), doc("docs/ROADMAP.md")],
         note:
-          "Small, and it only bites a host that ships both. Worth doing when the video package leaves " +
-          "its first release rather than before",
+          "A dispatcher rather than a layer: everything it does not name is passed through, and both " +
+          "exports stay callable directly. A moving document with no video element is a named error " +
+          "rather than a still frame of it",
       },
       {
         capability: "Hook order is observable",

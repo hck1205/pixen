@@ -97,4 +97,5 @@ export const ar: PixenStrings = {
   background: "الخلفية",
   backgroundNone: "بلا",
   sizeNatural: "الحجم الأصلي",
+  allowUpscale: "السماح بالتكبير",
 };

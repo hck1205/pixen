@@ -56,7 +56,9 @@ export const EXEMPT = {
   // part that is not a one-line delegation, and moving them leaves the class the
   // same size because the methods have to stay. Commonising the two lines
   // `export` and `exportTo` share cost two more than it saved.
-  "packages/core/src/engine/editor.ts": 739,
+  // The eight lines over the last split are the third render shape — raw
+  // pixels — arriving as one more delegation, which is what this file is.
+  "packages/core/src/engine/editor.ts": 747,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's

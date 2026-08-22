@@ -3,7 +3,6 @@ import type { Size } from "../geometry/types.js";
 import {
   assertDrawableSize,
   createSurface,
-  drawnSurface,
   releaseSurface,
   type CanvasSurface,
 } from "../image/canvas.js";
@@ -11,6 +10,7 @@ import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTranspar
 import { withExifSegment } from "../image/jpeg.js";
 import { portableExif, type MetadataPolicy } from "../image/metadata.js";
 import { fitWithinPixels, roundedSize } from "../geometry/rect.js";
+import { resolveQuality } from "../model/defaults.js";
 import { effectiveCrop, outputSize as documentOutputSize } from "../model/document.js";
 import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../model/types.js";
 import { renderScene } from "../render/canvas2d/index.js";
@@ -129,7 +129,8 @@ export async function exportDocument(
 
   const resource = resources.require(drawn.source.resourceId);
   const format = resolveOutputFormat(drawn, options.format);
-  const quality = options.quality ?? drawn.output.quality;
+  // The stored quality, the format's own default, or the fallback. See `resolveQuality`.
+  const quality = options.quality ?? resolveQuality(format, drawn.output.quality);
 
   const target = exportTarget(drawn, options);
   assertDrawableSize(target, "export");
@@ -141,7 +142,7 @@ export async function exportDocument(
     surface = createSurface(target.width, target.height, supportsTransparency(format));
 
     const crop = effectiveCrop(drawn);
-    const stand = await standIn(resource, roundedSize(crop.width, crop.height), target, hooks.resample);
+    const stand = await standIn(resource, roundedSize(crop.width, crop.height), target, hooks);
     const scene = createScene(
       { ...drawn, output: { ...drawn.output, background } },
       { source: stand.source, sourceScale: stand.scale, resolveResource: resources.resolve },
@@ -269,26 +270,4 @@ export function exportBackground(
 ): string | null {
   if (options.background !== undefined) return options.background;
   return document.output.background ?? (supportsTransparency(format) ? null : OPAQUE_FALLBACK_BACKGROUND);
-}
-
-/**
- * Renders to a canvas without encoding, for hosts that want pixels — a WebGL
- * upload, an ImageData read, or their own encoder.
- */
-export function renderDocumentToCanvas(
-  document: EditorDocument,
-  resources: ResourceManager,
-  options: { target?: Size; region?: "crop" | "stage" } = {},
-): CanvasSurface {
-  const resource = resources.require(document.source.resourceId);
-  const region = options.region ?? "crop";
-  const target = options.target ?? documentOutputSize(document);
-  assertDrawableSize(target, "render target");
-
-  const scene = createScene(
-    document,
-    { source: resource.source, sourceScale: 1, resolveResource: resources.resolve },
-    { region, target },
-  );
-  return drawnSurface(target, (surface) => renderScene(surface.context, scene));
 }

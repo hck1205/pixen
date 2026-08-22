@@ -52,14 +52,34 @@ export function effectiveCrop(document: EditorDocument): Rect {
  * scale each axis independently (the caller asked for it), and neither keeps the
  * crop's own size.
  */
+/**
+ * The size a file would come out at.
+ *
+ * A target larger than the cropped picture only enlarges when the document says
+ * to. Without that clause the same request produced two answers: `resolveSize`,
+ * which the batch and variant paths use, has refused to enlarge since it was
+ * written, while this multiplied whatever the panel typed in — so a 1600-pixel
+ * photograph asked for 4000 came out at 4000 one way and 1600 the other.
+ */
 export function outputSize(document: EditorDocument): Size {
   const crop = effectiveCrop(document);
-  const { width, height } = document.output;
+  const { width, height, upscale } = document.output;
 
-  if (width != null && height != null) return roundedSize(width, height);
-  if (width != null) return roundedSize(width, crop.height * (width / crop.width));
-  if (height != null) return roundedSize(crop.width * (height / crop.height), height);
-  return roundedSize(crop.width, crop.height);
+  const asked =
+    width != null && height != null
+      ? { width, height }
+      : width != null
+        ? { width, height: crop.height * (width / crop.width) }
+        : height != null
+          ? { width: crop.width * (height / crop.height), height }
+          : crop;
+
+  if (upscale) return roundedSize(asked.width, asked.height);
+
+  // Shrink the whole box by however much it overshoots, so a target that is
+  // larger on one axis only keeps the ratio it was asked for.
+  const overshoot = Math.max(asked.width / crop.width, asked.height / crop.height, 1);
+  return roundedSize(asked.width / overshoot, asked.height / overshoot);
 }
 
 
@@ -92,7 +112,8 @@ export function isPristine(document: EditorDocument): boolean {
     output.width === null &&
     output.height === null &&
     output.format === null &&
-    output.background === null
+    output.background === null &&
+    !output.upscale
   );
 }
 

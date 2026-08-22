@@ -90,4 +90,6 @@ export interface PixenStrings {
   background: string;
   backgroundNone: string;
   sizeNatural: string;
+  /** The output size may exceed the picture. See `OutputSettings.upscale`. */
+  allowUpscale: string;
 }

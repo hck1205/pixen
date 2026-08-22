@@ -9,8 +9,45 @@ import type { RedactionMode } from "./types.js";
  * stopped. One module means a default can be changed once.
  */
 
-/** Lossy quality used when the host expresses no preference. */
-export const DEFAULT_QUALITY = 0.85;
+/**
+ * Lossy quality when neither the host nor the format has anything to say.
+ *
+ * A format that is not in the table below — a lossless one, or one added later
+ * — falls back to this.
+ */
+const DEFAULT_QUALITY = 0.85;
+
+/**
+ * What each encoder is asked for when nobody said.
+ *
+ * The same number does not mean the same thing to two encoders, so one default
+ * for both is one of them being wrong. These were measured rather than picked:
+ * three pictures were encoded across the quality range in Chromium and compared
+ * against the source, pixel by pixel, as root-mean-square error.
+ *
+ *   - On a photograph — smooth sky, textured ground, hard-edged text, grain —
+ *     WebP at 0.85 came out both smaller and closer to the source than JPEG at
+ *     0.85 (120 KB at 3.20 against 128 KB at 3.74). Matching JPEG's error took
+ *     it about 0.05 lower.
+ *   - On a deliberately hard picture — fine noise, sharp text, saturated edges
+ *     — the gap was wider: matching JPEG at 0.90 took WebP to about 0.79.
+ *   - On a nearly flat illustration the order reversed, and both encoders were
+ *     within an error of 1 across the whole range: invisible either way.
+ *
+ * So the offset is real on the pictures where quality is visible at all, and
+ * small: JPEG a little above the old single default, WebP a little below. The
+ * measurement is in `docs/PROVENANCE.md` and can be run again.
+ */
+const DEFAULT_QUALITY_BY_FORMAT: Readonly<Record<string, number>> = Object.freeze({
+  "image/jpeg": 0.88,
+  "image/webp": 0.82,
+});
+
+/** The quality an export uses: the host's, else the format's, else the fallback. */
+export function resolveQuality(format: string, stored: number | null | undefined): number {
+  if (stored != null) return stored;
+  return DEFAULT_QUALITY_BY_FORMAT[format] ?? DEFAULT_QUALITY;
+}
 
 export const DEFAULT_LAYER_OPACITY = 1;
 export const DEFAULT_LAYER_ROTATION = 0;

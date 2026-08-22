@@ -22,6 +22,7 @@ type EditorElement = HTMLElement & {
       body: string;
     }>;
     renderToCanvas(options?: Record<string, unknown>): { canvas: HTMLCanvasElement };
+    renderToImageData(options?: Record<string, unknown>): ImageData;
     renderMask(options?: Record<string, unknown>): { canvas: HTMLCanvasElement };
   };
   viewport: { stageToScreen(point: { x: number; y: number }): { x: number; y: number } } | null;
@@ -1222,7 +1223,7 @@ test("every inspector slider opens where the document actually is", async ({ pag
     const element = document.querySelector("pixen-image-editor") as HTMLElement & {
       panel: string;
       tool: string;
-      editor: { document: { output: { quality: number } } };
+      editor: { document: { output: { quality: number | null; format: string | null } }; export(o?: unknown): Promise<{ quality: number }> };
     };
     const shadow = element.shadowRoot!;
     const field = (name: string) =>
@@ -1237,14 +1238,23 @@ test("every inspector slider opens where the document actually is", async ({ pag
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const width = field("width");
 
+    // The document leaves the quality unset until somebody sets it, and the
+    // slider shows what this format would be encoded at. The export is the only
+    // authority on that number, so it is asked rather than recomputed here.
+    const exported = await element.editor.export({ width: 8, height: 8 });
+
     return {
       documentQuality: element.editor.document.output.quality,
+      exportedQuality: exported.quality,
       quality: quality ? { value: Number(quality.value), min: Number(quality.min) } : null,
       strokeWidth: width ? { value: Number(width.value), min: Number(width.min) } : null,
     };
   });
 
-  expect(readings.quality?.value).toBeCloseTo(readings.documentQuality, 5);
+  expect(readings.documentQuality).toBeNull();
+  // The slider and the file agree: a panel showing a number the exporter would
+  // not use is the panel lying about the picture.
+  expect(readings.quality?.value).toBeCloseTo(readings.exportedQuality, 5);
   // Not pinned to the floor, which is where a value assigned before its bounds
   // ends up once the browser has snapped it to the default whole-number step.
   expect(readings.quality?.value).toBeGreaterThan(readings.quality!.min);
@@ -2664,4 +2674,93 @@ test("the crop tool's configured ratio is applied to a picture as it loads", asy
   // square crops got freeform ones with no sign the option had been ignored.
   expect(ratio.aspectRatio).toBe(1);
   expect(ratio.crop).toBeCloseTo(1, 2);
+});
+
+test("the finished picture comes out as raw pixels as well as a file", async ({ page }) => {
+  // The third shape an export takes. A host feeding a model or a WASM filter
+  // wants the bytes, and every container in the way is something to undo.
+  const read = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const pixels = element.editor.renderToImageData({ target: { width: 40, height: 30 } });
+    const at = (fx: number, fy: number) => {
+      const x = Math.round(pixels.width * fx);
+      const y = Math.round(pixels.height * fy);
+      const index = (y * pixels.width + x) * 4;
+      return [pixels.data[index], pixels.data[index + 1], pixels.data[index + 2], pixels.data[index + 3]];
+    };
+    return {
+      kind: pixels.constructor.name,
+      width: pixels.width,
+      height: pixels.height,
+      length: pixels.data.length,
+      sky: at(0.5, 0.15),
+      ground: at(0.5, 0.9),
+    };
+  });
+
+  expect(read.kind).toBe("ImageData");
+  expect({ width: read.width, height: read.height }).toEqual({ width: 40, height: 30 });
+  // Four bytes a pixel, which is what makes it worth having over a canvas.
+  expect(read.length).toBe(40 * 30 * 4);
+  // The sample is a sky over a dark landscape, so the two ends of it differ and
+  // both are opaque — a blank or transparent buffer would pass a size check.
+  expect(read.sky[3]).toBe(255);
+  expect(read.ground[3]).toBe(255);
+  expect(read.sky).not.toEqual(read.ground);
+});
+
+test("a host can swap the picture for one export without touching the document", async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: { document: { source: { width: number; height: number } } };
+      export(options?: Record<string, unknown>): Promise<{ blob: Blob; width: number; height: number }>;
+    };
+    const before = { ...element.editor.document.source };
+
+    // A stand-in at half the size, in four quadrants. Flat colour would prove
+    // only that the hook ran; four corners prove where the picture landed.
+    const stand = document.createElement("canvas");
+    stand.width = Math.round(before.width / 2);
+    stand.height = Math.round(before.height / 2);
+    const paint = stand.getContext("2d")!;
+    const quadrants = ["#ff0000", "#00ff00", "#0000ff", "#ffff00"];
+    for (const [index, colour] of quadrants.entries()) {
+      paint.fillStyle = colour;
+      paint.fillRect(
+        (index % 2) * (stand.width / 2),
+        Math.floor(index / 2) * (stand.height / 2),
+        stand.width / 2,
+        stand.height / 2,
+      );
+    }
+
+    const written = await element.export({
+      format: "image/png",
+      hooks: { source: () => stand },
+    });
+
+    const bitmap = await createImageBitmap(written.blob);
+    const read = document.createElement("canvas");
+    read.width = bitmap.width;
+    read.height = bitmap.height;
+    const context = read.getContext("2d")!;
+    context.drawImage(bitmap, 0, 0);
+    const at = (fx: number, fy: number) => {
+      const { data } = context.getImageData(Math.round(read.width * fx), Math.round(read.height * fy), 1, 1);
+      return `${data[0]},${data[1]},${data[2]}`;
+    };
+
+    return {
+      corners: [at(0.2, 0.2), at(0.8, 0.2), at(0.2, 0.8), at(0.8, 0.8)],
+      documentSource: element.editor.document.source,
+      unchanged: element.editor.document.source.width === before.width,
+    };
+  });
+
+  // The four quadrants land in the four corners: the stand-in was stretched
+  // across the whole frame, at the size the document says the picture is,
+  // rather than drawn at its own size into part of it.
+  expect(result.corners).toEqual(["255,0,0", "0,255,0", "0,0,255", "255,255,0"]);
+  // And the document still describes the picture it was loaded with.
+  expect(result.unchanged).toBe(true);
 });

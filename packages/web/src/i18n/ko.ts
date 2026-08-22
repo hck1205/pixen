@@ -92,4 +92,5 @@ export const ko: PixenStrings = {
   background: "배경",
   backgroundNone: "없음",
   sizeNatural: "원본 크기",
+  allowUpscale: "확대 허용",
 };

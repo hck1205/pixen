@@ -49,10 +49,9 @@ export const GEOMETRY_CLAIMS: ClaimGroup[] = [
       {
         capability: "Resize on export",
         pixen:
-          `A target size with ${list(RESIZE_FITS)} fitting. Enlarging past the source is refused by ` +
-          "default on the processing and variant paths, and allowed on the document's own output size — " +
-          "two paths, two answers",
-        verdict: "open",
+          `A target size with ${list(RESIZE_FITS)} fitting. Enlarging past the source is refused unless the ` +
+          "document asks for it, on every path — the panel, the batch call and the variant plan",
+        verdict: "met",
         market: required(
           "image writer",
           "A target width and height, one of three fit modes deciding how the picture reaches it, and " +
@@ -60,9 +59,10 @@ export const GEOMETRY_CLAIMS: ClaimGroup[] = [
         ),
         evidence: [unit("processing.test.ts"), unit("variants.test.ts"), story("Output")],
         note:
-          "Found while writing this page. `resolveSize` refuses to enlarge unless asked and `planVariants` " +
-          "plans the source size for a spec larger than it, but `outputSize` multiplies whatever the " +
-          "document's output width says — so the panel will enlarge a picture and the batch call will not",
+          "The disagreement this page found: `outputSize` used to multiply whatever the panel typed while " +
+          "`resolveSize` refused, so the same request produced 1600 pixels one way and 800 the other. " +
+          "`output.upscale` is the switch, off by default, with a schema migration and a control in the " +
+          "output panel",
       },
       {
         capability: "Zoom, pan, pinch, fit",

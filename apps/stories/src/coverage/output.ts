@@ -93,9 +93,9 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
         capability: "Export hooks",
         layer: "Engine",
         detail:
-          "Host steps at five points — the document before it is drawn, the source before a large " +
-          "downscale, the drawn surface before it is encoded, the encoded bytes, and the filename — " +
-          "so bending an export is not a fork",
+          "Host steps at six points — the document before it is drawn, the picture itself for this one " +
+          "export, the source before a large downscale, the drawn surface before it is encoded, the " +
+          "encoded bytes, and the filename — so bending an export is not a fork",
         evidence: [browser("editor.spec.ts"), story("Pipeline"), doc("docs/FRAMEWORKS.md")],
       },
       {
@@ -123,8 +123,34 @@ export const OUTPUT_COVERAGE: CoverageGroup[] = [
       {
         capability: "Pixels without a file",
         layer: "Engine",
-        detail: "renderToCanvas hands over the drawn surface, for a texture upload or an encoder of your own",
+        detail:
+          "renderToCanvas hands over the drawn surface for a texture upload or an encoder of your own, " +
+          "and renderToImageData hands over the bytes for somewhere that has no use for a container",
         evidence: [browser("editor.spec.ts")],
+      },
+      {
+        capability: "One call for both media",
+        layer: "Engine",
+        detail:
+          "exportMedia takes the options a still and a clip both understand once and dispatches on the " +
+          "document: a source with a duration is recorded, one without is encoded",
+        evidence: [browser("video.spec.ts")],
+      },
+      {
+        capability: "Quality per format",
+        layer: "Engine",
+        detail:
+          "A quality the host did not set is the format's own, measured rather than picked — the same " +
+          "number does not mean the same thing to two encoders",
+        evidence: [unit("processing.test.ts"), doc("docs/PROVENANCE.md")],
+      },
+      {
+        capability: "Enlarging is asked for",
+        layer: "Engine",
+        detail:
+          "An output size larger than the picture is refused unless the document sets `upscale` — on the " +
+          "panel, the batch call and the variant plan alike",
+        evidence: [unit("document.test.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
       },
     ],
   },

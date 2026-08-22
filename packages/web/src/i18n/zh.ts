@@ -95,4 +95,5 @@ export const zh: PixenStrings = {
   background: "背景",
   backgroundNone: "无",
   sizeNatural: "原始尺寸",
+  allowUpscale: "允许放大",
 };

@@ -15,6 +15,7 @@
  * imposed — the seam is offered instead.
  */
 import type { Size } from "../geometry/types.js";
+import { sourceSize } from "../image/canvas.js";
 import { standInSize } from "../image/resize.js";
 import type { ImageResource } from "../resources/manager.js";
 import type { ExportHooks } from "./hooks.js";
@@ -37,14 +38,27 @@ export async function standIn(
   resource: ImageResource,
   crop: Size,
   target: Size,
-  resample: ExportHooks["resample"],
+  hooks: Pick<ExportHooks, "source" | "resample">,
 ): Promise<StandIn> {
-  const whole: StandIn = { source: resource.source, scale: 1 };
-  if (!resample) return whole;
+  // The document's own size stays the reference for the scale: everything below
+  // is measured against the picture the edit was made on, whatever is standing
+  // in for it now.
+  const original: Size = { width: resource.width, height: resource.height };
 
-  const from: Size = { width: resource.width, height: resource.height };
+  // The host's own picture for this one export, if it supplied one. Measured
+  // rather than assumed to be the same size, so a replacement of another size
+  // lands in the same place at a different resolution.
+  const swapped = hooks.source ? await hooks.source(resource.source, original) : resource.source;
+  const from = hooks.source ? sourceSize(swapped) : original;
+  const whole: StandIn = { source: swapped, scale: from.width / original.width };
+
+  if (!hooks.resample) return whole;
+
   const to = standInSize(from, crop, target);
   if (to === null) return whole;
 
-  return { source: await resample(resource.source, from, to), scale: to.width / from.width };
+  return {
+    source: await hooks.resample(swapped, from, to),
+    scale: to.width / original.width,
+  };
 }

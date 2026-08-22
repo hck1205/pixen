@@ -8,7 +8,7 @@
  */
 import "@pixen/web";
 import type { EditorDocument } from "@pixen/core";
-import { exportClip, openVideo, supportedRecordingType, type VideoSource } from "@pixen/video";
+import { exportClip, exportMedia, openVideo, supportedRecordingType, type VideoSource } from "@pixen/video";
 import { recordSampleClip, SAMPLE_MIDDLE_BAND, SAMPLE_SECONDS } from "./sample-clip.js";
 
 type EditorElement = HTMLElement & {
@@ -101,5 +101,5 @@ if (supportedRecordingType() === null) {
 // The browser suite drives this page rather than reaching into the bundle, so
 // the three module functions it cannot get at from the DOM are put where it can.
 Object.assign(window as unknown as Record<string, unknown>, {
-  pixenVideoDemo: { recordSampleClip, exportClip, openVideo },
+  pixenVideoDemo: { recordSampleClip, exportClip, exportMedia, openVideo },
 });

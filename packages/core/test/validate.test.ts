@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveQuality,
   DEFAULT_ADJUSTMENTS,
   createDocument,
   formatIssues,
@@ -96,7 +97,10 @@ describe("validateDocument", () => {
     if (!isOk(result)) throw new Error(formatIssues(result.error));
     expect(result.value.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
     expect(result.value.layers).toEqual([]);
-    expect(result.value.output.quality).toBe(0.85);
+    // Unset rather than a number: the format is not known when a document is
+    // written, and the two encoders do not mean the same thing by 0.85.
+    expect(result.value.output.quality).toBeNull();
+    expect(resolveQuality("image/jpeg", result.value.output.quality)).toBeGreaterThan(0);
     expect(result.value.crop).toBeNull();
   });
 
@@ -155,7 +159,7 @@ describe("validateDocument", () => {
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
     expect(result.value.transform).toEqual({ rotation: 0, flipX: false, flipY: false });
-    expect(result.value.output.quality).toBeGreaterThan(0);
+    expect(resolveQuality("image/webp", result.value.output.quality)).toBeGreaterThan(0);
     expect(result.value.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
   });
 

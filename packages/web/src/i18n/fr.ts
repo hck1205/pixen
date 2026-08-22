@@ -95,4 +95,5 @@ export const fr: PixenStrings = {
   background: "Arrière-plan",
   backgroundNone: "Aucun",
   sizeNatural: "Taille d’origine",
+  allowUpscale: "Autoriser l’agrandissement",
 };

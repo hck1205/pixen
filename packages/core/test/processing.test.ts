@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveQuality,
   checkPolicy,
   encodeWithinBudget,
   exportBackground,
@@ -270,5 +271,42 @@ describe("policies", () => {
     expect(options.maxWidth).toBe(1600);
     expect(options.format).toBe("image/webp");
     expect(options.maxBytes).toBe(PRESETS.marketplace.maxFileSize);
+  });
+});
+
+/**
+ * One quality number for two encoders is one of them being wrong.
+ *
+ * The defaults were measured rather than picked — three pictures encoded across
+ * the range in Chromium and compared to the source pixel by pixel, recorded in
+ * `docs/PROVENANCE.md`. What this pins is the shape of the decision, not the
+ * numbers: the host outranks the format, the format outranks the fallback, and
+ * an explicit zero is a request rather than an absence.
+ */
+describe("resolveQuality", () => {
+  it("uses what the host stored, whatever the format", () => {
+    expect(resolveQuality("image/jpeg", 0.5)).toBe(0.5);
+    expect(resolveQuality("image/webp", 0.5)).toBe(0.5);
+  });
+
+  it("treats zero as a request, not as nothing", () => {
+    // `?? ` rather than `||`: a host asking for the smallest possible file
+    // means it, and falling back would silently give them a large one.
+    expect(resolveQuality("image/jpeg", 0)).toBe(0);
+  });
+
+  it("asks the format when nobody said", () => {
+    const jpeg = resolveQuality("image/jpeg", null);
+    const webp = resolveQuality("image/webp", null);
+    expect(jpeg).toBeGreaterThan(0);
+    expect(webp).toBeGreaterThan(0);
+    // The measured direction: matching JPEG's error took WebP lower on both
+    // pictures where the error was visible at all.
+    expect(webp).toBeLessThan(jpeg);
+  });
+
+  it("falls back for a format with no entry, including a lossless one", () => {
+    expect(resolveQuality("image/png", null)).toBeGreaterThan(0);
+    expect(resolveQuality("image/avif", undefined)).toBeGreaterThan(0);
   });
 });

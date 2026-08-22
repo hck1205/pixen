@@ -15,7 +15,6 @@ import {
   DEFAULT_LAYER_OPACITY,
   DEFAULT_LAYER_ROTATION,
   DEFAULT_LAYER_VISIBLE,
-  DEFAULT_QUALITY,
   DEFAULT_STROKE,
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_COLOUR,
@@ -268,8 +267,9 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
       width: field("width", nullable(finiteNumber)),
       height: field("height", nullable(finiteNumber)),
       format: field("format", nullable(imageFormat)),
-      quality: field("quality", withDefault(finiteNumber, DEFAULT_QUALITY)),
+      quality: field("quality", withDefault(nullable(finiteNumber), null)),
       background: field("background", nullable(text)),
+      upscale: field("upscale", withDefault(boolean, false)),
     }),
     // Host-owned, so it is carried rather than checked.
     meta: (source) => ok(recordOrEmpty(source.meta)),

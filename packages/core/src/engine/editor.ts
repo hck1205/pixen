@@ -20,11 +20,11 @@ import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from ".
 import { sourceFromResource } from "../resources/source.js";
 import {
   exportDocument,
-  renderDocumentToCanvas,
   resolveOutputFormat,
   type ExportOptions,
   type ExportResult,
 } from "../export/pipeline.js";
+import { renderDocumentToCanvas, renderDocumentToImageData } from "../export/render.js";
 import { renderMask, type MaskOptions } from "../export/mask.js";
 import { uploadExport, type UploadResponse, type UploadTarget } from "../export/upload.js";
 import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
@@ -685,12 +685,22 @@ export class Editor {
   }
 
   /**
-   * The edit as pixels, without encoding it. For hosts that want a texture, an
-   * `ImageData` read, or an encoder of their own.
+   * The edit as pixels, without encoding it. For hosts that want a texture or
+   * an encoder of their own. The caller owns the surface and releases it.
    */
   renderToCanvas(options: { target?: Size; region?: "crop" | "stage" } = {}): CanvasSurface {
     this.#assertAlive();
     return renderDocumentToCanvas(this.document, this.resources, options);
+  }
+
+  /**
+   * The edit as raw pixels, for somewhere that has no use for a container — a
+   * model's input, a WASM filter, a comparison in a test. Nothing to release:
+   * the pixels are copied out and the surface is let go.
+   */
+  renderToImageData(options: { target?: Size; region?: "crop" | "stage" } = {}): ImageData {
+    this.#assertAlive();
+    return renderDocumentToImageData(this.document, this.resources, options);
   }
 
   /** The marked areas alone, for a model that works on part of a picture. */

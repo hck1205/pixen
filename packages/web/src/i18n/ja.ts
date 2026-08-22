@@ -95,4 +95,5 @@ export const ja: PixenStrings = {
   background: "背景",
   backgroundNone: "なし",
   sizeNatural: "元のサイズ",
+  allowUpscale: "拡大を許可",
 };
