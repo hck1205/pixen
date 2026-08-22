@@ -44,7 +44,7 @@ import {
   SELECTION_CORNERS,
 } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
-import { clampZoom, fitView, insetsFor, insetsFromChrome, type EdgeBox } from "./view.js";
+import { clampZoom, fitView, insetsFor, insetsFromChrome, renderScale, type EdgeBox } from "./view.js";
 
 /** One label for the whole of "someone edited a text layer". */
 const TEXT_EDIT_LABEL = "Text";
@@ -283,7 +283,7 @@ export class Viewport {
 
   render(): void {
     if (this.#destroyed) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const dpr = renderScale(window.devicePixelRatio);
     const css = this.#cssSize();
     const width = Math.round(css.width * dpr);
     const height = Math.round(css.height * dpr);

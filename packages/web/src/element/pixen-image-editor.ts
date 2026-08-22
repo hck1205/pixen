@@ -14,6 +14,7 @@ import { directionFor, resolveStrings, type PixenStrings } from "../i18n/index.j
 import {
   DEFAULT_STYLE,
   normaliseStickers,
+  cropToolSettings,
   normaliseTools,
   type AnnotationStyle,
   type StickerDefinition,
@@ -180,6 +181,8 @@ export class PixenImageEditorElement extends ElementBase {
       measureChrome: () => measureChrome(this.#canvas, this.#root),
     });
     this.#viewport.style = this.#annotationStyle;
+    // A fresh viewport starts at the default floor; see `cropToolSettings`.
+    this.#viewport.minCropSize = cropToolSettings(this.#tools).minSize;
 
     this.#textEditing = new CanvasTextEditor({
       input: this.#textInput,
@@ -288,14 +291,23 @@ export class PixenImageEditorElement extends ElementBase {
 
   set tools(value: unknown) {
     this.#tools = normaliseTools(value);
-    const cropOptions = this.#tools.find((tool) => tool.id === "crop")?.options as
-      | { ratios?: (number | null)[]; minSize?: number }
-      | undefined;
-    if (cropOptions?.ratios) this.aspectRatios = cropOptions.ratios;
-    if (cropOptions?.minSize && this.#viewport) this.#viewport.minCropSize = cropOptions.minSize;
+    const ratios = cropToolSettings(this.#tools).ratios;
+    if (ratios) this.aspectRatios = ratios;
+    if (this.#viewport) this.#viewport.minCropSize = cropToolSettings(this.#tools).minSize;
     this.#renderChrome();
     this.#syncUI();
   }
+
+  /** The stickers the sticker tool offers. Pixen ships none of its own. */
+  get stickers(): StickerDefinition[] {
+    return this.#stickers;
+  }
+
+  set stickers(value: unknown) {
+    this.#stickers = normaliseStickers(value);
+    this.#syncUI();
+  }
+
 
   get aspectRatios(): AspectRatioOption[] {
     return this.#ratios;
@@ -663,18 +675,6 @@ export class PixenImageEditorElement extends ElementBase {
     });
     this.#plugins.retain(teardown);
     return this;
-  }
-
-  // --- stickers ------------------------------------------------------------
-
-  /** The stickers the sticker tool offers. Pixen ships none of its own. */
-  get stickers(): StickerDefinition[] {
-    return this.#stickers;
-  }
-
-  set stickers(value: unknown) {
-    this.#stickers = normaliseStickers(value);
-    this.#syncUI();
   }
 
   // --- input ---------------------------------------------------------------

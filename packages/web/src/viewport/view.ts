@@ -115,6 +115,21 @@ export function insetsFromChrome(
   return best;
 }
 
+/**
+ * How much backing store a very dense display is allowed to ask for.
+ *
+ * A phone at four times CSS density would otherwise allocate sixteen times the
+ * pixels of a plain one for the same picture, which is where a large image runs
+ * out of memory on the devices least able to spare it. Two and a half is past
+ * the point where more resolution is visible and well short of that.
+ */
+const MAX_DEVICE_PIXEL_RATIO = 2.5;
+
+/** The scale to render at on this display. */
+export function renderScale(devicePixelRatio: number): number {
+  return Math.min(devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+}
+
 export const MIN_ZOOM = 0.02;
 export const MAX_ZOOM = 12;
 
