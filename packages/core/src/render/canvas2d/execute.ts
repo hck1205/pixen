@@ -1,19 +1,30 @@
 import { IDENTITY, toArray } from "../../geometry/matrix.js";
 import type { Matrix } from "../../geometry/types.js";
 import type { Canvas2D } from "../../image/canvas.js";
-import { hasAdjustments } from "../../model/adjustments.js";
-import { applyAdjustmentsToImageData, supportsContextFilter } from "../adjustments.js";
+import { applyAdjustmentsToImageData } from "../adjustments.js";
+import { supportsContextFilter } from "../filter-support.js";
 import { buildSceneOps, type BuildOptions, type DrawOp, type PathCommand, type TextMeasurer } from "../ops/index.js";
 import type { Scene } from "../scene.js";
 import { drawFrame, drawVignette } from "./decoration.js";
 import { obscureRegion } from "./redaction.js";
 
 /**
- * The executor: it draws what it is told and decides nothing.
+ * The executor: a switch and a handful of canvas calls.
  *
- * Every judgement was made while the operation list was built, so this file is
- * a switch and a handful of canvas calls. When something looks wrong on screen,
- * the answer is in `ops/`, not here — which is the point of the split.
+ * Every judgement about *what* to draw was made while the operation list was
+ * built, so when something looks wrong on screen the answer is usually in
+ * `ops/`, not here — which is the point of the split.
+ *
+ * "Usually", because this file does own three decisions, and it owns them
+ * because they are about the engine rather than the picture: whether the
+ * context has `roundRect`, whether a pattern could be made, and whether a
+ * tainted canvas can be read back. Each is a fallback that only the moment of
+ * drawing can discover. It used to claim it decided *nothing*, which sent a
+ * reader chasing a rounded rectangle that renders square into the wrong file.
+ *
+ * It also used to re-ask whether the adjustments were worth applying, which
+ * `ops/build.ts` had already decided when it chose to emit the operation at
+ * all. That one is gone.
  */
 export interface RenderOptions {
   /** Clear the target before drawing. Off when compositing over something else. */
@@ -199,7 +210,6 @@ function drawText(context: Canvas2D, op: Extract<DrawOp, { op: "text" }>): void 
 }
 
 function adjustPixels(context: Canvas2D, op: Extract<DrawOp, { op: "adjust-pixels" }>): void {
-  if (!hasAdjustments(op.adjustments)) return;
   try {
     context.setTransform(1, 0, 0, 1, 0, 0);
     const image = context.getImageData(0, 0, op.width, op.height);

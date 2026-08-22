@@ -2,7 +2,7 @@ import { meanScale } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
 import type { Matrix, Rect, Size } from "../../geometry/types.js";
 import { createSurface, releaseSurface, type Canvas2D, type CanvasSurface } from "../../image/canvas.js";
-import { supportsContextFilter } from "../adjustments.js";
+import { supportsContextFilter } from "../filter-support.js";
 import { shuffleOrder } from "../scramble.js";
 import type { DrawOp } from "../ops/index.js";
 

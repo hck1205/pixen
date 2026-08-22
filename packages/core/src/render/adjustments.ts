@@ -1,38 +1,18 @@
 import type { Adjustments } from "../model/types.js";
-import type { Canvas2D } from "../image/canvas.js";
 
 /**
- * Canvas2D `filter` is unavailable on older Safari, so it is feature-detected —
- * per context, cached in a WeakMap rather than a module-level flag, so a test or
- * a second canvas can never inherit another one's answer.
- */
-const filterSupport = new WeakMap<object, boolean>();
-
-export function supportsContextFilter(context: Canvas2D): boolean {
-  const cached = filterSupport.get(context);
-  if (cached !== undefined) return cached;
-
-  let supported = false;
-  try {
-    const previous = context.filter;
-    context.filter = "brightness(1.5)";
-    supported = context.filter !== "none" && context.filter !== "";
-    context.filter = previous ?? "none";
-  } catch {
-    supported = false;
-  }
-  filterSupport.set(context, supported);
-  return supported;
-}
-
-/**
- * Pixel fallback for the CSS filter chain, for browsers without `ctx.filter`.
+ * The CSS filter chain, done a pixel at a time.
  *
- * The order here is the order `cssFilter` emits, because filters do not
- * commute: sepia after saturate is not saturate after sepia. An export must not
- * look different from the preview just because the browser lacks canvas
- * filters, so the two stay deliberately in step.
+ * This is what a browser without `ctx.filter` gets, and it has to reach the same
+ * picture: an export must not differ from the preview because of the engine it
+ * ran in. The order here is the order `cssFilter` emits, because filters do not
+ * commute — sepia after saturate is not saturate after sepia — so the two stay
+ * deliberately in step.
+ *
+ * Every matrix is written out from the W3C **Filter Effects Module Level 1**
+ * definitions rather than copied from anywhere; see `docs/PROVENANCE.md`.
  */
+
 /** Largest value a colour channel can hold. */
 const CHANNEL_MAX = 255;
 

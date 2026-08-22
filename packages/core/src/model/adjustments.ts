@@ -43,8 +43,3 @@ export function clampAdjustments(adjustments: Adjustments): Adjustments {
   }
   return clamped;
 }
-
-/** True when any adjustment is off its neutral value. */
-export function hasAdjustments(adjustments: Adjustments): boolean {
-  return ADJUSTMENT_KEYS.some((key) => adjustments[key] !== ADJUSTMENT_RANGES[key].neutral);
-}
