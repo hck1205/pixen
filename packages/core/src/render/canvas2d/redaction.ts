@@ -1,7 +1,7 @@
 import { meanScale } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
 import type { Matrix, Rect, Size } from "../../geometry/types.js";
-import { createSurface, releaseSurface, type Canvas2D, type CanvasSurface } from "../../image/canvas.js";
+import { drawnSurface, releaseSurface, type Canvas2D, type CanvasSurface } from "../../image/canvas.js";
 import { supportsContextFilter } from "../filter-support.js";
 import { shuffleOrder } from "../scramble.js";
 import type { DrawOp } from "../ops/index.js";
@@ -86,21 +86,21 @@ function clampRect(rect: Rect, width: number, height: number): Rect {
  * something.
  */
 function copyRegion(context: Canvas2D, region: Rect, target: Size, filter?: string): CanvasSurface {
-  const surface = createSurface(target.width, target.height);
-  if (filter) surface.context.filter = filter;
-  surface.context.imageSmoothingEnabled = true;
-  surface.context.drawImage(
-    context.canvas as CanvasImageSource,
-    region.x,
-    region.y,
-    region.width,
-    region.height,
-    0,
-    0,
-    target.width,
-    target.height,
-  );
-  return surface;
+  return drawnSurface(target, (surface) => {
+    if (filter) surface.context.filter = filter;
+    surface.context.imageSmoothingEnabled = true;
+    surface.context.drawImage(
+      context.canvas as CanvasImageSource,
+      region.x,
+      region.y,
+      region.width,
+      region.height,
+      0,
+      0,
+      target.width,
+      target.height,
+    );
+  });
 }
 
 /** Draws part of a surface back over a device-space region, at identity. */

@@ -1,7 +1,7 @@
 import { QUARTER_TURN, normaliseAngle } from "../geometry/angles.js";
 import { CROP_HANDLES, handlePosition, type CropHandle } from "../geometry/crop.js";
 import { center, longestEdge } from "../geometry/rect.js";
-import type { Point, Rect } from "../geometry/types.js";
+import type { Point, Rect, Size } from "../geometry/types.js";
 import { layerBounds } from "./layers.js";
 import type { EditorLayer } from "./types.js";
 
@@ -157,15 +157,14 @@ export function resizeLayer(
   let height = bottom - top;
 
   if (aspectRatio) {
-    // A side handle drives one axis; a corner takes whichever the pointer
-    // pushed further, so a diagonal drag follows the hand.
-    if (axes.y === 0 || (axes.x !== 0 && width / aspectRatio >= height)) height = width / aspectRatio;
-    else width = height * aspectRatio;
+    ({ width, height } = lockedSize(width, height, axes, aspectRatio, minSize));
 
-    if (axes.x === -1) left = right - width;
-    else right = left + width;
-    if (axes.y === -1) top = bottom - height;
-    else bottom = top + height;
+    // An axis the handle drives grows away from the pinned edge. An axis it does
+    // not — the vertical one under a side handle — grows about its own centre,
+    // which is what keeps the opposite edge's midpoint still. Pinning that axis's
+    // near edge instead walked the whole layer down the picture as it widened.
+    [left, right] = spanFor(left, right, width, axes.x);
+    [top, bottom] = spanFor(top, bottom, height, axes.y);
   }
 
   const resized: Rect = { x: left, y: top, width: right - left, height: bottom - top };
@@ -204,4 +203,37 @@ export function rotateLayer(
   const angle = Math.atan2(pointer.y - centre.y, pointer.x - centre.x) + QUARTER_TURN;
   const snap = options.snap ?? 0;
   return { ...layer, rotation: normaliseAngle(snap > 0 ? Math.round(angle / snap) * snap : angle) };
+}
+
+/**
+ * The size a locked ratio allows, honouring the floor on *both* axes.
+ *
+ * The floor is applied to the dragged axis before the ratio derives the other
+ * one, so the derived axis had no floor at all: a 10:1 layer collapsed to 20×2
+ * when asked for a minimum of 20. The smallest box on a given ratio that clears
+ * the floor on both axes is what this returns instead.
+ */
+function lockedSize(
+  width: number,
+  height: number,
+  axes: { x: number; y: number },
+  aspectRatio: number,
+  minSize: number,
+): Size {
+  // A side handle drives one axis; a corner takes whichever the pointer pushed
+  // further, so a diagonal drag follows the hand.
+  const driven = axes.y === 0 || (axes.x !== 0 && width / aspectRatio >= height);
+  const locked = driven ? { width, height: width / aspectRatio } : { width: height * aspectRatio, height };
+
+  const minWidth = Math.max(minSize, minSize * aspectRatio);
+  if (locked.width >= minWidth) return locked;
+  return { width: minWidth, height: minWidth / aspectRatio };
+}
+
+/** Where an axis's edges land: away from the pinned one, or about the centre. */
+function spanFor(near: number, far: number, length: number, axis: number): [number, number] {
+  if (axis === -1) return [far - length, far];
+  if (axis === 1) return [near, near + length];
+  const middle = (near + far) / 2;
+  return [middle - length / 2, middle + length / 2];
 }

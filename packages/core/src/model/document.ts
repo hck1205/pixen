@@ -3,6 +3,7 @@ import { stageSizeFor } from "../geometry/spaces.js";
 import type { Rect, Size } from "../geometry/types.js";
 import { deepClone } from "../util/clone.js";
 import {
+  ADJUSTMENT_KEYS,
   DEFAULT_ADJUSTMENTS,
   DEFAULT_OUTPUT,
   SCHEMA_VERSION,
@@ -63,20 +64,35 @@ export function outputSize(document: EditorDocument): Size {
 
 
 
-/** True when the document would export the source unchanged. */
+/**
+ * True when the document would export the source unchanged.
+ *
+ * What disables the Reset button, which is why every edit has to count. The
+ * adjustments are derived from `ADJUSTMENT_KEYS` rather than listed: three of
+ * the nine were named here and the other six were not, so a picture with only a
+ * vignette, or only a grayscale, reported as untouched and offered no way back
+ * from the chrome. `ADJUSTMENT_KEYS` exists so that a new adjustment reaches
+ * everything that iterates it; this was the one place that opted out.
+ *
+ * The frame, the clip and a chosen output format are edits too, and were
+ * missing for the same reason — nothing here changed when they were added.
+ */
 export function isPristine(document: EditorDocument): boolean {
   const { transform, adjustments, output } = document;
   return (
     document.crop === null &&
+    document.clip === null &&
+    document.frame === null &&
     document.layers.length === 0 &&
+    document.aspectRatio === null &&
     transform.rotation === 0 &&
     !transform.flipX &&
     !transform.flipY &&
-    adjustments.brightness === 0 &&
-    adjustments.contrast === 0 &&
-    adjustments.saturation === 0 &&
+    ADJUSTMENT_KEYS.every((key) => adjustments[key] === DEFAULT_ADJUSTMENTS[key]) &&
     output.width === null &&
-    output.height === null
+    output.height === null &&
+    output.format === null &&
+    output.background === null
   );
 }
 

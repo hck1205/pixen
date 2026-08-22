@@ -24,6 +24,18 @@ describe("planVariants", () => {
     expect(planVariants(natural, [{ width: 800 }, { scale: 0.5 }])).toHaveLength(1);
   });
 
+  it("keeps the same size at another quality, which is a different file", () => {
+    // The same pixels, encoded twice: a retina card at 0.9 and a preview at 0.5.
+    // Dropping the second returns a plan short of what was asked for, with the
+    // sizes matching, so nothing looks wrong until somebody compares the bytes.
+    const plans = planVariants(natural, [
+      { width: 800, format: "image/webp", quality: 0.9, label: "card" },
+      { width: 800, format: "image/webp", quality: 0.5, label: "preview" },
+    ]);
+    expect(plans.map((plan) => plan.quality)).toEqual([0.9, 0.5]);
+    expect(plans.map((plan) => plan.label)).toEqual(["card", "preview"]);
+  });
+
   it("keeps the same size in another format, which is a different file", () => {
     const plans = planVariants(natural, [
       { width: 800, format: "image/webp" },

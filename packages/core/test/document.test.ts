@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADJUSTMENT_KEYS,
+  ADJUSTMENT_RANGES,
   DEFAULT_ADJUSTMENTS,
   createDocument,
   deserializeDocument,
@@ -141,5 +143,56 @@ describe("migrations", () => {
 
   it("refuses a second migration for a version that already has one", () => {
     expect(() => registerMigration(1, (document) => document)).toThrowError(/already registered/);
+  });
+});
+
+/**
+ * `isPristine` is what disables the Reset button, so every edit has to count.
+ *
+ * Three of the nine adjustments were named here and the other six were not, so a
+ * picture with only a vignette — or only a grayscale, sepia, invert, hue or
+ * exposure — reported as untouched and left the user no way back from the
+ * chrome. The frame, the clip and a chosen output format were missing for the
+ * same reason: nothing here changed when they were added.
+ *
+ * The loop is over `ADJUSTMENT_KEYS` rather than a list of its own, so a tenth
+ * adjustment is covered the day it exists.
+ */
+describe("isPristine", () => {
+  const untouched = () => createDocument({ resourceId: "res_1", width: 800, height: 600, duration: 10 });
+
+  it("is true for a document nothing has been done to", () => {
+    expect(isPristine(untouched())).toBe(true);
+  });
+
+  it("notices every adjustment, not the three that were listed", () => {
+    for (const key of ADJUSTMENT_KEYS) {
+      const range = ADJUSTMENT_RANGES[key];
+      // Something the control could actually produce, away from neutral.
+      const value = range.neutral === range.max ? range.min : range.max;
+      const adjusted = { ...untouched(), adjustments: { ...untouched().adjustments, [key]: value } };
+      expect(isPristine(adjusted), `${key} = ${value}`).toBe(false);
+    }
+  });
+
+  it("notices the edits that are not adjustments", () => {
+    const cases: Array<[string, Partial<ReturnType<typeof untouched>>]> = [
+      ["crop", { crop: { x: 0, y: 0, width: 10, height: 10 } }],
+      ["clip", { clip: { start: 1, end: 2 } }],
+      ["frame", { frame: { style: "solid", width: 0.02, colour: "#ffffff", radius: 0, inset: 0 } }],
+      ["aspectRatio", { aspectRatio: 1 }],
+      ["rotation", { transform: { rotation: 0.1, flipX: false, flipY: false } }],
+      ["flipX", { transform: { rotation: 0, flipX: true, flipY: false } }],
+    ];
+    for (const [name, patch] of cases) {
+      expect(isPristine({ ...untouched(), ...patch }), name).toBe(false);
+    }
+  });
+
+  it("notices the output settings a host can change", () => {
+    const output = untouched().output;
+    for (const patch of [{ width: 400 }, { height: 400 }, { format: "image/png" as const }, { background: "#000" }]) {
+      expect(isPristine({ ...untouched(), output: { ...output, ...patch } }), Object.keys(patch)[0]).toBe(false);
+    }
   });
 });

@@ -1,6 +1,12 @@
 import { toPixenError } from "../errors/index.js";
 import type { Size } from "../geometry/types.js";
-import { assertDrawableSize, createSurface, releaseSurface, type CanvasSurface } from "../image/canvas.js";
+import {
+  assertDrawableSize,
+  createSurface,
+  drawnSurface,
+  releaseSurface,
+  type CanvasSurface,
+} from "../image/canvas.js";
 import { encodeSurface, encodeWithinBudget, extensionForFormat, supportsTransparency } from "../image/encode.js";
 import { withExifSegment } from "../image/jpeg.js";
 import { portableExif, type MetadataPolicy } from "../image/metadata.js";
@@ -279,12 +285,10 @@ export function renderDocumentToCanvas(
   const target = options.target ?? documentOutputSize(document);
   assertDrawableSize(target, "render target");
 
-  const surface = createSurface(target.width, target.height);
   const scene = createScene(
     document,
     { source: resource.source, sourceScale: 1, resolveResource: resources.resolve },
     { region, target },
   );
-  renderScene(surface.context, scene);
-  return surface;
+  return drawnSurface(target, (surface) => renderScene(surface.context, scene));
 }

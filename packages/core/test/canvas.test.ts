@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertDrawableSize, isPixenError, MAX_CANVAS_PIXELS } from "@pixen/core";
+import { assertDrawableSize, drawnSurface, isPixenError, MAX_CANVAS_PIXELS } from "@pixen/core";
 
 /**
  * The ceiling `docs/SECURITY.md` promises, tested rather than asserted.
@@ -72,5 +72,70 @@ describe("assertDrawableSize", () => {
     // allocated rather than what was asked for.
     expect(() => assertDrawableSize({ width: 0.4, height: 0.4 })).not.toThrow();
     expect(refusal({ width: 16_384.1, height: 16_384 }).code).toBe("MEMORY_LIMIT");
+  });
+});
+
+/**
+ * The window in which a half-drawn surface belongs to nobody.
+ *
+ * Four places allocate a surface, paint it, and hand it to a caller who owns it
+ * from then on. Between the allocation and the return there is no owner, so a
+ * throw there dropped a canvas still holding its backing store — and the note
+ * on `releaseCanvas` is explicit that the collector will not hurry over one. A
+ * failed export of a large photograph pinned its pixels while the host showed
+ * an error and the user pressed the button again.
+ *
+ * Node has no canvas, so the platform class is stood in for. It is a thin one on
+ * purpose: `createSurface` and `releaseSurface` are the code under test, and
+ * they only ever touch `getContext`, `width` and `height`.
+ */
+describe("drawnSurface", () => {
+  class StubCanvas {
+    constructor(
+      public width: number,
+      public height: number,
+    ) {}
+    getContext(): object {
+      return { canvas: this };
+    }
+  }
+
+  function withStubCanvas<T>(run: () => T): T {
+    const original = Reflect.get(globalThis, "OffscreenCanvas");
+    Reflect.set(globalThis, "OffscreenCanvas", StubCanvas);
+    try {
+      return run();
+    } finally {
+      if (original === undefined) Reflect.deleteProperty(globalThis, "OffscreenCanvas");
+      else Reflect.set(globalThis, "OffscreenCanvas", original);
+    }
+  }
+
+  const target = { width: 640, height: 480 };
+
+  it("hands back a surface the drawing filled in, still allocated", () => {
+    const surface = withStubCanvas(() => drawnSurface(target, () => undefined));
+    expect(surface.canvas.width).toBe(640);
+    expect(surface.canvas.height).toBe(480);
+  });
+
+  it("releases the surface when the drawing throws, and rethrows what threw", () => {
+    let leaked: { width: number; height: number } | null = null;
+    const boom = new Error("the scene could not be drawn");
+
+    expect(() =>
+      withStubCanvas(() =>
+        drawnSurface(target, (surface) => {
+          leaked = surface.canvas;
+          throw boom;
+        }),
+      ),
+    ).toThrow(boom);
+
+    // Zeroing the dimensions is the only portable way to free canvas memory,
+    // which is what `releaseSurface` does and what this asserts happened.
+    expect(leaked).not.toBeNull();
+    expect(leaked!.width).toBe(0);
+    expect(leaked!.height).toBe(0);
   });
 });

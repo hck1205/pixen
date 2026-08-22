@@ -1,4 +1,4 @@
-import { assertDrawableSize, createSurface, releaseSurface, type CanvasSurface } from "../image/canvas.js";
+import { assertDrawableSize, drawnSurface, releaseSurface, type CanvasSurface } from "../image/canvas.js";
 import { encodeSurface } from "../image/encode.js";
 import { longestEdge } from "../geometry/rect.js";
 import type { Rect, Size } from "../geometry/types.js";
@@ -69,15 +69,19 @@ export function renderMask(
   // Alpha only when nothing is painted behind the marks; an opaque context is
   // cheaper, and a mask with a background has nothing to be transparent about.
   const background = options.background === undefined ? DEFAULT_BACKGROUND : options.background;
-  const surface = createSurface(target.width, target.height, background === null);
-  if (background !== null) {
-    surface.context.fillStyle = background;
-    surface.context.fillRect(0, 0, target.width, target.height);
-  }
-
   const grow = (options.padding ?? 0) * longestEdge(target);
-  executeOps(surface.context, maskOps(buildSceneOps(scene), foreground, grow));
-  return surface;
+
+  return drawnSurface(
+    target,
+    (surface) => {
+      if (background !== null) {
+        surface.context.fillStyle = background;
+        surface.context.fillRect(0, 0, target.width, target.height);
+      }
+      executeOps(surface.context, maskOps(buildSceneOps(scene), foreground, grow));
+    },
+    background === null,
+  );
 }
 
 export async function maskBlob(

@@ -89,6 +89,31 @@ export function releaseSurface(surface: CanvasSurface | null | undefined): void 
 }
 
 /**
+ * A surface with something already drawn on it, released if the drawing throws.
+ *
+ * Four places allocate a surface, paint it and hand it to a caller who owns it
+ * from then on — the mask, the redaction copy, the preview proxy and the canvas
+ * render. In each of them a throw between the allocation and the return dropped
+ * the surface on the floor still holding its backing store, and a canvas is
+ * exactly the thing the note above `releaseCanvas` says the collector will not
+ * hurry over: a failed export of a 48-megapixel photograph left 190MB pinned
+ * while the host showed an error and the user pressed the button again.
+ *
+ * The caller still owns what comes back, and still releases it. This only covers
+ * the window where nobody owns it yet.
+ */
+export function drawnSurface(target: Size, draw: (surface: CanvasSurface) => void, alpha = true): CanvasSurface {
+  const surface = createSurface(target.width, target.height, alpha);
+  try {
+    draw(surface);
+    return surface;
+  } catch (cause) {
+    releaseSurface(surface);
+    throw cause;
+  }
+}
+
+/**
  * Lets a drawable go.
  *
  * The three kinds hold memory the garbage collector will not hurry over: an

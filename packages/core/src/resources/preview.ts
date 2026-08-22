@@ -1,6 +1,6 @@
 import { scaleToFit } from "../geometry/rect.js";
 import type { Size } from "../geometry/types.js";
-import { createSurface, disposeImageSource } from "../image/canvas.js";
+import { disposeImageSource, drawnSurface } from "../image/canvas.js";
 import { drawResized } from "../image/resize.js";
 
 /**
@@ -101,8 +101,9 @@ export class PreviewProxy {
   }
 
   #render(target: Size): PreviewBitmap {
-    const surface = createSurface(target.width, target.height);
-    drawResized(surface.context, this.source, this.size, target);
+    const surface = drawnSurface(target, (drawing) =>
+      drawResized(drawing.context, this.source, this.size, target),
+    );
     return { source: surface.canvas, ...target, scale: target.width / this.size.width };
   }
 }

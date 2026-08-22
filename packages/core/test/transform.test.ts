@@ -129,6 +129,41 @@ describe("resizeLayer", () => {
     expect(anchorAfter.y).toBeCloseTo(anchorBefore.y);
   });
 
+  it("honours the minimum on the axis the ratio derives, not just the dragged one", () => {
+    const layer = createImageLayer("res_1", { x: 0, y: 0, width: 100, height: 10 });
+    // A 10:1 layer collapsed to the far side with a floor of 20. The floor used
+    // to be applied before the ratio derived the height, so the height came out
+    // at 2 — a fifth of the minimum, on a layer that asked for one.
+    const bounds = layerBounds(resizeLayer(layer, "right", { x: -500, y: 0 }, { minSize: 20, aspectRatio: 10 }));
+    expect(bounds.width).toBeGreaterThanOrEqual(20);
+    expect(bounds.height).toBeGreaterThanOrEqual(20);
+    expect(bounds.width / bounds.height).toBeCloseTo(10);
+  });
+
+  it("keeps the opposite edge's midpoint still on a ratio-locked side drag", () => {
+    const layer = createImageLayer("res_1", { x: 0, y: 0, width: 100, height: 100 });
+    const before = layerHandlePosition(layer, "left");
+    const resized = resizeLayer(layer, "right", { x: 300, y: 0 }, { aspectRatio: 1 });
+    const after = layerHandlePosition(resized, "left");
+
+    // Widening a square used to make it grow downwards as well as rightwards,
+    // because the derived height was pinned to the top edge — so a layer walked
+    // down the picture over a few drags. The vertical axis is free here: it
+    // belongs to neither the handle nor the edge opposite it, and grows about
+    // its own centre.
+    expect(layerBounds(resized)).toMatchObject({ width: 300, height: 300 });
+    expect(after.x).toBeCloseTo(before.x);
+    expect(after.y).toBeCloseTo(before.y);
+  });
+
+  it("keeps it still for a rotated layer too, which is the same rule", () => {
+    const layer = createRectLayer({ x: 0, y: 0, width: 100, height: 100 }, { rotation: Math.PI / 6 });
+    const before = layerHandlePosition(layer, "left");
+    const after = layerHandlePosition(resizeLayer(layer, "right", { x: 300, y: 0 }, { aspectRatio: 1 }), "left");
+    expect(after.x).toBeCloseTo(before.x);
+    expect(after.y).toBeCloseTo(before.y);
+  });
+
   it("grows a rotated layer along its own axes, not the image's", () => {
     const layer = createRectLayer(frame, { rotation: Math.PI / 2 });
     // Under a quarter turn, dragging the "right" handle moves the pointer down
