@@ -9,7 +9,7 @@
 import "@pixen/web";
 import type { EditorDocument } from "@pixen/core";
 import { exportClip, openVideo, supportedRecordingType, type VideoSource } from "@pixen/video";
-import { recordSampleClip, SAMPLE_SECONDS } from "./sample-clip.js";
+import { recordSampleClip, SAMPLE_MIDDLE_BAND, SAMPLE_SECONDS } from "./sample-clip.js";
 
 type EditorElement = HTMLElement & {
   editor: {
@@ -47,7 +47,7 @@ async function openSample(): Promise<void> {
     if (opened) element.editor.resources.dispose(opened.resource.id);
     opened = await openVideo(element.editor as never, blob, { name: "sample.webm" });
     // Trim to the middle second, so the demo opens on something already trimmed.
-    element.editor.dispatch({ kind: "set-clip", range: { start: 1, end: 2 } });
+    element.editor.dispatch({ kind: "set-clip", range: SAMPLE_MIDDLE_BAND });
     say(clipStatus, `Open: ${opened.duration.toFixed(2)}s, trimmed to the middle second.`);
     if (exportButton) exportButton.disabled = false;
   } catch (error) {

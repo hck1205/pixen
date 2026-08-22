@@ -32,6 +32,28 @@ declare global {
   }
 }
 
+/**
+ * The editor, as this suite uses it.
+ *
+ * Declared once. Four tests each cast `#editor` to a different shape — three
+ * fields, then two, then two others — so they disagreed about what the element
+ * is, and a change to the demo surface had to be found in four places.
+ * `check:duplication` cannot see this: its scan covers `packages/*` and
+ * `apps/*`, not `tests/`.
+ *
+ * The type is shared; the lookup is not. Everything inside `page.evaluate` runs
+ * in the browser, where nothing declared out here exists at run time — a helper
+ * would be a `ReferenceError`, and only the type survives the boundary.
+ */
+type VideoEditor = HTMLElement & {
+  editor: {
+    document: { source: { resourceId: string; width: number; height: number; duration: number } };
+    dispatch(intent: unknown): unknown;
+    resources: { dispose(id: string): void };
+  };
+};
+
+
 async function openVideoPage(page: Page): Promise<void> {
   await page.goto("/video.html");
   await page.waitForFunction(() => Boolean(window.pixenVideoDemo));
@@ -45,12 +67,11 @@ test.describe("video", () => {
     await openVideoPage(page);
 
     const opened = await page.evaluate(async () => {
-      const element = document.querySelector("#editor") as HTMLElement & { editor: Record<string, never> };
+      const element = document.querySelector("#editor") as VideoEditor;
       const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 2 });
       const source = await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "sample.webm" });
-      const editor = element.editor as unknown as { document: { source: Record<string, number | string> } };
       return {
-        document: editor.document.source,
+        document: element.editor.document.source,
         elementSize: [source.element.videoWidth, source.element.videoHeight],
         duration: source.duration,
       };
@@ -72,9 +93,7 @@ test.describe("video", () => {
     await openVideoPage(page);
 
     const outcome = await page.evaluate(async () => {
-      const element = document.querySelector("#editor") as HTMLElement & {
-        editor: { document: unknown; dispatch(intent: unknown): unknown; resources: unknown };
-      };
+      const element = document.querySelector("#editor") as VideoEditor;
       const demo = window.pixenVideoDemo;
 
       // Three seconds: red, then green, then blue.
@@ -83,7 +102,7 @@ test.describe("video", () => {
 
       // Keep the middle second, inset from both edges so a frame either side of
       // the boundary cannot drift into the answer.
-      (element.editor as { dispatch(intent: unknown): unknown }).dispatch({
+      element.editor.dispatch({
         kind: "set-clip",
         range: { start: 1.2, end: 1.8 },
       });
@@ -167,9 +186,7 @@ test.describe("video", () => {
     await openVideoPage(page);
 
     const outcome = await page.evaluate(async () => {
-      const element = document.querySelector("#editor") as HTMLElement & {
-        editor: { document: { source: { resourceId: string } }; resources: { dispose(id: string): void } };
-      };
+      const element = document.querySelector("#editor") as VideoEditor;
       const demo = window.pixenVideoDemo;
       const clip = await demo.recordSampleClip({ seconds: 1 });
       const source = await demo.openVideo(element.editor, clip);
@@ -209,9 +226,7 @@ test.describe("video", () => {
     await openVideoPage(page);
 
     const outcome = await page.evaluate(async () => {
-      const element = document.querySelector("#editor") as HTMLElement & {
-        editor: { document: unknown; resources: unknown };
-      };
+      const element = document.querySelector("#editor") as VideoEditor;
       const demo = window.pixenVideoDemo;
       const clip = await demo.recordSampleClip({ seconds: 1 });
       const source = await demo.openVideo(element.editor, clip);
@@ -260,9 +275,7 @@ test.describe("video", () => {
     await openVideoPage(page);
 
     const outcome = await page.evaluate(async () => {
-      const element = document.querySelector("#editor") as HTMLElement & {
-        editor: { document: unknown; resources: unknown };
-      };
+      const element = document.querySelector("#editor") as VideoEditor;
       const demo = window.pixenVideoDemo;
       const clip = await demo.recordSampleClip({ seconds: 1 });
       const source = await demo.openVideo(element.editor, clip);
@@ -297,9 +310,7 @@ test.describe("video", () => {
     await openVideoPage(page);
 
     const outcome = await page.evaluate(async () => {
-      const element = document.querySelector("#editor") as HTMLElement & {
-        editor: { document: unknown; resources: unknown };
-      };
+      const element = document.querySelector("#editor") as VideoEditor;
       const demo = window.pixenVideoDemo;
       const clip = await demo.recordSampleClip({ seconds: 3 });
       const source = await demo.openVideo(element.editor, clip);

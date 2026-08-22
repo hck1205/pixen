@@ -48,6 +48,26 @@ export function useBlob(factory: () => Promise<Blob>, deps: unknown[] = []): Blo
   return blob;
 }
 
+/**
+ * A blob to show, and the URL to show it with.
+ *
+ * The blob is the state; the URL is derived from it and released when it stops
+ * being current. Both preview panels used to revoke inside a `setState`
+ * updater, which React may call more than once and which is supposed to be
+ * pure — and neither released the last one when the story unmounted.
+ */
+export function usePreviewBlob(): [string | null, (blob: Blob) => void] {
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
+  useEffect(
+    () => () => {
+      if (url) URL.revokeObjectURL(url);
+    },
+    [url],
+  );
+  return [url, setBlob];
+}
+
 export interface StageProps {
   children: ReactNode;
   /** Height of the editor frame; stories that check layout override it. */

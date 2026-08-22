@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createSurface, drawResized, maskBlob, srcset, type ExportHooks, type ExportVariant } from "@pixen/core";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import { seedAnnotations, seedStyling } from "./fixtures.js";
-import { Row, SeededEditor, Stage, formatBytes, useSampleImage } from "./harness.js";
+import { Row, SeededEditor, Stage, formatBytes, usePreviewBlob, useSampleImage } from "./harness.js";
 import { codeBlock, hostButton, logList, note, panelTitle, table, tableCell, tableHeader } from "./styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
@@ -131,7 +131,7 @@ export const Pipeline: Story = () => {
   const [stamp, setStamp] = useState(true);
   const [shrink, setShrink] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreviewBlob] = usePreviewBlob();
 
   const hooks: ExportHooks = {
     document: (source) =>
@@ -169,10 +169,7 @@ export const Pipeline: Story = () => {
       ...(shrink ? { width: THUMBNAIL_WIDTH } : {}),
       hooks,
     });
-    setPreview((previous) => {
-      if (previous) URL.revokeObjectURL(previous);
-      return URL.createObjectURL(result.blob);
-    });
+    setPreviewBlob(result.blob);
     setLog((entries) => [...entries, `${result.filename} · ${formatBytes(result.bytes)}`]);
   }
 
@@ -244,17 +241,14 @@ const THUMBNAIL_WIDTH = 240;
 export const Mask: Story = () => {
   const image = useSampleImage();
   const handle = useRef<PixenImageEditorHandle>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreviewBlob] = usePreviewBlob();
   const [padding, setPadding] = useState(0.01);
 
   async function build(): Promise<void> {
     const editor = handle.current?.editor;
     if (!editor) return;
     const blob = await maskBlob(editor.document, editor.resources, { padding });
-    setPreview((previous) => {
-      if (previous) URL.revokeObjectURL(previous);
-      return URL.createObjectURL(blob);
-    });
+    setPreviewBlob(blob);
   }
 
   return (

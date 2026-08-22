@@ -17,10 +17,23 @@ const SAMPLE_HEIGHT = 270;
 const SAMPLE_FRAME_RATE = 30;
 
 /** One per second, so the second something came from is readable off the picture. */
-export const SAMPLE_COLOURS: readonly string[] = ["#d94040", "#3fa85f", "#3d6fd9"];
+const SAMPLE_COLOURS: readonly string[] = ["#d94040", "#3fa85f", "#3d6fd9"];
+
+/**
+ * The band in the middle — the green second.
+ *
+ * Derived rather than written as `{ start: 1, end: 2 }`, which was only the
+ * middle because the sample happens to be three seconds long. Lengthen it and
+ * that literal quietly becomes the *second* second — the same green band, so
+ * nothing would look wrong.
+ */
+export const SAMPLE_MIDDLE_BAND = {
+  start: SAMPLE_SECONDS / SAMPLE_COLOURS.length,
+  end: (SAMPLE_SECONDS / SAMPLE_COLOURS.length) * 2,
+};
 
 /** The colour the sample is showing at a given moment. */
-export function sampleColourAt(seconds: number): string {
+function sampleColourAt(seconds: number): string {
   const index = Math.floor(Math.max(0, seconds));
   return SAMPLE_COLOURS[Math.min(SAMPLE_COLOURS.length - 1, index)] as string;
 }
