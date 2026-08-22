@@ -1,5 +1,5 @@
 import { longestEdge, type EditorLayer, type TextLayer } from "@pixen/core";
-import { field, input, textButton } from "../../dom/index.js";
+import { field, input, optionButton, textButton } from "../../dom/index.js";
 import {
   CORNER_RATIO_RANGE,
   FONT_RATIO_RANGE,
@@ -63,8 +63,8 @@ function buildControl(context: ChromeContext, control: StyleControl, selected: E
             onInput: (value) => apply({ fill: value }, { fill: value }),
           }),
         ),
-        textButton({
-          label: `${strings.fillColour}: ${strings.fillNone}`,
+        optionButton({
+          group: strings.fillColour,
           text: strings.fillNone,
           active: style.fill === null,
           onClick: () => apply({ fill: null }, { fill: null }),

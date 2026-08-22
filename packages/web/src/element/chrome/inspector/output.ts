@@ -1,5 +1,5 @@
 import { isLossy, resolveOutputFormat, type ImageFormat } from "@pixen/core";
-import { field, input, textButton } from "../../dom/index.js";
+import { field, input, optionButton, textButton } from "../../dom/index.js";
 import { OUTPUT_QUALITY_RANGE } from "../../constants.js";
 import type { ChromeContext } from "../context.js";
 import {
@@ -81,8 +81,8 @@ export function buildOutputControls(context: ChromeContext): Node[] {
   // remove it would be offering something that cannot happen.
   if (!backgroundRequired(format)) {
     nodes.push(
-      textButton({
-        label: `${strings.background}: ${strings.backgroundNone}`,
+      optionButton({
+        group: strings.background,
         text: strings.backgroundNone,
         active: output.background === null,
         dataset: { field: "background-none" },

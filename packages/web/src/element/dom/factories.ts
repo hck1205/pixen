@@ -57,6 +57,28 @@ export function textButton(spec: TextButtonSpec): HTMLButtonElement {
   return button({ ...spec, className: "text", label: spec.label ?? spec.text });
 }
 
+export interface OptionButtonSpec extends Omit<TextButtonSpec, "label"> {
+  /** What this is an option *of*: the aspect ratio, the frame, the background. */
+  group: string;
+}
+
+/**
+ * One choice among several, named by what it is a choice of.
+ *
+ * "None", "Free" and "Off" are the buttons whose visible text says nothing on
+ * its own — a screen reader announcing "None" leaves the listener to work out
+ * none of what — so five sections built the qualified name by hand, each with
+ * its own template literal. That is five chances to write the separator
+ * differently and five to forget the qualifier.
+ *
+ * Not every option wants one: a preset called "Vivid" and a sticker with the
+ * host's own name on it already say what they are, and "Adjustments: Vivid"
+ * would be worse. This is for the ones that do not.
+ */
+export function optionButton({ group, ...spec }: OptionButtonSpec): HTMLButtonElement {
+  return textButton({ ...spec, label: `${group}: ${spec.text}` });
+}
+
 export interface InputSpec {
   type: string;
   value: string;

@@ -1,5 +1,6 @@
 import { button, setPressed } from "../dom/index.js";
 import { TOOL_META } from "../constants.js";
+import { railPanelState, railToolState } from "./availability.js";
 import type { ChromeContext } from "./context.js";
 
 /**
@@ -57,15 +58,18 @@ export function buildRail(context: ChromeContext): Node[] {
 
 /** Pressed and disabled states, written onto the existing buttons. */
 export function refreshRail(host: HTMLElement, context: ChromeContext): void {
-  const ready = context.editor.ready;
+  // See `railToolState`: the pressed rule is a decision, and it is made there.
+  const conditions = { ready: context.editor.ready, panel: context.panel, tool: context.tool };
 
   for (const control of host.querySelectorAll<HTMLButtonElement>("button[data-tool]")) {
-    control.disabled = !ready;
-    setPressed(control, context.panel === "tool" && control.dataset.tool === context.tool);
+    const state = railToolState(conditions, control.dataset.tool ?? "");
+    control.disabled = state.disabled;
+    setPressed(control, state.pressed);
   }
 
   for (const panel of host.querySelectorAll<HTMLButtonElement>("button[data-panel]")) {
-    panel.disabled = !ready;
-    setPressed(panel, context.panel === panel.dataset.panel);
+    const state = railPanelState(conditions, panel.dataset.panel ?? "");
+    panel.disabled = state.disabled;
+    setPressed(panel, state.pressed);
   }
 }
