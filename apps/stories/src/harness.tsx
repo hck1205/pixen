@@ -34,18 +34,26 @@ export function useSampleImage(options: SampleOptions = {}): Blob | null {
   return image;
 }
 
-export function useBlob(factory: () => Promise<Blob>, deps: unknown[] = []): Blob | null {
-  const [blob, setBlob] = useState<Blob | null>(null);
+/**
+ * A value produced once, asynchronously, with the late arrival dropped.
+ *
+ * Every story that measures something — eight input kinds, five hook calls, the
+ * codecs this browser will write — is this shape: run it, hold the result, and
+ * do not set state into a story the reader has already navigated away from.
+ * There were five copies before the duplication scan counted them.
+ */
+export function useAsync<T>(factory: () => Promise<T>, deps: unknown[] = []): T | null {
+  const [value, setValue] = useState<T | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void factory().then((value) => {
-      if (!cancelled) setBlob(value);
+    void factory().then((result) => {
+      if (!cancelled) setValue(result);
     });
     return () => {
       cancelled = true;
     };
   }, deps);
-  return blob;
+  return value;
 }
 
 /**

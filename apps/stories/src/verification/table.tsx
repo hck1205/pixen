@@ -16,7 +16,9 @@ import {
   type ClaimGroup,
   type Verdict,
 } from "./claim.js";
-import { capabilityCell, evidenceCell, fixedTable, note, panelTitle, tableCell, tableHeader } from "../styles.js";
+import { DataTable, type Column } from "../data-table.js";
+import { evidenceCell, note, panelTitle } from "../styles.js";
+import type { Story } from "@ladle/react";
 import type { CSSProperties } from "react";
 
 /**
@@ -62,6 +64,29 @@ function MarketCell({ claim }: { claim: Claim }) {
   );
 }
 
+const CLAIM_COLUMNS: ReadonlyArray<Column<Claim>> = [
+  { header: "Capability", width: "12%", cell: (claim) => claim.capability, style: { fontWeight: 600 } },
+  {
+    header: "Pixen",
+    width: "32%",
+    cell: (claim) => (
+      <>
+        <div>{claim.pixen}</div>
+        {claim.note && <div style={{ opacity: 0.6, fontSize: 12, marginTop: 6 }}>{claim.note}</div>}
+      </>
+    ),
+  },
+  { header: "Asked for", width: "22%", cell: (claim) => <MarketCell claim={claim} />, style: { opacity: 0.85 } },
+  { header: "Verdict", width: "15%", cell: (claim) => <VerdictPill verdict={claim.verdict} /> },
+  {
+    header: "Evidence",
+    width: "19%",
+    cell: (claim) =>
+      claim.evidence.map((evidence) => <div key={evidenceLabel(evidence)}>{evidenceLabel(evidence)}</div>),
+    style: evidenceCell,
+  },
+];
+
 export function ClaimTable({ groups }: { groups: readonly ClaimGroup[] }) {
   return (
     <section style={{ display: "grid", gap: 28, padding: "4px 2px 40px" }}>
@@ -69,53 +94,28 @@ export function ClaimTable({ groups }: { groups: readonly ClaimGroup[] }) {
         <section key={group.title} style={{ display: "grid", gap: 8 }}>
           <h3 style={panelTitle}>{group.title}</h3>
           <p style={note}>{group.summary}</p>
-          <table style={fixedTable}>
-            {/* Fixed proportions: left to itself the browser gives the widest
-                column to whichever cell happens to hold the longest word, and
-                the requirement column came out one word per line. */}
-            <colgroup>
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "32%" }} />
-              <col style={{ width: "22%" }} />
-              <col style={{ width: "15%" }} />
-              <col style={{ width: "19%" }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th style={tableHeader}>Capability</th>
-                <th style={tableHeader}>Pixen</th>
-                <th style={tableHeader}>Asked for</th>
-                <th style={tableHeader}>Verdict</th>
-                <th style={tableHeader}>Evidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.claims.map((claim) => (
-                <tr key={claim.capability}>
-                  <td style={{ ...capabilityCell, whiteSpace: "normal" }}>{claim.capability}</td>
-                  <td style={tableCell}>
-                    <div>{claim.pixen}</div>
-                    {claim.note && (
-                      <div style={{ opacity: 0.6, fontSize: 12, marginTop: 6 }}>{claim.note}</div>
-                    )}
-                  </td>
-                  <td style={{ ...tableCell, opacity: 0.85 }}>
-                    <MarketCell claim={claim} />
-                  </td>
-                  <td style={tableCell}>
-                    <VerdictPill verdict={claim.verdict} />
-                  </td>
-                  <td style={evidenceCell}>
-                    {claim.evidence.map((evidence) => (
-                      <div key={evidenceLabel(evidence)}>{evidenceLabel(evidence)}</div>
-                    ))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable columns={CLAIM_COLUMNS} rows={group.claims} keyOf={(claim) => claim.capability} fixed />
         </section>
       ))}
+    </section>
+  );
+}
+
+/**
+ * The page every category's Matrix story is.
+ *
+ * Eight of them were the same six lines with a different constant, which is
+ * what the duplication scan is for. A category page is its slice of the matrix
+ * and the note about what a verdict means; if one ever needs to be more than
+ * that, it stops calling this.
+ */
+export function matrixStory(groups: readonly ClaimGroup[]): Story {
+  return () => (
+    <section style={{ display: "grid", gap: 16 }}>
+      <header style={{ padding: "4px 2px 0" }}>
+        <p style={note}>{COMPARISON_NOTE}</p>
+      </header>
+      <ClaimTable groups={groups} />
     </section>
   );
 }

@@ -6,8 +6,22 @@
  * story keeps its id.
  */
 import { COVERAGE, coverageCount, evidenceLabel } from "./coverage/index.js";
-import { capabilityCell, evidenceCell, note, panelTitle, tableCell, tableHeader, wideTable } from "./styles.js";
+import { DataTable, type Column } from "./data-table.js";
+import { capabilityCell, evidenceCell, note, panelTitle } from "./styles.js";
+import type { CoverageEntry } from "./coverage/index.js";
 import type { Story, StoryDefault } from "@ladle/react";
+
+const COVERAGE_COLUMNS: ReadonlyArray<Column<CoverageEntry>> = [
+  { header: "Capability", cell: (entry) => entry.capability, style: capabilityCell },
+  { header: "Layer", cell: (entry) => entry.layer, style: { opacity: 0.7 } },
+  { header: "What it is", cell: (entry) => entry.detail },
+  {
+    header: "Evidence",
+    cell: (entry) =>
+      entry.evidence.map((evidence) => <div key={evidenceLabel(evidence)}>{evidenceLabel(evidence)}</div>),
+    style: evidenceCell,
+  },
+];
 
 export default {
   title: "Editor",
@@ -36,30 +50,11 @@ export const Coverage: Story = () => (
       <section key={group.title} style={{ display: "grid", gap: 8 }}>
         <h3 style={panelTitle}>{group.title}</h3>
         <p style={note}>{group.summary}</p>
-        <table style={wideTable}>
-          <thead>
-            <tr>
-              <th style={tableHeader}>Capability</th>
-              <th style={tableHeader}>Layer</th>
-              <th style={tableHeader}>What it is</th>
-              <th style={tableHeader}>Evidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            {group.entries.map((entry) => (
-              <tr key={entry.capability}>
-                <td style={capabilityCell}>{entry.capability}</td>
-                <td style={{ ...tableCell, opacity: 0.7 }}>{entry.layer}</td>
-                <td style={tableCell}>{entry.detail}</td>
-                <td style={evidenceCell}>
-                  {entry.evidence.map((evidence) => (
-                    <div key={evidenceLabel(evidence)}>{evidenceLabel(evidence)}</div>
-                  ))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          rows={group.entries}
+          keyOf={(entry) => entry.capability}
+          columns={COVERAGE_COLUMNS}
+        />
       </section>
     ))}
   </section>

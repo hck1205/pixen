@@ -5,29 +5,20 @@
  * watch them happen: what each format costs on the same picture, and what the
  * byte budget does when it cannot reach the number it was given.
  */
-import { useEffect, useState } from "react";
 import { createEditor, IMAGE_FORMATS, type ImageFormat } from "@pixen/core";
-import { COMPARISON_NOTE, ClaimTable } from "./table.js";
+import { matrixStory } from "./table.js";
 import { OUTPUT_CLAIMS } from "./matrix/index.js";
 import { createSampleImage } from "../fixtures.js";
-import { formatBytes } from "../harness.js";
-import { codeBlock, note, panelTitle, table, tableCell, tableHeader } from "../styles.js";
+import { formatBytes, useAsync } from "../harness.js";
+import { DataTable } from "../data-table.js";
+import { codeBlock, note, panelTitle } from "../styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
 export default {
   title: "Verification/Output",
 } satisfies StoryDefault;
 
-export const Matrix: Story = () => (
-  <section style={{ display: "grid", gap: 16 }}>
-    {/* No heading of its own: the group titles inside the table already say
-        which slice this is, and two identical headings read as a mistake. */}
-    <header style={{ padding: "4px 2px 0" }}>
-      <p style={note}>{COMPARISON_NOTE}</p>
-    </header>
-    <ClaimTable groups={OUTPUT_CLAIMS} />
-  </section>
-);
+export const Matrix: Story = matrixStory(OUTPUT_CLAIMS);
 
 interface FormatRow {
   format: string;
@@ -49,19 +40,7 @@ async function encodeEach(sample: Blob): Promise<FormatRow[]> {
 
 /** The same picture through every encoder the browser has, priced. */
 export const Formats: Story = () => {
-  const [rows, setRows] = useState<FormatRow[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void createSampleImage({ width: 1200, height: 800 })
-      .then(encodeEach)
-      .then((result) => {
-        if (!cancelled) setRows(result);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const rows = useAsync(() => createSampleImage({ width: 1200, height: 800 }).then(encodeEach), []);
 
   return (
     <section style={{ display: "grid", gap: 12, padding: "4px 2px 40px", maxWidth: 620 }}>
@@ -72,24 +51,15 @@ export const Formats: Story = () => {
       </p>
       {!rows && <pre style={codeBlock}>Encoding…</pre>}
       {rows && (
-        <table style={table}>
-          <thead>
-            <tr>
-              <th style={tableHeader}>Format</th>
-              <th style={tableHeader}>Bytes</th>
-              <th style={tableHeader}>Quality used</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.format}>
-                <td style={{ ...tableCell, fontWeight: 600 }}>{row.format}</td>
-                <td style={tableCell}>{formatBytes(row.bytes)}</td>
-                <td style={tableCell}>{row.quality.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          rows={rows}
+          keyOf={(row) => row.format}
+          columns={[
+            { header: "Format", cell: (row) => row.format, style: { fontWeight: 600 } },
+            { header: "Bytes", cell: (row) => formatBytes(row.bytes) },
+            { header: "Quality used", cell: (row) => row.quality.toFixed(2) },
+          ]}
+        />
       )}
     </section>
   );
@@ -133,19 +103,7 @@ async function search(sample: Blob): Promise<BudgetRow[]> {
  * the picture smaller, and this page says so rather than letting them find out.
  */
 export const ByteBudget: Story = () => {
-  const [rows, setRows] = useState<BudgetRow[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void createSampleImage({ width: 1600, height: 1067 })
-      .then(search)
-      .then((result) => {
-        if (!cancelled) setRows(result);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const rows = useAsync(() => createSampleImage({ width: 1600, height: 1067 }).then(search), []);
 
   return (
     <section style={{ display: "grid", gap: 12, padding: "4px 2px 40px", maxWidth: 720 }}>
@@ -156,28 +114,17 @@ export const ByteBudget: Story = () => {
       </p>
       {!rows && <pre style={codeBlock}>Searching…</pre>}
       {rows && (
-        <table style={table}>
-          <thead>
-            <tr>
-              <th style={tableHeader}>Budget</th>
-              <th style={tableHeader}>Produced</th>
-              <th style={tableHeader}>Quality</th>
-              <th style={tableHeader}>Encodes</th>
-              <th style={tableHeader}>Within budget</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.budget}>
-                <td style={{ ...tableCell, fontWeight: 600, whiteSpace: "nowrap" }}>{row.budget}</td>
-                <td style={tableCell}>{formatBytes(row.bytes)}</td>
-                <td style={tableCell}>{row.quality.toFixed(2)}</td>
-                <td style={tableCell}>{row.attempts}</td>
-                <td style={tableCell}>{row.met ? "yes" : "no — at the quality floor"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          rows={rows}
+          keyOf={(row) => row.budget}
+          columns={[
+            { header: "Budget", cell: (row) => row.budget, style: { fontWeight: 600, whiteSpace: "nowrap" } },
+            { header: "Produced", cell: (row) => formatBytes(row.bytes) },
+            { header: "Quality", cell: (row) => row.quality.toFixed(2) },
+            { header: "Encodes", cell: (row) => row.attempts },
+            { header: "Within budget", cell: (row) => (row.met ? "yes" : "no — at the quality floor") },
+          ]}
+        />
       )}
     </section>
   );

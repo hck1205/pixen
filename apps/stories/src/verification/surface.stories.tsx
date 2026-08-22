@@ -6,7 +6,7 @@
  * from the element itself, so a name that changes changes here too.
  */
 import { createElement, useEffect, useRef, useState } from "react";
-import { COMPARISON_NOTE, ClaimTable } from "./table.js";
+import { matrixStory } from "./table.js";
 import { SURFACE_CLAIMS } from "./matrix/index.js";
 import { note, panelTitle, specimenCaption, specimenCell, specimenGrid } from "../styles.js";
 import { OBSERVED_ATTRIBUTES, PIXEN_EVENTS } from "@pixen/web";
@@ -17,16 +17,7 @@ export default {
   title: "Verification/Surface",
 } satisfies StoryDefault;
 
-export const Matrix: Story = () => (
-  <section style={{ display: "grid", gap: 16 }}>
-    {/* No heading of its own: the group titles inside the table already say
-        which slice this is, and two identical headings read as a mistake. */}
-    <header style={{ padding: "4px 2px 0" }}>
-      <p style={note}>{COMPARISON_NOTE}</p>
-    </header>
-    <ClaimTable groups={SURFACE_CLAIMS} />
-  </section>
-);
+export const Matrix: Story = matrixStory(SURFACE_CLAIMS);
 
 function Names({ title, values }: { title: string; values: readonly string[] }) {
   return (

@@ -48,13 +48,21 @@ export const GEOMETRY_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "Resize on export",
-        pixen: `A target size with ${list(RESIZE_FITS)} fitting, and step-down halving so a large reduction keeps its detail`,
-        verdict: "met",
+        pixen:
+          `A target size with ${list(RESIZE_FITS)} fitting. Enlarging past the source is refused by ` +
+          "default on the processing and variant paths, and allowed on the document's own output size — " +
+          "two paths, two answers",
+        verdict: "open",
         market: required(
-          "export pipeline",
-          "The output is resized to a target size, with a fit mode deciding how it is reached",
+          "image writer",
+          "A target width and height, one of three fit modes deciding how the picture reaches it, and " +
+          "upscaling off unless the host asks for it",
         ),
-        evidence: [unit("processing.test.ts"), story("Output"), browser("editor.spec.ts")],
+        evidence: [unit("processing.test.ts"), unit("variants.test.ts"), story("Output")],
+        note:
+          "Found while writing this page. `resolveSize` refuses to enlarge unless asked and `planVariants` " +
+          "plans the source size for a spec larger than it, but `outputSize` multiplies whatever the " +
+          "document's output width says — so the panel will enlarge a picture and the batch call will not",
       },
       {
         capability: "Zoom, pan, pinch, fit",

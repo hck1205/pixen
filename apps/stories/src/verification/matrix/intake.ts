@@ -36,8 +36,9 @@ export const INTAKE_CLAIMS: ClaimGroup[] = [
           "the decoder already applied it, which Chromium does and a bare ImageBitmap decode does not",
         verdict: "met",
         market: required(
-          "export pipeline",
-          "A default orienter that puts a photograph upright before anything else sees it, replaceable by the host",
+          "image orienter",
+          "A helper that reads a photograph's stored orientation and applies it, used by both the read and " +
+          "the write, and replaceable by the host",
         ),
         evidence: [unit("exif.test.ts"), unit("decode.test.ts"), browser("editor.spec.ts")],
         note:
@@ -45,25 +46,83 @@ export const INTAKE_CLAIMS: ClaimGroup[] = [
           "sideways in Chromium until the probe was added, because both layers were turning it",
       },
       {
-        capability: "A replaceable reader",
+        capability: "A signed request",
         pixen:
-          "`headers` and `afterDecode` hooks: a host can sign a request for its own storage, and can see " +
-          "the decoded bitmap before the editor does",
+          "Custom headers on the fetch, and a credentials mode — so a source behind a host's own auth is " +
+          "read the way that host reads anything else",
+        verdict: "met",
+        market: required("image reader", "Custom request headers and a credentials setting on the read"),
+        evidence: [unit("decode.test.ts"), doc("docs/ARCHITECTURE.md")],
+      },
+      {
+        capability: "A file the browser cannot read",
+        pixen:
+          "`beforeDecode` receives the bytes before anything tries to decode them, so a host converts HEIC, " +
+          "TIFF or its own format into something the browser knows and the rest of the pipeline is unchanged",
         verdict: "met",
         market: required(
-          "export pipeline",
-          "The read step is the host's to replace, so an image can come from somewhere the SDK has never heard of",
+          "image reader",
+          "A step before the decode where the host converts a file the browser cannot open into one it can",
         ),
         evidence: [unit("decode.test.ts"), doc("docs/ARCHITECTURE.md")],
       },
       {
-        capability: "A memory ceiling",
+        capability: "The decoded picture, before the editor sees it",
+        pixen:
+          "`afterDecode` receives the upright bitmap and returns the one to edit — a background removed, a " +
+          "colour profile applied, a model run over it",
+        verdict: "beyond",
+        evidence: [unit("decode.test.ts"), doc("docs/ARCHITECTURE.md")],
+      },
+      {
+        capability: "Formats it can read",
+        pixen:
+          "Whatever the browser decodes, which in every current one is JPEG, PNG, GIF, WebP, BMP, SVG and " +
+          "AVIF — Pixen parses none of them itself, so the list is the platform's rather than ours",
+        verdict: "met",
+        market: required("image reader", "The image formats the browser supports, with a hook for the rest"),
+        evidence: [unit("decode.test.ts"), story("Sources"), doc("docs/BROWSER-SUPPORT.md")],
+      },
+      {
+        capability: "Replacing the pixels under an edit",
+        pixen:
+          "`replaceSource` swaps the source and keeps the crop, the annotations and the whole undo history " +
+          "— which is what a round trip through a background remover or an upscaler needs",
+        verdict: "met",
+        market: required(
+          "image manipulation",
+          "The source image can be replaced while the edit history is kept, for a round trip through a " +
+          "third-party service",
+        ),
+        evidence: [unit("editor.test.ts"), story("RoundTrip"), browser("editor.spec.ts")],
+      },
+      {
+        capability: "The preview as its own stage",
+        pixen:
+          "A preview proxy is built for a large picture and used for the interactive view, but nothing " +
+          "announces it and it cannot be replaced on its own",
+        verdict: "open",
+        market: required(
+          "image events",
+          "A preview that loads as a stage of its own, announced separately, and replaceable without " +
+          "touching the full-resolution source",
+        ),
+        evidence: [unit("preview.test.ts"), doc("docs/ARCHITECTURE.md")],
+        note:
+          "The proxy exists and is tested; what is missing is the seam around it — an event when it is " +
+          "ready, and a way to swap it alone during a slow round trip",
+      },
+      {
+        capability: "A memory ceiling on the way in",
         pixen:
           "`maxPixels` scales an oversized picture down to fit rather than refusing it, and the hard " +
           "canvas limit refuses with a named error rather than a dead tab",
-        verdict: "met",
-        market: required("export pipeline", "A pixel ceiling above which an image is not decoded as-is"),
+        verdict: "beyond",
         evidence: [unit("canvas.test.ts"), unit("decode.test.ts"), doc("docs/SECURITY.md")],
+        note:
+          "The supplied material puts its ceiling on the *writer*, which is a different question: how big " +
+          "a canvas may be drawn, rather than how big a file may be opened. That one is on the output " +
+          "page. This one is ours, and it is what a decompression bomb meets first",
       },
       {
         capability: "Progress and cancellation",

@@ -6,27 +6,19 @@
  * be shown — and those questions decide a purchase after both feature lists
  * have been ticked off.
  */
-import { COMPARISON_NOTE, ClaimTable } from "./table.js";
+import { matrixStory } from "./table.js";
 import { ASSURANCE_CLAIMS, VERIFICATION } from "./matrix/index.js";
 import { coverageCount } from "../coverage/index.js";
 import { claimsOf } from "./claim.js";
-import { note, panelTitle, table, tableCell, tableHeader } from "../styles.js";
+import { DataTable } from "../data-table.js";
+import { note, panelTitle } from "../styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
 export default {
   title: "Verification/Assurance",
 } satisfies StoryDefault;
 
-export const Matrix: Story = () => (
-  <section style={{ display: "grid", gap: 16 }}>
-    {/* No heading of its own: the group titles inside the table already say
-        which slice this is, and two identical headings read as a mistake. */}
-    <header style={{ padding: "4px 2px 0" }}>
-      <p style={note}>{COMPARISON_NOTE}</p>
-    </header>
-    <ClaimTable groups={ASSURANCE_CLAIMS} />
-  </section>
-);
+export const Matrix: Story = matrixStory(ASSURANCE_CLAIMS);
 
 /**
  * What each check refuses to let through.
@@ -79,23 +71,17 @@ export const Checks: Story = () => (
         than printing a warning, and each names what it will not let past.
       </p>
     </header>
-    <table style={table}>
-      <thead>
-        <tr>
-          <th style={tableHeader}>Command</th>
-          <th style={tableHeader}>Refuses</th>
-        </tr>
-      </thead>
-      <tbody>
-        {CHECKS.map((check) => (
-          <tr key={check.command}>
-            <td style={{ ...tableCell, whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-              {check.command}
-            </td>
-            <td style={tableCell}>{check.refuses}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <DataTable
+      rows={CHECKS}
+      keyOf={(check) => check.command}
+      columns={[
+        {
+          header: "Command",
+          cell: (check) => check.command,
+          style: { whiteSpace: "nowrap", fontFamily: "ui-monospace, monospace", fontSize: 12 },
+        },
+        { header: "Refuses", cell: (check) => check.refuses },
+      ]}
+    />
   </section>
 );

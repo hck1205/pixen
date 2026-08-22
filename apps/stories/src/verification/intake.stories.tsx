@@ -6,28 +6,20 @@
  * sort of claim that is easy to write and easy to have quietly stopped being
  * true for one of the six.
  */
-import { useEffect, useState } from "react";
 import { createEditor, isPixenError, type Editor } from "@pixen/core";
-import { COMPARISON_NOTE, ClaimTable } from "./table.js";
+import { matrixStory } from "./table.js";
 import { INTAKE_CLAIMS } from "./matrix/index.js";
 import { createSampleImage } from "../fixtures.js";
-import { codeBlock, note, panelTitle, table, tableCell, tableHeader } from "../styles.js";
+import { DataTable } from "../data-table.js";
+import { useAsync } from "../harness.js";
+import { codeBlock, note, panelTitle } from "../styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
 export default {
   title: "Verification/Intake",
 } satisfies StoryDefault;
 
-export const Matrix: Story = () => (
-  <section style={{ display: "grid", gap: 16 }}>
-    {/* No heading of its own: the group titles inside the table already say
-        which slice this is, and two identical headings read as a mistake. */}
-    <header style={{ padding: "4px 2px 0" }}>
-      <p style={note}>{COMPARISON_NOTE}</p>
-    </header>
-    <ClaimTable groups={INTAKE_CLAIMS} />
-  </section>
-);
+export const Matrix: Story = matrixStory(INTAKE_CLAIMS);
 
 interface Attempt {
   kind: string;
@@ -89,19 +81,7 @@ async function attempts(sample: Blob): Promise<Attempt[]> {
  * would be testing the element's `src` handling instead.
  */
 export const Sources: Story = () => {
-  const [rows, setRows] = useState<Attempt[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void createSampleImage({ width: 640, height: 426 })
-      .then(attempts)
-      .then((result) => {
-        if (!cancelled) setRows(result);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const rows = useAsync(() => createSampleImage({ width: 640, height: 426 }).then(attempts), []);
 
   return (
     <section style={{ display: "grid", gap: 12, padding: "4px 2px 40px", maxWidth: 720 }}>
@@ -112,25 +92,14 @@ export const Sources: Story = () => {
       </p>
       {!rows && <pre style={codeBlock}>Loading…</pre>}
       {rows && (
-        <table style={table}>
-          <thead>
-            <tr>
-              <th style={tableHeader}>Input</th>
-              <th style={tableHeader}>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.kind}>
-                <td style={{ ...tableCell, fontWeight: 600, whiteSpace: "nowrap" }}>{row.kind}</td>
-                <td style={{ ...tableCell, opacity: row.ok ? 1 : 0.9 }}>
-                  {row.ok ? "loaded · " : "refused · "}
-                  {row.outcome}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          rows={rows}
+          keyOf={(row) => row.kind}
+          columns={[
+            { header: "Input", cell: (row) => row.kind, style: { fontWeight: 600, whiteSpace: "nowrap" } },
+            { header: "Result", cell: (row) => `${row.ok ? "loaded · " : "refused · "}${row.outcome}` },
+          ]}
+        />
       )}
     </section>
   );

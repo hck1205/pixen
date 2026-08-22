@@ -20,7 +20,7 @@ export const PIPELINE_CLAIMS: ClaimGroup[] = [
           "`document` receives the document about to be exported and returns the one to use — a watermark " +
           "only the exported copy carries, placeholder text filled in at the last moment",
         verdict: "met",
-        market: required("export pipeline", "The host can rewrite what is about to be exported"),
+        market: required("image writer", "The state about to be drawn is the host's to rewrite — filling placeholder text, for one"),
         evidence: [unit("processing.test.ts"), story("Pipeline")],
       },
       {
@@ -30,14 +30,14 @@ export const PIPELINE_CLAIMS: ClaimGroup[] = [
           "after the shrink — and is a seam rather than a default because measuring showed the step-down " +
           "landed no closer to the true average on Chromium while costing about half a second at 24MP",
         verdict: "met",
-        market: required("export pipeline", "The resize step can be replaced by the host's own resampler"),
+        market: required("image writer", "The function that resizes the pixels is the host's to supply"),
         evidence: [unit("processing.test.ts"), doc("docs/ARCHITECTURE.md")],
       },
       {
         capability: "The drawn pixels",
         pixen: "`pixels` hands over the surface before it is encoded, to be drawn on in place",
         verdict: "met",
-        market: required("export pipeline", "The host can reach the rendered pixels before they are encoded"),
+        market: required("image writer", "The drawn pixels are the host's to post-process — a circular crop mask, for one"),
         evidence: [unit("processing.test.ts"), story("Pipeline")],
       },
       {
@@ -46,8 +46,40 @@ export const PIPELINE_CLAIMS: ClaimGroup[] = [
           "`bytes` receives the encoded blob and returns the one to deliver — an AVIF encoder the browser " +
           "does not have, a compressor, a signature",
         verdict: "met",
-        market: required("export pipeline", "The write step is the host's to replace"),
+        market: required("image writer", "The encoded blob is the host's to post-process, for a format the browser cannot write"),
         evidence: [unit("processing.test.ts"), story("Pipeline")],
+      },
+      {
+        capability: "The source, before the edit is applied",
+        pixen:
+          "Not offered as an export step: `replaceSource` swaps the picture in the document, and " +
+          "`resample` replaces the downscale, but there is no seam that hands over the source bitmap for " +
+          "one export and leaves the document alone",
+        verdict: "open",
+        market: required(
+          "image writer",
+          "The source image data can be pre-processed for a single export — a third-party optimisation, or " +
+          "a format conversion — before the edit is drawn onto it",
+        ),
+        evidence: [unit("processing.test.ts"), doc("docs/ARCHITECTURE.md")],
+        note:
+          "The two neighbouring seams exist, which is what makes this one a gap rather than a category: " +
+          "everything is in place except the call",
+      },
+      {
+        capability: "One writer for two media",
+        pixen:
+          "Two export calls: `export` for a still, `exportClip` for a moving one, each with its own " +
+          "options — a host doing both states the shared ones twice",
+        verdict: "open",
+        market: required(
+          "media writer",
+          "Image and video writers grouped behind one configuration, so shared options are stated once",
+        ),
+        evidence: [doc("docs/ROADMAP.md")],
+        note:
+          "Small, and it only bites a host that ships both. Worth doing when the video package leaves " +
+          "its first release rather than before",
       },
       {
         capability: "Hook order is observable",

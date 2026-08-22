@@ -4,7 +4,7 @@
  * One slice of the verification matrix. See `verification/claim.ts` for what a
  * verdict is allowed to mean.
  */
-import { browser, doc, list, story, unit, visual, type ClaimGroup } from "../claim.js";
+import { browser, doc, list, required, story, unit, visual, type ClaimGroup } from "../claim.js";
 import { availableLocales, OBSERVED_ATTRIBUTES, PIXEN_EVENTS } from "@pixen/web";
 
 const LOCALES = availableLocales();
@@ -23,8 +23,16 @@ export const SURFACE_CLAIMS: ClaimGroup[] = [
       {
         capability: "Events",
         pixen: list(PIXEN_EVENTS.map((name) => `pixen-${name}`)),
-        verdict: "unmeasured",
+        verdict: "met",
+        market: required(
+          "image events",
+          "Start, progress, abort, error and finish for both the load and the export, plus one for every " +
+          "change to the edit state",
+        ),
         evidence: [unit("observe.test.ts"), story("EventLog"), browser("editor.spec.ts")],
+        note:
+          "One error channel rather than one per phase, and `change` carries the whole document. The one " +
+          "the supplied list has and this does not is a preview-ready event — see the intake page",
       },
       {
         capability: "Slots and parts",

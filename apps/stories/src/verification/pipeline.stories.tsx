@@ -6,12 +6,11 @@
  * order they actually fired in, which is the only way that claim is worth
  * anything.
  */
-import { useEffect, useState } from "react";
 import { createEditor, type ExportHooks } from "@pixen/core";
-import { COMPARISON_NOTE, ClaimTable } from "./table.js";
+import { matrixStory } from "./table.js";
 import { PIPELINE_CLAIMS } from "./matrix/index.js";
 import { createSampleImage } from "../fixtures.js";
-import { formatBytes } from "../harness.js";
+import { formatBytes, useAsync } from "../harness.js";
 import { codeBlock, logList, note, panelTitle } from "../styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
@@ -19,16 +18,7 @@ export default {
   title: "Verification/Pipeline",
 } satisfies StoryDefault;
 
-export const Matrix: Story = () => (
-  <section style={{ display: "grid", gap: 16 }}>
-    {/* No heading of its own: the group titles inside the table already say
-        which slice this is, and two identical headings read as a mistake. */}
-    <header style={{ padding: "4px 2px 0" }}>
-      <p style={note}>{COMPARISON_NOTE}</p>
-    </header>
-    <ClaimTable groups={PIPELINE_CLAIMS} />
-  </section>
-);
+export const Matrix: Story = matrixStory(PIPELINE_CLAIMS);
 
 /**
  * Every hook, wired to say what it saw.
@@ -74,23 +64,13 @@ async function runWithHooks(sample: Blob): Promise<string[]> {
 }
 
 export const HookOrder: Story = () => {
-  const [log, setLog] = useState<string[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void createSampleImage({ width: 1600, height: 1067 })
-      .then(runWithHooks)
-      .then((lines) => {
-        if (!cancelled) setLog(lines);
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const log = useAsync(
+    () =>
+      createSampleImage({ width: 1600, height: 1067 })
+        .then(runWithHooks)
+        .catch((cause: unknown) => [`The export failed: ${cause instanceof Error ? cause.message : String(cause)}`]),
+    [],
+  );
 
   return (
     <section style={{ display: "grid", gap: 12, padding: "4px 2px 40px", maxWidth: 760 }}>
@@ -100,8 +80,7 @@ export const HookOrder: Story = () => {
         were given. The `pixels` hook draws a white bar into the surface it is handed, so the last line is
         also evidence that it was the real one.
       </p>
-      {error && <pre style={codeBlock}>{error}</pre>}
-      {!log && !error && <pre style={codeBlock}>Exporting…</pre>}
+      {!log && <pre style={codeBlock}>Exporting…</pre>}
       {log && (
         <ol style={logList}>
           {log.map((line, index) => (

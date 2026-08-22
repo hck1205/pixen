@@ -7,7 +7,8 @@
 import { COMPARISON_NOTE, ClaimTable, Scorecard } from "./table.js";
 import { MARKET_REFERENCE, VERDICT_LABELS, claimsOf } from "./claim.js";
 import { VERIFICATION } from "./matrix/index.js";
-import { note, panelTitle, table, tableCell, tableHeader } from "../styles.js";
+import { DataTable } from "../data-table.js";
+import { note, panelTitle } from "../styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
 export default {
@@ -58,24 +59,18 @@ export const Summary: Story = () => (
         support one: we have read documentation supplied for this project, and we have not run{" "}
         {MARKET_REFERENCE}. Every verdict below is a statement about our own evidence.
       </p>
-      <table style={table}>
-        <thead>
-          <tr>
-            <th style={tableHeader}>Verdict</th>
-            <th style={tableHeader}>What it asserts</th>
-          </tr>
-        </thead>
-        <tbody>
-          {RULES.map((rule) => (
-            <tr key={rule.verdict}>
-              <td style={{ ...tableCell, whiteSpace: "nowrap", fontWeight: 600 }}>
-                {VERDICT_LABELS[rule.verdict]}
-              </td>
-              <td style={tableCell}>{rule.means}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        rows={RULES}
+        keyOf={(rule) => rule.verdict}
+        columns={[
+          {
+            header: "Verdict",
+            cell: (rule) => VERDICT_LABELS[rule.verdict],
+            style: { whiteSpace: "nowrap", fontWeight: 600 },
+          },
+          { header: "What it asserts", cell: (rule) => rule.means },
+        ]}
+      />
     </section>
   </section>
 );

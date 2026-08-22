@@ -69,25 +69,44 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "Line ends",
-        pixen: "An arrow head at either end, or neither",
+        pixen: "An arrow head at either end, or neither — one style, chosen per end",
         verdict: "open",
         market: required(
-          "annotation shapes",
-          "A choice of end decorations at each end of a line — several named styles, not only an arrow head",
+          "shape styles",
+          "Eight decorations available at each end independently: none, a bar, an open and a solid arrow, " +
+          "an open and a solid circle, an open and a solid square",
         ),
         evidence: [unit("decoration.test.ts"), story("Styling")],
-        note: "The geometry is there — the head is drawn from trigonometry at either end — and the styles are not",
+        note:
+          "Both ends are already independent and the head is drawn from trigonometry, so the shape of the " +
+          "gap is six more head shapes rather than a mechanism",
+      },
+      {
+        capability: "Styles a host defines",
+        pixen: "Not offered: the end and frame styles are the ones Pixen draws",
+        verdict: "open",
+        market: required(
+          "shape styles",
+          "The default end and frame styles can be merged with a host's own, so an application adds " +
+          "decorations the SDK never shipped",
+        ),
+        evidence: [doc("docs/PLUGINS.md")],
+        note: "The same seam the shape preprocessor above wants, seen from the styling side",
       },
       {
         capability: "A shape preprocessor",
         pixen: "Not offered: a host cannot yet transform a shape between the gesture and the document",
         verdict: "open",
         market: required(
-          "annotation shapes",
-          "A step where the host rewrites a shape as it is created — snapping, constraining, substituting",
+          "shape styles",
+          "A chain of processors run over each shape before it is drawn — to the screen and to the output — " +
+          "each one able to expand one shape into several, told whether this is the preview or the file, " +
+          "and leaving the stored shape untouched",
         ),
         evidence: [doc("docs/PLUGINS.md")],
-        note: "The plugin surface is the natural home for it; nothing there covers it today",
+        note:
+          "It is the mechanism the end styles and the frame styles are built on in the supplied material, " +
+          "which is why those two rows are open as well: one seam, three features",
       },
       {
         capability: "Selection handles",
@@ -112,19 +131,36 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
       {
         capability: "Redaction",
         pixen: list(REDACTION_MODES),
-        verdict: "unmeasured",
+        verdict: "met",
+        market: required(
+          "scrambler",
+          "A redaction that cannot be undone: the region is reduced to a mosaic, its pixels are moved " +
+          "about, and the result is blurred — with the scramble and the blur each tunable",
+        ),
         evidence: [unit("redaction.test.ts"), unit("scramble.test.ts"), story("RedactionModes")],
         note:
-          "Only `solid` removes the information outright. The other three are reversible in principle, " +
-          "which `docs/SECURITY.md` says rather than leaving a customer to assume otherwise",
+          "Ours permutes whole mosaic blocks rather than offsetting pixels, and the permutation is seeded " +
+          "from the layer's id rather than taken from a random number — because an editor whose preview " +
+          "does not match the file it exports is broken, and both are drawn from the same document. Only " +
+          "`solid` removes the information outright, which `docs/SECURITY.md` says rather than leaving a " +
+          "customer to assume otherwise",
       },
       {
         capability: "Masks",
         pixen:
-          "The marked areas as a flat mask image, from the same draw-op list the picture is drawn from — " +
-          "recoloured rather than re-derived, which is only possible because ops are data",
-        verdict: "beyond",
+          "The marked areas as a flat mask image — a canvas or a blob, foreground and background colours, " +
+          "transparency, and padding around each mark for an inpainting model to work into",
+        verdict: "met",
+        market: required(
+          "selection to mask",
+          "The marked selection turned into a mask, as a canvas or a blob, with its colours, its padding " +
+          "and its size under the host's control",
+        ),
         evidence: [unit("mask.test.ts"), story("Mask"), browser("editor.spec.ts")],
+        note:
+          "The mask is the same draw-op list the picture is drawn from, recoloured rather than re-derived, " +
+          "which is only possible because ops are data. Two of the supplied options have no equivalent: " +
+          "cropping the canvas to the mask's own bounds, and forcing it square",
       },
       {
         capability: "Watermarks",
@@ -140,14 +176,19 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "Frames",
-        pixen: list(FRAME_STYLES),
+        pixen: `${list(FRAME_STYLES)} — with colour, width, inset and corner radius`,
         verdict: "open",
         market: required(
-          "frames",
-          "A set of named frame treatments, several of which are decorative rather than a plain border",
+          "shape styles",
+          "Six treatments — a solid border, corner hooks, a line or a line per edge inset from the crop, a " +
+          "nine-slice frame built from a supplied image, and a polaroid — each with its own tuning: " +
+          "colour, inset, offset, line count, thickness, hook length, radius, and the slice coordinates",
         ),
         evidence: [unit("decoration.test.ts"), story("Decoration"), visual("visual.spec.ts")],
-        note: "Three of the named treatments are drawn; the decorative ones are not",
+        note:
+          "Three of the six are drawn, and they are the three that are geometry rather than decoration. " +
+          "The nine-slice one is the interesting gap: it needs an image resource per frame, which the " +
+          "document model can carry today and the frame settings cannot",
       },
     ],
   },

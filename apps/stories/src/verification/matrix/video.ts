@@ -22,6 +22,11 @@ export const VIDEO_CLAIMS: ClaimGroup[] = [
         verdict: "met",
         market: required("video extension", "The image tools apply to a video as they do to a photograph"),
         evidence: [browser("video.spec.ts"), doc("docs/ROADMAP.md")],
+        note:
+          "The supplied material scopes that requirement: it names redaction, frames and fill as " +
+          "unavailable on a moving source. Pixen draws every frame through the scene the still export " +
+          "uses, so there is no list of tools that stop working — which is a consequence of the " +
+          "architecture rather than an effort anyone made",
       },
       {
         capability: "Trim",
@@ -29,8 +34,15 @@ export const VIDEO_CLAIMS: ClaimGroup[] = [
           "A clip range in the document, undoable and serialisable like a crop, stored in absolute seconds " +
           "rather than fractions of a length the source may not have stated yet",
         verdict: "met",
-        market: required("video extension", "A start and an end, chosen on the clip and kept with the edit"),
+        market: required(
+          "video extension",
+          "A start and an end, chosen on the clip, given as fractions of its length and kept with the edit",
+        ),
         evidence: [unit("clip.test.ts"), browser("video.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+        note:
+          "Absolute seconds rather than the fractions the material uses, deliberately: half of a source " +
+          "whose length you have not got is not a range, and replacing the picture underneath would " +
+          "silently move a fraction while leaving a second where it was",
       },
       {
         capability: "A timeline",
@@ -70,8 +82,13 @@ export const VIDEO_CLAIMS: ClaimGroup[] = [
         pixen:
           "A recorder seam takes the frames somewhere else — WebCodecs, a WASM encoder, an upload that " +
           "streams — driven by a test that hands back an MP4 Pixen's own recorder could not have written",
-        verdict: "beyond",
+        verdict: "met",
+        market: required("video extension", "The encoder that writes the output video is chosen by the host"),
         evidence: [browser("video.spec.ts")],
+        note:
+          "Met, and with a working default behind it: the supplied material asks the host to set an " +
+          "encoder before anything can be written, where Pixen records WebM out of the box and takes one " +
+          "only when that is not enough",
       },
       {
         capability: "A failed export says so",

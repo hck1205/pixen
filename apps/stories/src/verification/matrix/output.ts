@@ -16,10 +16,10 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
     summary: "The file the editor produces, and everything a host can say about what it should be.",
     claims: [
       {
-        capability: "Formats",
+        capability: "Formats it can write",
         pixen: FORMATS,
         verdict: "met",
-        market: required("export pipeline", "The output format is chosen by the host, or follows the source"),
+        market: required("image writer", "The output format is chosen by the host, or follows the source"),
         evidence: [unit("processing.test.ts"), story("Output"), browser("editor.spec.ts")],
       },
       {
@@ -28,9 +28,14 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
           "`renderDocumentToCanvas` hands back a canvas — a host reads ImageData, uploads it to WebGL, or " +
           "encodes it itself — but there is no `imageData` output format on the export call",
         verdict: "open",
-        market: required("export pipeline", "An output option that returns raw pixel data rather than an encoded file"),
+        market: required(
+          "image writer",
+          "The output is a file, a canvas, or raw pixel data, chosen by the host on the same call",
+        ),
         evidence: [unit("mask.test.ts"), doc("docs/ARCHITECTURE.md")],
-        note: "The capability is there under a different name; the option on the documented call is not",
+        note:
+          "Two of the three: a file from `export`, a canvas from `renderDocumentToCanvas`. Raw pixel data " +
+          "is one `getImageData` away from the canvas, which is not the same as being offered",
       },
       {
         capability: "A byte budget",
@@ -53,12 +58,21 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
           "same quality; a different quality is a different file and is kept",
       },
       {
+        capability: "A memory ceiling on the way out",
+        pixen:
+          "One limit for every platform, scaled to what the device can actually allocate, rather than a " +
+          "smaller constant applied to one operating system",
+        verdict: "met",
+        market: required("image writer", "A canvas memory limit respected while drawing the output"),
+        evidence: [unit("canvas.test.ts"), doc("docs/SECURITY.md")],
+      },
+      {
         capability: "Metadata",
         pixen: `${list(METADATA_POLICIES)} — strip everything, or carry the source's own EXIF into a JPEG output`,
         verdict: "met",
         market: required(
-          "export pipeline",
-          "The source's metadata can be carried into the output rather than always discarded",
+          "image writer",
+          "The head of the source file is copied into the output, so its own record of itself survives the edit",
         ),
         evidence: [unit("metadata.test.ts"), unit("exif.test.ts"), doc("docs/SECURITY.md")],
         note:
@@ -69,22 +83,69 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
         capability: "Filenames",
         pixen: "Derived from the source name and the chosen format, and replaceable by a hook",
         verdict: "met",
-        market: required("export pipeline", "The host decides what the produced file is called"),
+        market: required("image writer", "The host decides what the produced file is called, from the input file"),
         evidence: [unit("processing.test.ts"), story("Pipeline")],
       },
       {
         capability: "Delivery",
         pixen:
-          "Multipart upload with real request-body progress, through XHR because it is the only API that " +
-          "reports it, plus the response body and status handed back",
-        verdict: "beyond",
+          "A URL to post to, the multipart fields under the host's control, custom headers, a credentials " +
+          "mode, real request-body progress, and the status and body handed back",
+        verdict: "met",
+        market: required(
+          "image writer",
+          "The output is stored by posting it to a URL, with the form fields configurable, or handed to a " +
+          "function the host supplies",
+        ),
         evidence: [unit("upload.test.ts"), story("Progress"), browser("editor.spec.ts")],
+        note:
+          "The third shape — hand the result to a function — is what `export` already is: it returns the " +
+          "blob, and a host that wants to store it its own way simply does. Progress is through XHR " +
+          "because it is still the only API that reports how much of a request body has gone",
+      },
+      {
+        capability: "Default quality",
+        pixen: "One number, 0.85, whatever the format",
+        verdict: "open",
+        market: required(
+          "image writer",
+          "A default quality chosen per format — a higher one for JPEG than for WebP, because the same " +
+          "number does not mean the same thing to two encoders",
+        ),
+        evidence: [unit("processing.test.ts"), doc("docs/ARCHITECTURE.md")],
+        note:
+          "A real difference in the bytes a host gets without asking: ours is stingier than the supplied " +
+          "default for JPEG and more generous for WebP. Changing it changes every export, so it is a " +
+          "decision rather than a line",
+      },
+      {
+        capability: "The shape of the result",
+        pixen: "One result object with the blob, the size, the format, the quality used, the bytes and the filename",
+        verdict: "open",
+        market: required(
+          "image writer",
+          "Which properties the result carries is the host's to choose, so a large one can be trimmed",
+        ),
+        evidence: [unit("processing.test.ts")],
+        note:
+          "Nothing to trim: ours holds no copy of the source, no copy of the state and no upload object, " +
+          "so the option would be an option to remove six numbers",
       },
       {
         capability: "Headless processing",
-        pixen: "`processImages` runs the whole pipeline with no editor and no DOM element at all",
-        verdict: "unmeasured",
+        pixen:
+          "`processImage` and `processImages` resize and re-encode with no editor at all; for edits " +
+          "without an interface, an `Editor` is created, loaded, given its intents and exported — no DOM " +
+          "element anywhere in that",
+        verdict: "met",
+        market: required(
+          "image manipulation",
+          "A file processed with a given set of edits and no editor interface loaded",
+        ),
         evidence: [unit("processing.test.ts"), story("Policies"), browser("editor.spec.ts")],
+        note:
+          "In two shapes rather than one call: the batch path takes no edits, and the edits path goes " +
+          "through the engine. The single call that does both is an ergonomic Pixen has not written",
       },
       {
         capability: "The document as JSON",

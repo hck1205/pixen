@@ -13,7 +13,7 @@ import {
   seedRedaction,
   seedWatermark,
 } from "./fixtures.js";
-import { Row, SeededEditor, Stage, useBlob, useSampleImage } from "./harness.js";
+import { Row, SeededEditor, Stage, useAsync, useSampleImage } from "./harness.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
 /** What each redaction mode actually promises, in the words the docs use. */
@@ -277,7 +277,7 @@ export const LimitedTools: Story = () => {
 
 /** A transparent PNG: alpha in the viewport, and what JPEG export does with it. */
 export const Transparency: Story = () => {
-  const image = useBlob(() => createTransparentSample(), []);
+  const image = useAsync(() => createTransparentSample(), []);
   return (
     <Stage
       title="Transparent source"

@@ -8,25 +8,17 @@
  */
 import { useEffect, useState } from "react";
 import { supportedRecordingType } from "@pixen/video";
-import { COMPARISON_NOTE, ClaimTable } from "./table.js";
+import { matrixStory } from "./table.js";
 import { VIDEO_CLAIMS } from "./matrix/index.js";
-import { codeBlock, note, panelTitle, table, tableCell, tableHeader } from "../styles.js";
+import { DataTable } from "../data-table.js";
+import { codeBlock, note, panelTitle } from "../styles.js";
 import type { Story, StoryDefault } from "@ladle/react";
 
 export default {
   title: "Verification/Video",
 } satisfies StoryDefault;
 
-export const Matrix: Story = () => (
-  <section style={{ display: "grid", gap: 16 }}>
-    {/* No heading of its own: the group titles inside the table already say
-        which slice this is, and two identical headings read as a mistake. */}
-    <header style={{ padding: "4px 2px 0" }}>
-      <p style={note}>{COMPARISON_NOTE}</p>
-    </header>
-    <ClaimTable groups={VIDEO_CLAIMS} />
-  </section>
-);
+export const Matrix: Story = matrixStory(VIDEO_CLAIMS);
 
 /**
  * What to ask this browser about.
@@ -79,22 +71,18 @@ export const VideoCodecs: Story = () => {
         {result.encoder ? "present" : "absent"}. Pixen would record{" "}
         <code>{result.chosen ?? "nothing at all"}</code>.
       </p>
-      <table style={table}>
-        <thead>
-          <tr>
-            <th style={tableHeader}>Container and codec</th>
-            <th style={tableHeader}>This browser</th>
-          </tr>
-        </thead>
-        <tbody>
-          {result.supported.map((row) => (
-            <tr key={row.type}>
-              <td style={{ ...tableCell, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{row.type}</td>
-              <td style={tableCell}>{row.ok ? "supported" : "refused"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        rows={result.supported}
+        keyOf={(row) => row.type}
+        columns={[
+          {
+            header: "Container and codec",
+            cell: (row) => row.type,
+            style: { fontFamily: "ui-monospace, monospace", fontSize: 12 },
+          },
+          { header: "This browser", cell: (row) => (row.ok ? "supported" : "refused") },
+        ]}
+      />
       <p style={note}>
         A refusal here is not a Pixen limit and cannot be worked around by Pixen: the browser will not write
         that container. It is the reason the recorder is a seam — a host that needs MP4 supplies an encoder,
