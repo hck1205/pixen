@@ -38,17 +38,16 @@ describe("createScene", () => {
     expect(topLeft.y).toBeCloseTo(0);
   });
 
-  it("undoes the preview downscale so a proxy bitmap lands in the same place", () => {
-    const doc = document();
-    const full = createScene(doc, { source, sourceScale: 1 }, { region: "stage" });
-    const preview = createScene(doc, { source, sourceScale: 0.25 }, { region: "stage" });
+  it("says where the picture goes, whatever bitmap is standing in for it", () => {
+    // The scene names the picture's own size and the executor stretches
+    // whatever it is given into that box. A proxy needs no arithmetic here, and
+    // the size is not the proxy's — a redaction's strength is a fraction of it.
+    const scene = createScene(document(), { source }, { region: "stage" });
+    expect(scene.image.size).toEqual({ width: 1000, height: 500 });
 
-    // The preview bitmap is a quarter the size, so its own bottom-right corner
-    // must still land on the stage's bottom-right corner.
-    const fullCorner = applyToPoint(full.image.matrix, { x: 1000, y: 500 });
-    const previewCorner = applyToPoint(preview.image.matrix, { x: 250, y: 125 });
-    expect(previewCorner.x).toBeCloseTo(fullCorner.x);
-    expect(previewCorner.y).toBeCloseTo(fullCorner.y);
+    const corner = applyToPoint(scene.image.matrix, { x: 1000, y: 500 });
+    expect(corner.x).toBeCloseTo(1000);
+    expect(corner.y).toBeCloseTo(500);
   });
 
   it("renders the whole stage in stage region, including outside the crop", () => {

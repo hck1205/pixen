@@ -20,45 +20,31 @@ import { standInSize } from "../image/resize.js";
 import type { ImageResource } from "../resources/manager.js";
 import type { ExportHooks } from "./hooks.js";
 
-export interface StandIn {
-  source: CanvasImageSource;
-  /**
-   * Stand-in pixels per source pixel; 1 when the source itself is drawn.
-   *
-   * How the scene is told, which is the same mechanism the preview proxy has
-   * always used rather than a second way of saying it. It sizes the box the
-   * stand-in is stretched into on its way to image space, so a host that returns
-   * something other than the size it was asked for gets a slightly different
-   * resampling resolution and the same picture, in the same place.
-   */
-  scale: number;
-}
-
+/**
+ * The picture this export draws from.
+ *
+ * Only the bitmap comes back. Its size is nobody's business downstream: the
+ * scene says where the picture goes in image space and the executor stretches
+ * whatever it is handed into that box, so a stand-in of any size lands in the
+ * same place at a different resolution.
+ */
 export async function standIn(
   resource: ImageResource,
   crop: Size,
   target: Size,
   hooks: Pick<ExportHooks, "source" | "resample">,
-): Promise<StandIn> {
-  // The document's own size stays the reference for the scale: everything below
-  // is measured against the picture the edit was made on, whatever is standing
-  // in for it now.
+): Promise<CanvasImageSource> {
   const original: Size = { width: resource.width, height: resource.height };
 
   // The host's own picture for this one export, if it supplied one. Measured
-  // rather than assumed to be the same size, so a replacement of another size
-  // lands in the same place at a different resolution.
+  // rather than assumed to be the same size, because the resample below has to
+  // know what it is shrinking.
   const swapped = hooks.source ? await hooks.source(resource.source, original) : resource.source;
+  if (!hooks.resample) return swapped;
+
   const from = hooks.source ? sourceSize(swapped) : original;
-  const whole: StandIn = { source: swapped, scale: from.width / original.width };
-
-  if (!hooks.resample) return whole;
-
   const to = standInSize(from, crop, target);
-  if (to === null) return whole;
+  if (to === null) return swapped;
 
-  return {
-    source: await hooks.resample(swapped, from, to),
-    scale: to.width / original.width,
-  };
+  return hooks.resample(swapped, from, to);
 }

@@ -149,8 +149,7 @@ export async function exportDocument(
     const scene = createScene(
       { ...drawn, output: { ...drawn.output, background } },
       {
-        source: stand.source,
-        sourceScale: stand.scale,
+        source: stand,
         resolveResource: resources.resolve,
         ...(options.preprocess ? { preprocess: options.preprocess } : {}),
       },

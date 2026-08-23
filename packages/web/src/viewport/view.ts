@@ -202,7 +202,6 @@ export function viewportScene(editor: Editor, target: Size, matrix: Matrix): Sce
     document,
     {
       source: preview.source,
-      sourceScale: preview.scale,
       resolveResource: editor.resources.resolve,
       // The same rules the export will apply, or the picture on screen is not
       // the picture that comes out.

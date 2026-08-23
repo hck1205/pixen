@@ -1,5 +1,5 @@
 import { clamp } from "../fp/function.js";
-import { compose, IDENTITY, meanScale, scaling, translation } from "../geometry/matrix.js";
+import { compose, IDENTITY, meanScale, translation } from "../geometry/matrix.js";
 import { roundedSize, transformBounds } from "../geometry/rect.js";
 import { imageToStage, stageToOutput } from "../geometry/spaces.js";
 import type { Matrix, Rect, Size } from "../geometry/types.js";
@@ -55,14 +55,23 @@ export interface Scene {
 }
 
 export interface SceneInput {
+  /**
+   * Whatever is standing in for the picture: the bitmap itself, a downscaled
+   * proxy, a frame of a video, or something the host swapped in.
+   *
+   * Its own size is not asked for and does not matter. The scene says where the
+   * picture goes in image space and the executor stretches whatever it is given
+   * into that box, so a proxy of any size lands in the same place at a
+   * different resolution. There used to be a `sourceScale` here saying how big
+   * the stand-in was; it cancelled itself out of the drawing and was read for
+   * one thing it should never have decided — see `image.size` below.
+   */
   source: CanvasImageSource;
   /**
    * The host's chance to rewrite each shape before it is drawn. See
    * `preprocessLayers`; an empty list, which is the default, is a no-op.
    */
   preprocess?: readonly ShapeProcessor[];
-  /** Pixels of `source` per image pixel. 1 for the full-resolution bitmap. */
-  sourceScale?: number;
   /**
    * Resolves an image layer's bitmap. Layers reference resources by id, and only
    * the caller knows which manager holds them.
@@ -104,7 +113,6 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     fit === "stretch" ? stageToOutput(sourceRect, target) : translation(-sourceRect.x, -sourceRect.y);
   const imageToTarget = compose(view, regionMatrix, stageMatrix);
 
-  const sourceScale = input.sourceScale ?? 1;
   const scale = fit === "stretch" ? (target.width / sourceRect.width) * meanScale(view) : meanScale(view);
   const layerScale = Math.abs(scale);
 
@@ -119,12 +127,14 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     regionInTarget: transformBounds(compose(view, regionMatrix), sourceRect),
     image: {
       source: input.source,
-      size: {
-        width: document.source.width * sourceScale,
-        height: document.source.height * sourceScale,
-      },
-      // The preview bitmap is smaller than the image, so undo its scale first.
-      matrix: compose(imageToTarget, scaling(1 / sourceScale)),
+      // The picture's own size, always — never the stand-in's. The executor
+      // stretches whatever bitmap it is given into this box, so a proxy needs
+      // no arithmetic; and this is also what a redaction's strength is a
+      // fraction of, which is the reason it must not be the stand-in's size.
+      // It was, and a blur measured against a quarter-size proxy came out four
+      // times too small on screen while the exported file was right.
+      size: { width: document.source.width, height: document.source.height },
+      matrix: imageToTarget,
     },
     // Preprocessed first, then filtered: a processor may hide a layer by
     // returning it invisible, or produce one, and the visibility rule should

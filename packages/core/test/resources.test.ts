@@ -107,7 +107,8 @@ describe("the preview proxy", () => {
     const small = { width: 64, height: 48 };
     const proxy = new PreviewProxy(drawable(), small, false);
     const bitmap = proxy.get(1024);
-    expect(bitmap.scale).toBe(1);
+    expect(bitmap.source).toBe(proxy.get(1024).source);
+    expect({ width: bitmap.width, height: bitmap.height }).toEqual(small);
     expect(proxy.bytes()).toBe(0);
   });
 
@@ -115,8 +116,7 @@ describe("the preview proxy", () => {
     // A downscaled copy of a video is one frame of it, held forever.
     const proxy = new PreviewProxy(drawable(), size, true);
     const bitmap = proxy.get(256);
-    expect(bitmap.width).toBe(size.width);
-    expect(bitmap.scale).toBe(1);
+    expect({ width: bitmap.width, height: bitmap.height }).toEqual(size);
     expect(proxy.bytes()).toBe(0);
   });
 });

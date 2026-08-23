@@ -43,8 +43,6 @@ export interface PreviewBitmap {
   source: CanvasImageSource;
   width: number;
   height: number;
-  /** preview pixels per source pixel */
-  scale: number;
 }
 
 /**
@@ -67,7 +65,7 @@ export class PreviewProxy {
   ) {}
 
   get(maxSize: number): PreviewBitmap {
-    const whole: PreviewBitmap = { source: this.source, ...this.size, scale: 1 };
+    const whole: PreviewBitmap = { source: this.source, ...this.size };
     if (this.moving) return whole;
 
     const plan = planPreview(this.size, maxSize, this.#bitmap ? this.#limit : null);
@@ -100,7 +98,7 @@ export class PreviewProxy {
     // Larger than any limit that will be asked for: a host-supplied preview is
     // a decision, not a cache, and re-rendering over it would undo it.
     this.#limit = Number.POSITIVE_INFINITY;
-    this.#bitmap = { source, ...size, scale: size.width / this.size.width };
+    this.#bitmap = { source, ...size };
   }
 
   /**
@@ -124,6 +122,6 @@ export class PreviewProxy {
     const surface = drawnSurface(target, (drawing) =>
       drawResized(drawing.context, this.source, this.size, target),
     );
-    return { source: surface.canvas, ...target, scale: target.width / this.size.width };
+    return { source: surface.canvas, ...target };
   }
 }

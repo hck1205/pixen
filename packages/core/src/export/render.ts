@@ -43,7 +43,6 @@ export function renderDocumentToCanvas(
     document,
     {
       source: resource.source,
-      sourceScale: 1,
       resolveResource: resources.resolve,
       ...(options.preprocess ? { preprocess: options.preprocess } : {}),
     },

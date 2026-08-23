@@ -57,7 +57,7 @@ describe("ResourceManager previews", () => {
     const preview = resources.getPreview(resource.id);
 
     expect(preview.source).toBe(resource.source);
-    expect(preview.scale).toBe(1);
+    expect({ width: preview.width, height: preview.height }).toEqual({ width: 800, height: 600 });
   });
 
   it("refuses a preview of a resource that is not registered", () => {

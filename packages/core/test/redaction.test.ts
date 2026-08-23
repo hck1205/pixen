@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { obscureRegion, obscureStrength } from "../src/render/canvas2d/redaction.js";
 import { compose, rotation, scaling, IDENTITY } from "../src/geometry/matrix.js";
+import { buildSceneOps, createDocument, createRedactLayer, createScene } from "@pixen/core";
 
 const STRENGTH = 40;
 
@@ -77,5 +78,40 @@ describe("obscureRegion falls back rather than painting nothing", () => {
     const { context, filled } = refusingContext();
     obscureRegion(context as never, obscure("solid"), IDENTITY);
     expect(filled).toHaveLength(1);
+  });
+});
+
+/**
+ * A redaction has to hide the same amount on screen as in the file.
+ *
+ * Its strength is a fraction of the image's longest edge, and the scene used to
+ * hand the builder the *stand-in's* size instead — so a picture large enough to
+ * be proxied was blurred against a quarter-size bitmap and came out four times
+ * too weak on screen while the exported file was right. `docs/SECURITY.md`
+ * promises the preview and the export agree; this is that promise, measured.
+ */
+describe("what a redaction is measured against", () => {
+  const marked = () => {
+    const document = createDocument({ resourceId: "res_1", width: 2000, height: 1000 });
+    return {
+      ...document,
+      layers: [createRedactLayer({ x: 100, y: 100, width: 400, height: 200 }, { mode: "blur", strength: 0.02 })],
+    };
+  };
+
+  const strengthOf = (source: CanvasImageSource) => {
+    const ops = buildSceneOps(createScene(marked(), { source }, { region: "crop" }));
+    const op = ops.find((candidate) => candidate.op === "obscure") as { strength: number };
+    return op.strength;
+  };
+
+  it("is the picture's own size, whatever bitmap stood in for it", () => {
+    // A quarter-size proxy and the full bitmap are the same picture, so they
+    // are the same redaction.
+    const full = { width: 2000, height: 1000 } as unknown as CanvasImageSource;
+    const proxy = { width: 500, height: 250 } as unknown as CanvasImageSource;
+    expect(strengthOf(proxy)).toBe(strengthOf(full));
+    // A fortieth of two thousand: the fraction resolved against the document.
+    expect(strengthOf(full)).toBe(40);
   });
 });

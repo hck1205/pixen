@@ -62,7 +62,7 @@ export function renderMask(
 
   const scene = createScene(
     { ...document, layers: document.layers.filter(include) },
-    { source: resource.source, sourceScale: 1, resolveResource: resources.resolve },
+    { source: resource.source, resolveResource: resources.resolve },
     { region: "crop", target },
   );
 

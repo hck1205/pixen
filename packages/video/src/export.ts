@@ -140,7 +140,7 @@ function paint(
 ): void {
   const scene = createScene(
     document,
-    { source: element, sourceScale: 1, resolveResource: resources.resolve },
+    { source: element, resolveResource: resources.resolve },
     { region: "crop", target },
   );
   renderScene(context, scene);
