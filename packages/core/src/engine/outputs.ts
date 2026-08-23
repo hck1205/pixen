@@ -9,7 +9,9 @@
  *
  * The editor keeps its methods; this is what they call.
  */
-import { exportDocument, resolveOutputFormat, type ExportOptions, type ExportResult } from "../export/pipeline.js";
+import type { ExportOptions, ExportResult } from "../export/options.js";
+import { resolveOutputFormat } from "../export/output.js";
+import { exportDocument } from "../export/pipeline.js";
 import { renderMask, type MaskOptions } from "../export/mask.js";
 import {
   renderDocumentToCanvas,

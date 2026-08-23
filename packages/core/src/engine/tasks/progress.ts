@@ -1,5 +1,5 @@
 import type { DecodeStage } from "../../image/decode.js";
-import type { ExportStage } from "../../export/pipeline.js";
+import type { ExportStage } from "../../export/options.js";
 import { progressRatio, type StepProgress } from "../../util/progress.js";
 
 /** The two things the editor does that are worth waiting for. */

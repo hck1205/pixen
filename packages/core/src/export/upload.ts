@@ -1,6 +1,6 @@
 import { PixenError } from "../errors/index.js";
 import type { StepReporter } from "../util/progress.js";
-import type { ExportResult, ExportStage } from "./pipeline.js";
+import type { ExportResult, ExportStage } from "./options.js";
 
 /**
  * Handing the finished file to a server, with a progress bar that means it.

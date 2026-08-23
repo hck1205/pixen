@@ -19,7 +19,7 @@ import type {
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
 import { sourceFromResource } from "../resources/source.js";
-import type { ExportOptions, ExportResult } from "../export/pipeline.js";
+import type { ExportOptions, ExportResult } from "../export/options.js";
 import type { PictureOptions } from "../export/render.js";
 import type { ShapeProcessor } from "../render/preprocess.js";
 import type { MaskOptions } from "../export/mask.js";

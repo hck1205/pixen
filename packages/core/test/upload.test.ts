@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { uploadExport, uploadFields } from "../src/export/upload.js";
-import type { ExportResult } from "../src/export/pipeline.js";
+import type { ExportResult } from "../src/export/options.js";
 
 const result: ExportResult = {
   blob: new Blob(["pixels"], { type: "image/jpeg" }),

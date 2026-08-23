@@ -4,7 +4,8 @@ import { resolveSize, type ResizeIntent } from "../image/resize.js";
 import { createDocument } from "../model/document.js";
 import type { ImageFormat } from "../model/types.js";
 import { ResourceManager } from "../resources/manager.js";
-import { exportDocument, type ExportResult } from "./pipeline.js";
+import type { ExportResult } from "./options.js";
+import { exportDocument } from "./pipeline.js";
 
 export interface ProcessOptions extends ResizeIntent {
   format?: ImageFormat;

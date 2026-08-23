@@ -3,7 +3,8 @@ import { resolveSize, type ResizeIntent } from "../image/resize.js";
 import type { EditorDocument, ImageFormat } from "../model/types.js";
 import { outputSize as documentOutputSize } from "../model/document.js";
 import type { ResourceManager } from "../resources/manager.js";
-import { exportDocument, type ExportOptions, type ExportResult } from "./pipeline.js";
+import type { ExportOptions, ExportResult } from "./options.js";
+import { exportDocument } from "./pipeline.js";
 
 /**
  * Exporting the same edit at several sizes.

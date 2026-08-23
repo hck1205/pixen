@@ -1,5 +1,5 @@
 import type { PixenError } from "../errors/index.js";
-import type { ExportResult } from "../export/pipeline.js";
+import type { ExportResult } from "../export/options.js";
 import type { EditorDocument, ImageFormat } from "../model/types.js";
 import type { ImageResource } from "../resources/manager.js";
 import type { HistorySummary } from "./history.js";
