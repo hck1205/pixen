@@ -22,7 +22,7 @@ import {
   type Size,
   type StepReporter,
 } from "@pixen/core";
-import { canvasRecorder, type ClipRecorder, type RecorderOptions } from "./encode.js";
+import { canvasRecorder, taintedCanvasError, type ClipRecorder, type RecorderOptions } from "./encode.js";
 import { runClip, seekTo } from "./playback.js";
 
 /** What a cancelled video export calls itself, in one place. */
@@ -98,6 +98,7 @@ export async function exportClip(
     // The first frame is painted before recording starts, so the stream has
     // something to sample the instant it does rather than a blank canvas.
     paint(context, document, element, target, resources);
+    assertRecordable(context);
     options.onProgress?.({ stage: "render", loaded: 0, total: length });
     await recorder.start();
 
@@ -127,6 +128,27 @@ export async function exportClip(
     element.pause();
     element.currentTime = startedAt;
     if (!wasPaused) void element.play().catch(() => undefined);
+  }
+}
+
+/**
+ * Refuses a canvas the browser will not let anyone read.
+ *
+ * `captureStream` is called before the first frame is drawn, on a canvas that
+ * is still clean, so it does not refuse. The frame taints it, the capture track
+ * goes quiet, and what came out was a 110-byte WebM header reported as a
+ * successful export — a duration, a size and a type on a file no player opens,
+ * because the emptiness check downstream asks whether the file is zero bytes.
+ *
+ * One pixel is the whole test, and it is the same question the still export's
+ * redaction asks of a canvas. There it degrades to a solid fill; here there is
+ * nothing to degrade to, so it says so instead.
+ */
+function assertRecordable(context: CanvasRenderingContext2D): void {
+  try {
+    context.getImageData(0, 0, 1, 1);
+  } catch (cause) {
+    throw taintedCanvasError(cause);
   }
 }
 

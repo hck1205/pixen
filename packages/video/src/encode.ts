@@ -74,6 +74,38 @@ export function supportedRecordingType(preferred?: string): string | null {
  * painting as fast as it can: a frame drawn and overwritten before the next
  * sample is a frame that never reaches the file.
  */
+/**
+ * What a canvas nobody may read means for a recording.
+ *
+ * A video from another origin with no `Access-Control-Allow-Origin` taints the
+ * canvas its frames are drawn into, and that is the most likely way a real
+ * deployment fails, because a clip usually lives on a CDN. It is not a
+ * degradation: the still export merely loses the effects that read pixels back,
+ * while a recording cannot happen at all.
+ *
+ * Two places find out — `captureStream` refuses an already-unclean canvas
+ * outright, and a canvas that was clean when the stream started goes quiet the
+ * moment the first frame taints it — so what they say is written once. The
+ * remedy needs both of its halves, so the message carries both.
+ */
+export function taintedCanvasError(cause?: unknown): PixenError {
+  return new PixenError(
+    "CORS_ERROR",
+    "The video is from another origin, so its frames cannot be recorded. Serve it with " +
+      '`Access-Control-Allow-Origin` and open it with `crossOrigin: "anonymous"`.',
+    ...(cause === undefined ? [] : [{ cause }]),
+  );
+}
+
+/** Starts the stream, or says why it could not. */
+function captureCanvas(canvas: HTMLCanvasElement, frameRate: number): MediaStream {
+  try {
+    return canvas.captureStream(frameRate);
+  } catch (cause) {
+    throw taintedCanvasError(cause);
+  }
+}
+
 export function canvasRecorder(canvas: HTMLCanvasElement, options: RecorderOptions = {}): ClipRecorder {
   const mimeType = supportedRecordingType(options.mimeType);
   if (mimeType === null) {
@@ -82,7 +114,7 @@ export function canvasRecorder(canvas: HTMLCanvasElement, options: RecorderOptio
     });
   }
 
-  const stream = canvas.captureStream(options.frameRate ?? DEFAULT_FRAME_RATE);
+  const stream = captureCanvas(canvas, options.frameRate ?? DEFAULT_FRAME_RATE);
   const recorder = new MediaRecorder(stream, {
     mimeType,
     ...(options.bitrate === undefined ? {} : { videoBitsPerSecond: options.bitrate }),

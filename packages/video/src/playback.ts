@@ -12,6 +12,7 @@ import { PixenError, type ClipRange } from "@pixen/core";
 /** Long enough for a seek on a slow file, short enough to fail rather than hang. */
 const SEEK_TIMEOUT_MS = 10_000;
 
+
 export interface AwaitEventOptions {
   /** An event that means it went wrong, and the error to raise if it fires. */
   failOn?: { event: string; error: () => PixenError };

@@ -743,7 +743,7 @@ pixen
 
 ## @pixen/video
 
-26 names.
+27 names.
 
 ```
 ClipRecorder
@@ -767,6 +767,7 @@ exportMedia
 isMoving
 openVideo
 supportedRecordingType
+taintedCanvasError
 trackLayout
 trackReadout
 trimPlugin

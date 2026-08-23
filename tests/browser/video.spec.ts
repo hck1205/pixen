@@ -17,7 +17,11 @@ const REALTIME_BUDGET_MS = 60_000;
 
 type Demo = {
   recordSampleClip(options?: { seconds?: number }): Promise<Blob>;
-  openVideo(editor: unknown, input: Blob, options?: unknown): Promise<{ element: HTMLVideoElement; duration: number }>;
+  openVideo(
+    editor: unknown,
+    input: Blob | string,
+    options?: unknown,
+  ): Promise<{ element: HTMLVideoElement; duration: number }>;
   exportClip(
     document: unknown,
     element: HTMLVideoElement,
@@ -467,4 +471,57 @@ test("the trim strip sets the clip, in the language the editor is in", async ({ 
   expect(after.clip!.start).toBeLessThan(after.clip!.end);
   // However many times the value changed on the way, the drag is one step.
   expect(after.depth - before.depth).toBe(1);
+});
+
+/**
+ * The worst thing an export can do is succeed at nothing.
+ *
+ * A clip on a CDN is the ordinary deployment. Without an
+ * `Access-Control-Allow-Origin` header it taints the canvas the moment its
+ * first frame is drawn — after `captureStream` has already accepted a canvas
+ * that was clean — and the capture track then goes quiet. `MediaRecorder`
+ * writes a 110-byte header for that, and the emptiness check in `finish` asks
+ * whether the file is zero bytes, so it came back as a successful export: a
+ * duration, a size, a type, and a file no player will open.
+ */
+test("a clip from another origin is refused rather than exported as an empty header", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+
+  const bytes = await page.evaluate(async () => {
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 1 });
+    return [...new Uint8Array(await clip.arrayBuffer())];
+  });
+  // The same bytes, from an origin the page is not. That is all CORS is.
+  await page.route("http://pixen.test/clip.webm", (route) =>
+    route.fulfill({ status: 200, headers: { "content-type": "video/webm" }, body: Buffer.from(bytes) }),
+  );
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const source = await window.pixenVideoDemo.openVideo(element.editor, "http://pixen.test/clip.webm", {
+      name: "remote.webm",
+    });
+    const readyState = source.element.readyState;
+    try {
+      const written = await window.pixenVideoDemo.exportClip(
+        element.editor.document,
+        source.element,
+        element.editor.resources,
+      );
+      return { readyState, code: "no error", bytes: written.bytes };
+    } catch (error) {
+      const failure = error as { code?: string; message?: string };
+      return { readyState, code: failure.code ?? String(error), message: failure.message ?? "", bytes: 0 };
+    }
+  });
+
+  expect(outcome.code).toBe("CORS_ERROR");
+  // No file at all, rather than one that opens as nothing.
+  expect(outcome.bytes).toBe(0);
+  // The remedy is two-sided, and a host reading only the message needs both.
+  expect(outcome.message).toContain("Access-Control-Allow-Origin");
+  expect(outcome.message).toContain("crossOrigin");
+  // Recorded so the fixture is checkable: the element never got past its header.
+  expect(outcome.readyState).toBeLessThan(2);
 });

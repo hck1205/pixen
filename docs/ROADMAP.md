@@ -84,6 +84,8 @@ without one of them learning that the picture moves.
 - [x] A plugin surface that can carry its own locale strings, which an extension
       shipped as a separate package needs — `addStrings`, whose first customer is
       the trim strip
+- [x] The costs and the limits written down for someone deciding whether to buy
+      it ([VIDEO.md](VIDEO.md))
 
 Two costs, both measured rather than assumed. Recording runs at wall-clock speed
 — a thirty-second clip takes thirty seconds — because `MediaRecorder` samples a
