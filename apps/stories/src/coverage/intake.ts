@@ -86,7 +86,9 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
         capability: "Host round trip",
         layer: "Engine",
         detail:
-          "replaceSource swaps the pixels under an edit, keeping the crop, the annotations and the undo stack",
+          "replaceSource swaps the pixels under an edit, keeping the crop, the annotations and the undo " +
+          "stack — and replacePreview swaps only what is on screen, so an export made before the slow " +
+          "half of a round trip returns is still the picture that was loaded",
         evidence: [unit("lifecycle.test.ts"), story("RoundTrip"), browser("editor.spec.ts")],
       },
       {

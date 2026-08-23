@@ -30,6 +30,9 @@ const LABEL_KEYS = {
   sepia: "sepia",
   invert: "invert",
   vignette: "vignette",
+  gamma: "gamma",
+  temperature: "temperature",
+  tint: "tint",
 } as const satisfies Record<AdjustmentKey, keyof PixenStrings>;
 
 /** Colour adjustment: the preset row, then one slider per adjustment. */

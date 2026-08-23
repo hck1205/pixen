@@ -702,6 +702,21 @@ export class Editor {
     return this.#outputs.mask(options);
   }
 
+  /**
+   * Puts the host's own picture on screen, leaving the source alone.
+   *
+   * The half of a slow round trip that arrives first. An export made before
+   * the other half returns is still the picture that was loaded — which is the
+   * difference between this and `replaceSource`, and the reason both exist.
+   */
+  replacePreview(source: CanvasImageSource, size: Size): this {
+    this.#assertAlive();
+    const id = this.document.source.resourceId;
+    this.resources.replacePreview(id, source, size);
+    this.#emitter.emit("preview", { resourceId: id, host: true });
+    return this;
+  }
+
   /** JSON-safe snapshot; pair it with `restore` to resume a session. */
   toJSON(): EditorDocument {
     return serializeDocument(this.document);

@@ -26,6 +26,15 @@ export interface EditorEvents {
   /** The load was called off rather than failing. See `AbortReason`. */
   "load-abort": { reason: AbortReason };
   load: { document: EditorDocument; resource: ImageResource };
+  /**
+   * The picture on screen is not the one being exported from any more.
+   *
+   * A stage of its own because a host that swaps the preview during a slow
+   * round trip needs to know when the swap took, and an interface showing
+   * "previewing" needs somewhere to turn it off. `host` says whose picture it
+   * is: the proxy Pixen drew, or the one the host handed over.
+   */
+  preview: { resourceId: string; host: boolean };
   change: { document: EditorDocument; reason: string; transient: boolean };
   history: HistorySummary;
   selection: { id: string | null };

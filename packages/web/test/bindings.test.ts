@@ -43,6 +43,7 @@ describe("event names", () => {
       "load",
       "change",
       "history",
+      "preview",
       "export-start",
       "export-progress",
       "export-abort",

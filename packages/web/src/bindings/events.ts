@@ -26,6 +26,7 @@ export const PIXEN_EVENTS = [
   "load",
   "change",
   "history",
+  "preview",
   "export-start",
   "export-progress",
   "export-abort",
@@ -44,6 +45,8 @@ export interface PixenEventDetail {
   load: { document: EditorDocument };
   change: { document: EditorDocument; reason: string; transient: boolean };
   history: HistorySummary;
+  /** The picture on screen is the host's now, not the one an export draws from. */
+  preview: { resourceId: string; host: boolean };
   "export-start": { format: ImageFormat };
   "export-progress": ProgressReport;
   "export-abort": { reason: AbortReason };

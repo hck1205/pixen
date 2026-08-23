@@ -1,3 +1,4 @@
+import type { Size } from "../geometry/types.js";
 import { PixenError } from "../errors/index.js";
 import { disposeImageSource, releaseSurface } from "../image/canvas.js";
 import { decodeImage, type DecodeOptions, type ImageInput } from "../image/decode.js";
@@ -186,6 +187,16 @@ export class ResourceManager {
    */
   getPreview(id: string, maxSize = this.#previewMaxSize): PreviewBitmap {
     return this.#entry(id).preview.get(maxSize);
+  }
+
+  /**
+   * Puts the host's own picture on screen without touching the source.
+   *
+   * See `PreviewProxy.replace`. The size is the replacement's own, measured by
+   * the caller, because only it knows what it drew.
+   */
+  replacePreview(id: string, source: CanvasImageSource, size: Size): void {
+    this.#entry(id).preview.replace(source, size);
   }
 
   /** Frees a resource regardless of its reference count. */

@@ -1,6 +1,7 @@
 import { IDENTITY } from "../../geometry/matrix.js";
 import { longestEdge } from "../../geometry/rect.js";
 import type { Scene } from "../scene.js";
+import { adjustmentPlan } from "../adjustments.js";
 import { frameOps } from "./frames.js";
 import { layerOps } from "./layers.js";
 import { estimateTextWidth } from "./text.js";
@@ -23,7 +24,9 @@ import type { BuildOptions, DrawOp } from "./types.js";
  */
 export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[] {
   const measure = options.measureText ?? estimateTextWidth;
-  const useFilter = scene.filter !== "" && options.contextFilter !== false;
+  // What this engine has to do to reach the same picture as the other one.
+  const plan = adjustmentPlan(scene.adjustments, scene.filter, options.contextFilter !== false);
+  const useFilter = plan.filter !== "";
   const ops: DrawOp[] = [];
 
   if (options.clear !== false) {
@@ -38,7 +41,7 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
     });
   }
 
-  if (useFilter) ops.push({ op: "filter", value: scene.filter });
+  if (useFilter) ops.push({ op: "filter", value: plan.filter });
   ops.push(
     { op: "alpha", value: 1 },
     { op: "transform", matrix: scene.image.matrix },
@@ -46,10 +49,10 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   );
   if (useFilter) ops.push({ op: "filter", value: "none" });
 
-  if (!useFilter && scene.filter !== "") {
+  if (plan.pixels) {
     ops.push({
       op: "adjust-pixels",
-      adjustments: scene.adjustments,
+      adjustments: plan.pixels,
       width: scene.target.width,
       height: scene.target.height,
     });

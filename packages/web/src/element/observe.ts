@@ -30,6 +30,7 @@ const FORWARDED = {
   "export-abort": "pixen-export-abort",
   export: "pixen-export",
   history: "pixen-history",
+  preview: "pixen-preview",
 } as const satisfies Partial<Record<keyof EditorEvents, `pixen-${string}`>>;
 
 export interface ObserverPorts {

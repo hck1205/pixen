@@ -84,6 +84,26 @@ export class PreviewProxy {
   }
 
   /**
+   * A proxy the host supplied, in place of the one this would have drawn.
+   *
+   * The round trip a slow service makes — a background removed, a face
+   * retouched — usually has a cheap preview and an expensive final. This is
+   * where the cheap one goes: the picture on screen becomes the host's while
+   * the full-resolution source stays exactly as it was, so an export made
+   * before the slow half returns is still the picture that was loaded.
+   *
+   * The size is measured rather than assumed, so a preview of another shape
+   * lands where the picture is at its own resolution.
+   */
+  replace(source: CanvasImageSource, size: Size): void {
+    this.dispose();
+    // Larger than any limit that will be asked for: a host-supplied preview is
+    // a decision, not a cache, and re-rendering over it would undo it.
+    this.#limit = Number.POSITIVE_INFINITY;
+    this.#bitmap = { source, ...size, scale: size.width / this.size.width };
+  }
+
+  /**
    * Roughly what the proxy costs on top of the source, in bytes.
    *
    * Zero when there is no proxy, and zero when the proxy *is* the source —

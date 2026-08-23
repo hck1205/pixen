@@ -30,6 +30,7 @@ import type { CSSProperties } from "react";
 const VERDICT_TINT: Readonly<Record<Verdict, string>> = {
   met: "60 160 120",
   open: "210 140 60",
+  declined: "150 120 200",
   beyond: "90 140 230",
   unmeasured: "127 140 170",
 };

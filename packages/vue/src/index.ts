@@ -74,6 +74,7 @@ export const PixenImageEditor = defineComponent({
     load: (_document: EditorDocument) => true,
     change: (_document: EditorDocument, _meta: { reason: string; transient: boolean }) => true,
     history: (_state: HistorySummary) => true,
+    preview: (_detail: { resourceId: string; host: boolean }) => true,
     "export-start": (_detail: { format: ImageFormat }) => true,
     "export-progress": (_report: ProgressReport) => true,
     "export-abort": (_detail: { reason: AbortReason }) => true,

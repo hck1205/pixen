@@ -136,6 +136,20 @@ function migrateV7ToV8(document: Record<string, unknown>): Record<string, unknow
   };
 }
 
+/**
+ * v8 -> v9 added gamma and the two white-balance axes.
+ *
+ * Their neutral is zero like everything else's, so filling them in leaves a v8
+ * document looking exactly as it did — the same shape as the widening in v3.
+ * The version still moves, because a v8 build reading a v9 document would
+ * ignore three adjustments and draw a different picture in silence.
+ */
+function migrateV8ToV9(document: Record<string, unknown>): Record<string, unknown> {
+  const stored = document.adjustments;
+  const adjustments = typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {};
+  return { ...document, adjustments: { ...DEFAULT_ADJUSTMENTS, ...adjustments } };
+}
+
 export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
   if (migrations.has(fromVersion)) {
     throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
@@ -151,6 +165,7 @@ migrations.set(4, migrateV4ToV5);
 migrations.set(5, migrateV5ToV6);
 migrations.set(6, migrateV6ToV7);
 migrations.set(7, migrateV7ToV8);
+migrations.set(8, migrateV8ToV9);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {

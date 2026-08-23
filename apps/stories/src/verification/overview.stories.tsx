@@ -30,6 +30,13 @@ const RULES: ReadonlyArray<{ verdict: keyof typeof VERDICT_LABELS; means: string
       "and they are on this page on purpose — a comparison with no losing rows is a brochure.",
   },
   {
+    verdict: "declined",
+    means:
+      "A requirement Pixen deliberately does not meet, with the reason beside it. Not the same as a gap: " +
+      "nobody is going to do it, and a page that said “open” about something nobody will do would be " +
+      "promising a release that is not coming.",
+  },
+  {
     verdict: "beyond",
     means:
       "Pixen does this and no supplied requirement asked for it. A statement about our scope. It does not " +

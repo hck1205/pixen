@@ -41,8 +41,10 @@ unit tests and a browser suite driving the real bundle.
 
 - [x] Filters and presets beyond brightness / contrast / saturation
       (exposure, hue, grayscale, sepia, invert, vignette, nine presets)
-- [ ] Adjustments needing a per-pixel pass — gamma, white balance — which wait
-      for a GPU renderer
+- [x] Adjustments needing a per-pixel pass — gamma, and white balance on both
+      axes. A filter chain is a fixed set of functions and neither a gamma curve
+      nor a channel gain is among them, so these cost a pass whatever engine is
+      drawing; `adjustmentPlan` is what keeps the two engines agreeing
 - [x] Blur and pixelate redaction modes
 - [x] Image watermarks: corner, edge, centre or tiled, with opacity
 - [x] Text watermarks (a text layer plus the same placement maths)

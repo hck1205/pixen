@@ -123,15 +123,18 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
       {
         capability: "The shape of the result",
         pixen: "One result object with the blob, the size, the format, the quality used, the bytes and the filename",
-        verdict: "open",
+        verdict: "declined",
         market: required(
           "image writer",
           "Which properties the result carries is the host's to choose, so a large one can be trimmed",
         ),
         evidence: [unit("processing.test.ts")],
         note:
-          "Nothing to trim: ours holds no copy of the source, no copy of the state and no upload object, " +
-          "so the option would be an option to remove six numbers",
+          "Nothing to trim. The option exists in the supplied material because its result carries the " +
+          "source file, the whole edit state and an upload object; ours carries a blob and six numbers, so " +
+          "the option would be an option to remove six numbers. Adding an API that does nothing useful is " +
+          "worse than not having it — and if a result ever grows something worth dropping, this row is " +
+          "where that argument gets reopened",
       },
       {
         capability: "Headless processing",

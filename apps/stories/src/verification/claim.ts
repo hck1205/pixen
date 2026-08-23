@@ -58,28 +58,32 @@ export interface MarketClaim {
  * - `met` — a requirement from the supplied material that Pixen meets today.
  * - `open` — a requirement from the supplied material that Pixen does not meet
  *   yet. These are the honest gaps, and they are on this page on purpose.
+ * - `declined` — a requirement Pixen deliberately does not meet, with the
+ *   reason. Not the same as `open`: nobody is going to do it, and saying so is
+ *   more useful than a gap that never closes.
  * - `beyond` — Pixen does this and no supplied requirement asked for it. A
  *   statement about our scope. It does not say the comparison lacks it.
  * - `unmeasured` — Pixen does this; whether the comparison does is not
  *   established here. Most rows are this, and that is the honest answer.
  */
-export type Verdict = "met" | "open" | "beyond" | "unmeasured";
+export type Verdict = "met" | "open" | "declined" | "beyond" | "unmeasured";
 
 export const VERDICT_LABELS: Readonly<Record<Verdict, string>> = {
   met: "Requirement met",
   open: "Requirement open",
+  declined: "Deliberately not",
   beyond: "Beyond the brief",
   unmeasured: "Not measured against",
 };
 
-export const VERDICT_ORDER: readonly Verdict[] = ["open", "met", "beyond", "unmeasured"];
+export const VERDICT_ORDER: readonly Verdict[] = ["open", "declined", "met", "beyond", "unmeasured"];
 
 export interface Claim {
   capability: string;
   /** What Pixen does today. Derived from the code wherever the code has a list. */
   pixen: string;
   verdict: Verdict;
-  /** The requirement this answers, when there is one. Required for met and open. */
+  /** The requirement this answers. Required for met, open and declined. */
   market?: MarketClaim;
   /** What fails if the Pixen half stops being true. Never empty. */
   evidence: Evidence[];
@@ -104,7 +108,7 @@ export function claimsOf(groups: readonly ClaimGroup[]): Claim[] {
 }
 
 export function countVerdicts(groups: readonly ClaimGroup[]): Record<Verdict, number> {
-  const counts: Record<Verdict, number> = { met: 0, open: 0, beyond: 0, unmeasured: 0 };
+  const counts: Record<Verdict, number> = { met: 0, open: 0, declined: 0, beyond: 0, unmeasured: 0 };
   for (const claim of claimsOf(groups)) counts[claim.verdict] += 1;
   return counts;
 }

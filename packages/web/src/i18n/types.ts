@@ -50,6 +50,9 @@ export interface PixenStrings {
   sepia: string;
   invert: string;
   vignette: string;
+  gamma: string;
+  temperature: string;
+  tint: string;
   presets: string;
   straighten: string;
   sticker: string;

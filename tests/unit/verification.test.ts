@@ -70,15 +70,16 @@ describe("the verification matrix", () => {
     expect(claims.filter((claim) => claim.evidence.length === 0).map((claim) => claim.capability)).toEqual([]);
   });
 
-  it("keeps some losing rows, because a comparison without them is a brochure", () => {
-    expect(countVerdicts(VERIFICATION).open).toBeGreaterThan(0);
+  it("keeps the rows that are not wins, because a comparison without them is a brochure", () => {
+    const counts = countVerdicts(VERIFICATION);
+    expect(counts.open + counts.declined).toBeGreaterThan(0);
   });
 });
 
 describe("what a verdict is allowed to assert", () => {
   it("sources every requirement it says was asked for", () => {
     const unsourced = claims
-      .filter((claim) => claim.verdict === "met" || claim.verdict === "open")
+      .filter((claim) => claim.verdict === "met" || claim.verdict === "open" || claim.verdict === "declined")
       .filter((claim) => !claim.market?.source.topic || claim.market.detail.trim() === "")
       .map((claim) => claim.capability);
     expect(unsourced).toEqual([]);

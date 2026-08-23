@@ -4,10 +4,15 @@ import { ADJUSTMENT_KEYS, type AdjustmentKey, type Adjustments } from "./types.j
 /**
  * What each adjustment means, and the range a control may offer.
  *
- * Every adjustment here is either a CSS filter function the browser applies to
- * the whole image, or the vignette, which is drawn. Nothing needs a per-pixel
- * pass during a drag, which is what keeps a slider interactive on a large
- * image — and what decides which adjustments this version ships.
+ * Most are a CSS filter function the browser applies to the whole image, or the
+ * vignette, which is drawn. Three are not expressible as a filter at all —
+ * gamma and the two white-balance axes — and cost a pass over every pixel
+ * whether or not the engine has `ctx.filter`. They are separated in
+ * `adjustmentPlan` rather than mixed in, so what a slider costs is answerable.
+ *
+ * Every neutral is zero, including the ones whose natural neutral is one:
+ * gamma is stored as an exponent, the way exposure is stored in stops, so the
+ * whole set can be reset, compared and serialised by one rule.
  */
 export interface AdjustmentRange {
   min: number;
@@ -27,6 +32,13 @@ export const ADJUSTMENT_RANGES: Readonly<Record<AdjustmentKey, AdjustmentRange>>
   contrast: { min: -1, max: 1, step: 0.01, neutral: 0, unit: "ratio" },
   saturation: { min: -1, max: 1, step: 0.01, neutral: 0, unit: "ratio" },
   hue: { min: -180, max: 180, step: 1, neutral: 0, unit: "degrees" },
+  // Stored as an exponent: the applied gamma is 2 ** value, so 0 is untouched,
+  // +1 doubles it and -1 halves it. Neutral stays zero like everything else.
+  gamma: { min: -1, max: 1, step: 0.02, neutral: 0, unit: "stops" },
+  // White balance. Temperature runs blue to amber, tint green to magenta —
+  // the two axes a raw converter offers, and the two a photograph needs.
+  temperature: { min: -1, max: 1, step: 0.01, neutral: 0, unit: "ratio" },
+  tint: { min: -1, max: 1, step: 0.01, neutral: 0, unit: "ratio" },
   grayscale: { min: 0, max: 1, step: 0.01, neutral: 0, unit: "amount" },
   sepia: { min: 0, max: 1, step: 0.01, neutral: 0, unit: "amount" },
   invert: { min: 0, max: 1, step: 0.01, neutral: 0, unit: "amount" },

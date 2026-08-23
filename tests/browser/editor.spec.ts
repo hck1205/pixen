@@ -571,9 +571,9 @@ test("fitting keeps the whole image clear of the floating chrome", async ({ page
 });
 
 test("the image stays clear of the chrome with the adjust panel open", async ({ page }) => {
-  // The adjust panel is the tallest one — nine sliders and nine presets — and it
-  // is the one that would push the inspector over the image if the fit ignored
-  // how tall the chrome actually is.
+  // The adjust panel is the tallest one — a slider per adjustment and a button
+  // per preset — and it is the one that would push the inspector over the image
+  // if the fit ignored how tall the chrome actually is.
   const clear = await page.evaluate(async () => {
     const element = document.querySelector("pixen-image-editor") as HTMLElement & {
       editor: { stageSize: { width: number; height: number } };
@@ -600,11 +600,16 @@ test("the image stays clear of the chrome with the adjust panel open", async ({ 
       // The panel must stay inside the host however many rows it wrapped to.
       inspectorOverflow: inspector.bottom - host.bottom,
       sliders: shadow.querySelectorAll('.inspector input[type="range"]').length,
+      // Read from the panel rather than restated here: an adjustment added to
+      // the engine adds a slider, and this test should not be the thing that
+      // has to be edited for it.
+      expected: shadow.querySelectorAll(".inspector .field").length,
     };
   });
 
   // Every adjustment is reachable rather than squashed off the end of a row.
-  expect(clear.sliders).toBe(9);
+  expect(clear.sliders).toBeGreaterThan(9);
+  expect(clear.sliders).toBe(clear.expected);
   expect(clear.inspectorOverflow).toBeLessThanOrEqual(1);
   expect(clear.imageTop).toBeGreaterThan(0);
   expect(clear.imageBottom).toBeLessThanOrEqual(clear.inspectorTop + 1);
@@ -2832,4 +2837,60 @@ test("a host rule rewrites every shape on its way to being drawn", async ({ page
   expect(result.draftOnScreen).toBe("0,255,0");
   // Nothing was rewritten in the document itself.
   expect(result.stored).toEqual(["#ff0000", "#00ff00"]);
+});
+
+test("a host preview reaches the screen without reaching the file", async ({ page }) => {
+  const seen = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: {
+        document: { source: { width: number; height: number } };
+        replacePreview(source: CanvasImageSource, size: { width: number; height: number }): unknown;
+        renderToImageData(options?: Record<string, unknown>): ImageData;
+      };
+    };
+    const events: Array<{ host: boolean }> = [];
+    element.addEventListener("pixen-preview", (event) => {
+      events.push((event as CustomEvent<{ host: boolean }>).detail);
+    });
+
+    const middle = (pixels: ImageData) => {
+      const index = (Math.round(pixels.height / 2) * pixels.width + Math.round(pixels.width / 2)) * 4;
+      return `${pixels.data[index]},${pixels.data[index + 1]},${pixels.data[index + 2]}`;
+    };
+
+    // The cheap half of a slow round trip: a flat magenta stand-in.
+    const stand = document.createElement("canvas");
+    stand.width = 64;
+    stand.height = 43;
+    const paint = stand.getContext("2d")!;
+    paint.fillStyle = "#ff00ff";
+    paint.fillRect(0, 0, stand.width, stand.height);
+    element.editor.replacePreview(stand, { width: stand.width, height: stand.height });
+
+    // The viewport is the only thing that draws from the proxy, so the screen
+    // is read off its own canvas rather than from a fresh render.
+    (element as unknown as { viewport: { render(): void } }).viewport.render();
+    const canvas = element.shadowRoot!.querySelector("canvas")!;
+    const screen = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
+    const magentaOnScreen = (() => {
+      for (let i = 0; i < screen.data.length; i += 4) {
+        if (screen.data[i] === 255 && screen.data[i + 1] === 0 && screen.data[i + 2] === 255) return true;
+      }
+      return false;
+    })();
+
+    return {
+      events,
+      magentaOnScreen,
+      // An export draws from the source, whatever is standing in on screen.
+      inTheFile: middle(element.editor.renderToImageData({ target: { width: 40, height: 40 } })),
+      unchanged: element.editor.document.source,
+    };
+  });
+
+  expect(seen.events).toEqual([{ resourceId: expect.any(String), host: true }]);
+  expect(seen.magentaOnScreen).toBe(true);
+  // The picture an export would produce is untouched: this is the difference
+  // between replacing the preview and replacing the source.
+  expect(seen.inTheFile).not.toBe("255,0,255");
 });

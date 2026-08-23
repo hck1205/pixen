@@ -1,7 +1,11 @@
 import type { Point, Rect } from "../geometry/types.js";
 import type { ClipRange } from "./clip.js";
+import type { LineEnd } from "./line.js";
 
-export const SCHEMA_VERSION = 8;
+export type { LineEnd };
+export { LINE_ENDS } from "./line.js";
+
+export const SCHEMA_VERSION = 9;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -44,27 +48,6 @@ export interface EllipseLayer extends LayerBase {
   stroke: Stroke | null;
   fill: string | null;
 }
-
-/**
- * What sits at the end of a line.
- *
- * Eight, and they are eight rather than a boolean because a line means
- * different things at each end: an arrow points, a bar measures, a circle marks
- * a spot, a square marks a corner. The open and solid pairs are the same shape
- * drawn stroked or filled, which is a real distinction over a busy photograph.
- */
-export const LINE_ENDS = [
-  "none",
-  "bar",
-  "arrow",
-  "arrow-solid",
-  "circle",
-  "circle-solid",
-  "square",
-  "square-solid",
-] as const;
-
-export type LineEnd = (typeof LINE_ENDS)[number];
 
 export interface LineLayer extends LayerBase {
   type: "line";
@@ -183,6 +166,11 @@ export const ADJUSTMENT_KEYS = [
   "sepia",
   "invert",
   "vignette",
+  // The three a canvas filter cannot express, and the reason there is still a
+  // per-pixel pass when the browser *has* a filter. See `adjustmentPlan`.
+  "gamma",
+  "temperature",
+  "tint",
 ] as const;
 
 export type AdjustmentKey = (typeof ADJUSTMENT_KEYS)[number];

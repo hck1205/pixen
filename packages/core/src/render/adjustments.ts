@@ -17,6 +17,15 @@ import type { Adjustments } from "../model/types.js";
 const CHANNEL_MAX = 255;
 
 /**
+ * How far a full white-balance swing moves a channel.
+ *
+ * A third: enough to correct an indoor cast, not enough to turn a photograph
+ * into a colour wash at the end of the slider. Chosen by eye against this
+ * project's own sample, like the presets next door.
+ */
+const WHITE_BALANCE_GAIN = 0.3;
+
+/**
  * Luminance coefficients from the `saturate()` colour matrix in the W3C Filter
  * Effects specification, so the fallback matches the browser's own filter.
  */
@@ -35,7 +44,7 @@ export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments
   const brightness = (1 + adjustments.brightness) * 2 ** adjustments.exposure;
   const contrast = 1 + adjustments.contrast;
   const saturation = 1 + adjustments.saturation;
-  const { hue, grayscale, sepia, invert } = adjustments;
+  const { hue, grayscale, sepia, invert, gamma, temperature, tint } = adjustments;
   if (
     brightness === 1 &&
     contrast === 1 &&
@@ -43,13 +52,24 @@ export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments
     hue === 0 &&
     grayscale === 0 &&
     sepia === 0 &&
-    invert === 0
+    invert === 0 &&
+    gamma === 0 &&
+    temperature === 0 &&
+    tint === 0
   ) {
     return;
   }
 
   const contrastOffset = 127.5 * (1 - contrast);
   const hueMatrix = hue === 0 ? null : hueRotationMatrix((hue * Math.PI) / 180);
+  // Stored as an exponent so its neutral is zero; the curve wants the number.
+  const gammaExponent = gamma === 0 ? 1 : 1 / 2 ** gamma;
+  // White balance as channel gains. Amber lifts red and drops blue; magenta
+  // drops green and lifts the other two by half as much, which is the axis a
+  // green cast runs along.
+  const redGain = 1 + temperature * WHITE_BALANCE_GAIN + tint * WHITE_BALANCE_GAIN * 0.5;
+  const greenGain = 1 - tint * WHITE_BALANCE_GAIN;
+  const blueGain = 1 - temperature * WHITE_BALANCE_GAIN + tint * WHITE_BALANCE_GAIN * 0.5;
 
   for (let i = 0; i < data.length; i += 4) {
     let r = (data[i] ?? 0) * brightness;
@@ -92,6 +112,21 @@ export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments
       r += (CHANNEL_MAX - r - r) * invert;
       g += (CHANNEL_MAX - g - g) * invert;
       b += (CHANNEL_MAX - b - b) * invert;
+    }
+
+    // Last, and last in the filter path too: when the browser has `ctx.filter`
+    // these run as a second pass over what it produced, so applying them here
+    // in any other order would make the two engines disagree.
+    if (gamma !== 0) {
+      r = CHANNEL_MAX * (clamp255(r) / CHANNEL_MAX) ** gammaExponent;
+      g = CHANNEL_MAX * (clamp255(g) / CHANNEL_MAX) ** gammaExponent;
+      b = CHANNEL_MAX * (clamp255(b) / CHANNEL_MAX) ** gammaExponent;
+    }
+
+    if (temperature !== 0 || tint !== 0) {
+      r *= redGain;
+      g *= greenGain;
+      b *= blueGain;
     }
 
     data[i] = clamp255(r);
@@ -138,4 +173,52 @@ function hueRotationMatrix(radians: number): ColourMatrix {
 
 function clamp255(value: number): number {
   return value < 0 ? 0 : value > CHANNEL_MAX ? CHANNEL_MAX : value;
+}
+
+/**
+ * The three a canvas filter cannot express.
+ *
+ * Not an oversight in the CSS specification and not a gap in the browsers: a
+ * filter chain is a fixed set of functions, and a gamma curve and a channel
+ * gain are not among them. So these cost a pass over every pixel whatever
+ * engine is drawing — which is exactly why they are named rather than mixed in.
+ */
+export const PIXEL_ONLY_ADJUSTMENTS = ["gamma", "temperature", "tint"] as const;
+
+export interface AdjustmentPlan {
+  /** The CSS filter chain, or "" when the engine is not using one. */
+  filter: string;
+  /** The adjustments to run per pixel afterwards, or null when there are none. */
+  pixels: Adjustments | null;
+}
+
+/**
+ * What each engine has to do to reach the same picture.
+ *
+ * With a filter the browser does most of the work and the three above run as a
+ * second pass; without one everything runs per pixel. Both paths must produce
+ * the same file — an export that differs from the preview because of the engine
+ * it ran in is the bug this whole arrangement exists to prevent — so the
+ * decision is made once, here, rather than in the two builders.
+ */
+export function adjustmentPlan(
+  adjustments: Adjustments,
+  filter: string,
+  canUseFilter: boolean,
+): AdjustmentPlan {
+  const pixelOnly = PIXEL_ONLY_ADJUSTMENTS.some((key) => adjustments[key] !== 0);
+
+  if (!canUseFilter) {
+    // One pass over everything, or nothing at all if there is nothing to do.
+    return { filter: "", pixels: filter !== "" || pixelOnly ? adjustments : null };
+  }
+
+  if (!pixelOnly) return { filter, pixels: null };
+
+  // The filter did the ones it can express, so the pass must not do them again.
+  const pixels = { ...adjustments };
+  for (const key of Object.keys(pixels) as Array<keyof Adjustments>) {
+    if (!PIXEL_ONLY_ADJUSTMENTS.includes(key as (typeof PIXEL_ONLY_ADJUSTMENTS)[number])) pixels[key] = 0;
+  }
+  return { filter, pixels };
 }

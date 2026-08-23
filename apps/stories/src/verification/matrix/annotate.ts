@@ -38,10 +38,15 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "Per-pixel adjustments",
-        pixen: "Not offered: gamma and white balance need a pass Pixen does not run until there is a GPU renderer",
-        verdict: "open",
+        pixen: "Gamma, and white balance on both axes — temperature and tint",
+        verdict: "met",
         market: required("adjustments", "Colour controls beyond the filter primitives the canvas exposes"),
-        evidence: [doc("docs/ROADMAP.md")],
+        evidence: [unit("pixel-adjustments.test.ts"), story("Adjustments"), doc("docs/ROADMAP.md")],
+        note:
+          "A filter chain is a fixed set of functions and neither a gamma curve nor a channel gain is " +
+          "among them, so these cost a pass over every pixel whatever engine is drawing. `adjustmentPlan` " +
+          "is what keeps the two engines agreeing: with a filter the browser does what it can and these " +
+          "run after it, without one everything runs in the pass — and the same file comes out either way",
       },
     ],
   },

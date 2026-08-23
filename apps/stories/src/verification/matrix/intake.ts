@@ -99,18 +99,20 @@ export const INTAKE_CLAIMS: ClaimGroup[] = [
       {
         capability: "The preview as its own stage",
         pixen:
-          "A preview proxy is built for a large picture and used for the interactive view, but nothing " +
-          "announces it and it cannot be replaced on its own",
-        verdict: "open",
+          "`replacePreview` puts the host's own picture on screen and leaves the source alone, and " +
+          "`pixen-preview` announces it — so an export made before the slow half of a round trip returns " +
+          "is still the picture that was loaded",
+        verdict: "met",
         market: required(
           "image events",
           "A preview that loads as a stage of its own, announced separately, and replaceable without " +
           "touching the full-resolution source",
         ),
-        evidence: [unit("preview.test.ts"), doc("docs/ARCHITECTURE.md")],
+        evidence: [unit("preview.test.ts"), browser("editor.spec.ts"), doc("docs/ARCHITECTURE.md")],
         note:
-          "The proxy exists and is tested; what is missing is the seam around it — an event when it is " +
-          "ready, and a way to swap it alone during a slow round trip",
+          "The difference between this and `replaceSource` is the whole point: one changes what is on " +
+          "screen, the other changes what comes out. Pixen's own proxy is drawn synchronously on the " +
+          "first frame, so it has no separate moment to announce — the event is for the swap, which does",
       },
       {
         capability: "A memory ceiling on the way in",
