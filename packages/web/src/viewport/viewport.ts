@@ -33,9 +33,8 @@ import {
 // Straight from the module rather than the barrel: these are the gesture's own
 // tuning, and the barrel deliberately keeps tuning out of the package's API.
 import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/constants.js";
-import { planOverlay } from "./overlay.js";
+import { drawOverlay, planOverlay, readOverlayPalette } from "./overlay/index.js";
 import { PINCH_POINTERS, TouchPoints } from "./touch.js";
-import { drawOverlay, readOverlayPalette } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
 import {
   fitView,

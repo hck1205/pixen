@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CROP_HANDLES } from "@pixen/core";
-import { cornerSegments, gridSegments, planOverlay, projectRect, CORNER_ARM } from "../src/viewport/overlay.js";
+import { cornerSegments, gridSegments, planOverlay, projectRect, CORNER_ARM } from "../src/viewport/overlay/index.js";
 
 const rect = { x: 0, y: 0, width: 300, height: 150 };
 

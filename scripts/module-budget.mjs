@@ -71,9 +71,10 @@ export const EXEMPT = {
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's
   // decision, its drawing and the multi-touch bookkeeping have all been lifted
-  // out of it. The two lines over that are the measurer it hands the engine:
-  // it owns the canvas, so it is the only part that can.
-  "packages/web/src/viewport/viewport.ts": 465,
+  // out of it, and the overlay it draws is now a folder it reaches through one
+  // import rather than two. The measurer it hands the engine is here because it
+  // owns the canvas, so it is the only part that can.
+  "packages/web/src/viewport/viewport.ts": 464,
 };
 
 const SOURCE = /^(packages|apps)\/[^/]+\/src\/.*\.tsx?$/;
