@@ -1,7 +1,10 @@
-import type { Adjustments } from "../model/types.js";
+import { ADJUSTMENT_KEYS, type Adjustments } from "../model/types.js";
 
 /**
  * The CSS filter chain, done a pixel at a time.
+ *
+ * Returns whether it changed anything, so a caller that would otherwise write
+ * the pixels straight back can skip that too.
  *
  * This is what a browser without `ctx.filter` gets, and it has to reach the same
  * picture: an export must not differ from the preview because of the engine it
@@ -40,25 +43,23 @@ const SEPIA_MATRIX = [
   [0.272, 0.534, 0.131],
 ] as const;
 
-export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments: Adjustments): void {
+/**
+ * The adjustments this pass applies: all of them but the vignette, which is
+ * drawn over the picture rather than filtered into it.
+ */
+const PASS_KEYS = ADJUSTMENT_KEYS.filter((key) => key !== "vignette");
+
+export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments: Adjustments): boolean {
   const brightness = (1 + adjustments.brightness) * 2 ** adjustments.exposure;
   const contrast = 1 + adjustments.contrast;
   const saturation = 1 + adjustments.saturation;
   const { hue, grayscale, sepia, invert, gamma, temperature, tint } = adjustments;
-  if (
-    brightness === 1 &&
-    contrast === 1 &&
-    saturation === 1 &&
-    hue === 0 &&
-    grayscale === 0 &&
-    sepia === 0 &&
-    invert === 0 &&
-    gamma === 0 &&
-    temperature === 0 &&
-    tint === 0
-  ) {
-    return;
-  }
+  // A pass over every pixel of a 48-megapixel photograph is not something to do
+  // for nothing, and neither is writing the same pixels back — which is why the
+  // answer comes back rather than being kept quiet. Derived from the key list
+  // rather than written out: the hand-written version was a second copy of what
+  // the loop below reads, and the tenth adjustment would have reached one of them.
+  if (PASS_KEYS.every((key) => adjustments[key] === 0)) return false;
 
   const contrastOffset = 127.5 * (1 - contrast);
   const hueMatrix = hue === 0 ? null : hueRotationMatrix((hue * Math.PI) / 180);
@@ -133,6 +134,7 @@ export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments
     data[i + 1] = clamp255(g);
     data[i + 2] = clamp255(b);
   }
+  return true;
 }
 
 type ColourMatrix = readonly (readonly [number, number, number])[];

@@ -210,8 +210,9 @@ function adjustPixels(context: Canvas2D, op: Extract<DrawOp, { op: "adjust-pixel
   try {
     context.setTransform(1, 0, 0, 1, 0, 0);
     const image = context.getImageData(0, 0, op.width, op.height);
-    applyAdjustmentsToImageData(image.data, op.adjustments);
-    context.putImageData(image, 0, 0);
+    // Nothing changed means nothing to write: putting a megapixel back
+    // unaltered costs the same as putting it back altered.
+    if (applyAdjustmentsToImageData(image.data, op.adjustments)) context.putImageData(image, 0, 0);
   } catch {
     // A tainted canvas (cross-origin source without CORS) cannot be read back.
     // The image still renders; only the adjustment is lost.

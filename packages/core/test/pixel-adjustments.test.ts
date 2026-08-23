@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADJUSTMENT_KEYS,
   adjustmentPlan,
   applyAdjustmentsToImageData,
   cssFilter,
@@ -135,5 +136,36 @@ describe("the two engines", () => {
 
     // `cssFilter` says nothing about these two, so both paths run the same pass.
     expect([...one]).toEqual([...other]);
+  });
+});
+
+/**
+ * A pass over every pixel of a 48-megapixel photograph is not something to do
+ * for nothing — and the guard that decides was a hand-written copy of what the
+ * loop reads, which is one list too many.
+ */
+describe("when the pass runs at all", () => {
+  const pixels = () => new Uint8ClampedArray([10, 20, 30, 255]);
+
+  it("says it did nothing for an untouched picture, and does nothing", () => {
+    const data = pixels();
+    expect(applyAdjustmentsToImageData(data, adjustments())).toBe(false);
+    expect([...data]).toEqual([10, 20, 30, 255]);
+  });
+
+  it("says it did nothing for a vignette, which is drawn rather than filtered", () => {
+    // The answer, not the pixels: a pass that ran and changed nothing leaves
+    // the same bytes behind as one that never ran, and costs a megapixel.
+    const data = pixels();
+    expect(applyAdjustmentsToImageData(data, adjustments({ vignette: 1 }))).toBe(false);
+    expect([...data]).toEqual([10, 20, 30, 255]);
+  });
+
+  it("runs, and says so, for every adjustment that is not the vignette", () => {
+    for (const key of ADJUSTMENT_KEYS.filter((name) => name !== "vignette")) {
+      const data = pixels();
+      expect(applyAdjustmentsToImageData(data, adjustments({ [key]: key === "hue" ? 90 : 0.5 })), key).toBe(true);
+      expect([...data], key).not.toEqual([10, 20, 30, 255]);
+    }
   });
 });
