@@ -32,7 +32,8 @@ export const estimateTextWidth: TextMeasurer = (text, font) => {
   return text.length * size * AVERAGE_GLYPH_RATIO;
 };
 
-export function fontFor(layer: TextLayer): string {
+/** The CSS `font` shorthand a layer draws with. Its block carries it onward. */
+function fontFor(layer: TextLayer): string {
   return `${layer.fontSize}px ${layer.fontFamily}`;
 }
 

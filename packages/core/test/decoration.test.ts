@@ -17,6 +17,7 @@ import {
   SCHEMA_VERSION,
   stickerFrame,
   validators,
+  type TextMeasurer,
 } from "@pixen/core";
 
 const source = { width: 1000, height: 500 } as unknown as CanvasImageSource;
@@ -93,6 +94,24 @@ describe("createTextWatermarkLayer", () => {
     const bounds = layerBounds(layer);
     expect(bounds.x + bounds.width).toBeCloseTo(1000 - 20, 0);
     expect(bounds.y + bounds.height).toBeCloseTo(500 - 20, 0);
+  });
+
+  /**
+   * The margin is the whole promise of a corner position, and it is kept only
+   * if the box the layer is placed by is the box its letters are drawn in. It
+   * used to be placed by the estimate and drawn by a measurement, so a long
+   * mark of wide letters overhung the edge it was supposed to sit inside.
+   */
+  it("keeps the margin against the width the renderer will actually use", () => {
+    const measure: TextMeasurer = (text, font) => text.length * Number.parseFloat(font) * 1.4;
+    const layer = createTextWatermarkLayer(
+      image,
+      { text: "WWWWWWWW", position: "bottom-right", margin: 0.02 },
+      measure,
+    );
+    const bounds = layerBounds(layer, measure);
+    expect(bounds.x + bounds.width).toBeCloseTo(1000 - 20, 0);
+    expect(bounds.width).toBeCloseTo(8 * layer.fontSize * 1.4, 5);
   });
 
   it("is a text layer, so it edits and exports like any other", () => {

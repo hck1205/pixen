@@ -649,7 +649,7 @@ export class Editor {
 
   /** A text watermark — a credit line — placed by the same arithmetic. */
   addTextWatermark(options: TextWatermarkOptions): this {
-    return this.addLayer(createTextWatermarkLayer(this.document.source, options), { select: false });
+    return this.addLayer(createTextWatermarkLayer(this.document.source, options, this.measureText), { select: false });
   }
 
   select(id: string | null): this {

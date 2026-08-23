@@ -3,6 +3,7 @@ import { stageToImage } from "../geometry/spaces.js";
 import type { Rect, Size } from "../geometry/types.js";
 import { effectiveCrop } from "../model/document.js";
 import { createImageLayer, createTextLayer, layerBounds, translateLayer } from "../model/layers.js";
+import type { TextMeasurer } from "../model/text-layout.js";
 import { DEFAULT_TEXT_COLOUR } from "../model/defaults.js";
 import type { EditorDocument, ImageLayer, TextLayer } from "../model/types.js";
 
@@ -177,7 +178,11 @@ export function createStickerLayer(document: EditorDocument, options: StickerOpt
 /** Text is measured in type size, so it needs a smaller default than a logo. */
 export const DEFAULT_TEXT_WATERMARK_SCALE = 0.045;
 
-export function createTextWatermarkLayer(image: Size, options: TextWatermarkOptions): TextLayer {
+export function createTextWatermarkLayer(
+  image: Size,
+  options: TextWatermarkOptions,
+  measure?: TextMeasurer,
+): TextLayer {
   const fontSize = Math.max(1, (options.scale ?? DEFAULT_TEXT_WATERMARK_SCALE) * longestEdge(image));
   const draft = createTextLayer({ x: 0, y: 0 }, options.text, {
     fontSize,
@@ -188,9 +193,11 @@ export function createTextWatermarkLayer(image: Size, options: TextWatermarkOpti
     ...(options.backgroundColor === undefined ? {} : { backgroundColor: options.backgroundColor }),
   });
 
-  // The layer's own bounds estimate is what the renderer will lay out against,
-  // so placing by it keeps the margin the caller asked for.
-  const bounds = layerBounds(draft);
+  // Placed by the same box the renderer lays the letters out in, so the margin
+  // the caller asked for is the margin they get. Measured by whoever has a
+  // canvas; without one this is the estimate, and a long watermark of wide
+  // letters can sit closer to the edge than asked.
+  const bounds = layerBounds(draft, measure);
   const frame = placeWithin(
     wholeOf(image),
     { width: bounds.width, height: bounds.height },
