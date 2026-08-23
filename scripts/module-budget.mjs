@@ -61,13 +61,19 @@ export const EXEMPT = {
   // state a class is for. The last eight are `replacePreview`, which is the
   // one call that is not a delegation — it touches the resources and the event
   // channel, and both of those live here.
-  "packages/core/src/engine/editor.ts": 755,
+  //
+  // Raised from 755 for `measureText`: a second injected capability beside the
+  // resource manager, without which the engine estimates how wide a caption is
+  // and a text layer resizes about a box that is not around its letters. A
+  // field, an option, an import and the paragraph saying why.
+  "packages/core/src/engine/editor.ts": 769,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's
   // decision, its drawing and the multi-touch bookkeeping have all been lifted
-  // out of it.
-  "packages/web/src/viewport/viewport.ts": 462,
+  // out of it. The two lines over that are the measurer it hands the engine:
+  // it owns the canvas, so it is the only part that can.
+  "packages/web/src/viewport/viewport.ts": 465,
 };
 
 const SOURCE = /^(packages|apps)\/[^/]+\/src\/.*\.tsx?$/;

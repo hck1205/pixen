@@ -1,51 +1,58 @@
-import { AVERAGE_GLYPH_RATIO } from "../../model/text-metrics.js";
+import { textBlock, type TextMeasurer } from "../../model/text-layout.js";
 import type { TextLayer } from "../../model/types.js";
-import type { TextMeasurer } from "./types.js";
+import type { DrawOp } from "./types.js";
 
 /**
- * Laying text out before anything draws it.
+ * A caption as draw operations.
  *
- * Wrapping is a decision — which words land on which line — so it happens here,
- * over an injected measurer, rather than inside a canvas call where no test can
- * see it. The renderer and the export share this, which is why a wrapped
- * caption cannot come out differently in the two.
+ * The layout — which words land on which line, how wide the block is — is the
+ * model's answer, so the renderer and the selection box cannot disagree about
+ * it. What is decided here is only how the answer is drawn: where canvas wants
+ * its anchor for each alignment, and how much room the plate leaves.
  */
-/** The font size a measurer falls back to when a font string carries none. */
-const FALLBACK_FONT_SIZE = 16;
 
-/** Rough fallback: enough for layout when no real measurer is available. */
-export const estimateTextWidth: TextMeasurer = (text, font) => {
-  const size = Number.parseFloat(font) || FALLBACK_FONT_SIZE;
-  return text.length * size * AVERAGE_GLYPH_RATIO;
-};
+/**
+ * The breathing room a text plate leaves around the letters, as a fraction of
+ * the type size — so a caption at 12px and the same caption at 200px look like
+ * the same design rather than two.
+ */
+const TEXT_PLATE_PADDING_RATIO = 0.2;
 
-export function fontFor(layer: TextLayer): string {
-  return `${layer.fontSize}px ${layer.fontFamily}`;
-}
+export function textLayerOps(layer: TextLayer, measure: TextMeasurer): DrawOp[] {
+  const { font, lines, lineHeight, width, height } = textBlock(layer, measure);
 
-/** Greedy word wrap. Explicit newlines always break; `maxWidth` is optional. */
-export function wrapLines(
-  text: string,
-  maxWidth: number | null,
-  font: string,
-  measure: TextMeasurer,
-): string[] {
-  const paragraphs = text.split("\n");
-  if (maxWidth == null) return paragraphs;
+  // Canvas aligns text about the anchor, so the anchor moves with the alignment
+  // while the layer's own position stays the top-left of the block.
+  const originX =
+    layer.align === "center"
+      ? layer.position.x + width / 2
+      : layer.align === "right"
+        ? layer.position.x + width
+        : layer.position.x;
 
-  const lines: string[] = [];
-  for (const paragraph of paragraphs) {
-    let line = "";
-    for (const word of paragraph.split(/(\s+)/)) {
-      const candidate = line + word;
-      if (line && measure(candidate, font) > maxWidth) {
-        lines.push(line.trimEnd());
-        line = word.trimStart();
-      } else {
-        line = candidate;
-      }
-    }
-    lines.push(line);
-  }
-  return lines;
+  const padding = layer.fontSize * TEXT_PLATE_PADDING_RATIO;
+  return [
+    {
+      op: "text",
+      lines,
+      origin: { x: originX, y: layer.position.y },
+      lineHeight,
+      font,
+      align: layer.align,
+      color: layer.color,
+      ...(layer.backgroundColor
+        ? {
+            background: {
+              color: layer.backgroundColor,
+              rect: {
+                x: layer.position.x - padding,
+                y: layer.position.y - padding,
+                width: width + padding * 2,
+                height: height + padding * 2,
+              },
+            },
+          }
+        : {}),
+    },
+  ];
 }

@@ -1,5 +1,6 @@
 import { PixenError } from "../../errors/index.js";
 import { err, ok, type Result } from "../../fp/result.js";
+import type { TextMeasurer } from "../../model/text-layout.js";
 import type { EditorDocument } from "../../model/types.js";
 import {
   begin,
@@ -117,7 +118,11 @@ function restoreSnapshot(
  * a transaction, committing without one, undoing mid-gesture — come back as
  * errors rather than exceptions.
  */
-export function reduce(state: SessionState, intent: Intent): Result<SessionOutcome, PixenError> {
+export function reduce(
+  state: SessionState,
+  intent: Intent,
+  measure?: TextMeasurer,
+): Result<SessionOutcome, PixenError> {
   switch (intent.kind) {
     case "select": {
       const id = pruneSelection(state.document, intent.id);
@@ -165,7 +170,7 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
     case "add-layer": {
       // Never null: `add-layer` has a case in the table, and the table is
       // checked against the union at compile time.
-      const outcome = applyDocumentChange(state, documentChangeFor(intent)!);
+      const outcome = applyDocumentChange(state, documentChangeFor(intent, measure)!);
       if (intent.select === false || outcome.state === state) return ok(outcome);
       return ok({
         state: { ...outcome.state, selection: intent.layer.id },
@@ -174,7 +179,7 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
     }
 
     default: {
-      const change = documentChangeFor(intent);
+      const change = documentChangeFor(intent, measure);
       if (!change) {
         return err(
           new PixenError("INVALID_STATE", `Unknown intent "${(intent as { kind: string }).kind}"`, {

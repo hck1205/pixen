@@ -1,4 +1,5 @@
 import type { Matrix, Point, Rect } from "../../geometry/types.js";
+import type { TextMeasurer } from "../../model/text-layout.js";
 import type { Adjustments, RedactionMode } from "../../model/types.js";
 
 /**
@@ -115,9 +116,6 @@ export type DrawOp =
       background?: TextBackground;
     }
   | { op: "adjust-pixels"; adjustments: Adjustments; width: number; height: number };
-
-/** Measures a string in a given CSS font. Injected so text layout is testable. */
-export type TextMeasurer = (text: string, font: string) => number;
 
 export interface BuildOptions {
   /** False when the engine lacks canvas `filter`, which switches to the pixel path. */

@@ -7,6 +7,7 @@ import type { CanvasSurface } from "../image/canvas.js";
 import type { ResizeIntent } from "../image/resize.js";
 import type { DecodeOptions, ImageInput } from "../image/decode.js";
 import { cloneDocument, createDocument, effectiveCrop, outputSize, stageRect, stageSize } from "../model/document.js";
+import { estimateTextWidth, type TextMeasurer } from "../model/text-layout.js";
 import { serializeDocument } from "../model/serialize.js";
 import type {
   Adjustments,
@@ -52,6 +53,8 @@ export interface EditorOptions {
   resources?: ResourceManager;
   historyLimit?: number;
   previewMaxSize?: number;
+  /** The initial `measureText`; see the field. */
+  measureText?: TextMeasurer;
 }
 
 export interface MutateOptions {
@@ -120,7 +123,18 @@ export class Editor {
     fail: this.#fail,
   });
 
+  /**
+   * How a caption is measured, for everything that needs its box.
+   *
+   * The estimate until a host with a canvas replaces it — a single width ratio
+   * is wrong for every particular string in a proportional font. The viewport
+   * sets it from the context the renderer draws with, so the box a text layer
+   * resizes and turns about is the box its letters occupy.
+   */
+  measureText: TextMeasurer = estimateTextWidth;
+
   constructor(options: EditorOptions = {}) {
+    if (options.measureText) this.measureText = options.measureText;
     this.resources =
       options.resources ??
       new ResourceManager({ previewMaxSize: options.previewMaxSize ?? DEFAULT_PREVIEW_MAX_SIZE });
@@ -355,7 +369,7 @@ export class Editor {
   /** `dispatch`, handing back what the reducer decided. See `commitTransaction`. */
   #dispatchFor(intent: Intent): SessionOutcome {
     this.#assertAlive();
-    const outcome = reduce(this.session, intent);
+    const outcome = reduce(this.session, intent, this.measureText);
     if (!outcome.ok) {
       this.#emitter.emit("error", outcome.error);
       throw outcome.error;

@@ -16,7 +16,7 @@ import {
   DEFAULT_TEXT_COLOUR,
 } from "./defaults.js";
 import { REDACTION_COLOUR } from "./palette.js";
-import { AVERAGE_GLYPH_RATIO, LINE_HEIGHT_RATIO } from "./text-metrics.js";
+import { estimateTextWidth, textBlock, type TextMeasurer } from "./text-layout.js";
 import type {
   EditorLayer,
   ImageLayer,
@@ -164,8 +164,15 @@ export function findLayerOfType<T extends EditorLayer["type"]>(
   return layer?.type === type ? (layer as Extract<EditorLayer, { type: T }>) : null;
 }
 
-/** Image-space bounding box of a layer, ignoring its own rotation. */
-export function layerBounds(layer: EditorLayer): Rect {
+/**
+ * Image-space bounding box of a layer, ignoring its own rotation.
+ *
+ * `measure` is how a caption's width is found. Without one the estimate stands
+ * in, and a caption's box will not fit its own letters — a selection drawn from
+ * it ended up 45% narrower than the word it was around. Anything with a canvas
+ * to hand should pass one.
+ */
+export function layerBounds(layer: EditorLayer, measure: TextMeasurer = estimateTextWidth): Rect {
   switch (layer.type) {
     case "rect":
     case "ellipse":
@@ -185,15 +192,8 @@ export function layerBounds(layer: EditorLayer): Rect {
     case "path":
       return boundsOf(layer.points);
     case "text": {
-      // Without a measuring context this is an estimate; the renderer refines it.
-      const lines = layer.text.split("\n");
-      const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
-      return {
-        x: layer.position.x,
-        y: layer.position.y,
-        width: layer.maxWidth ?? longest * layer.fontSize * AVERAGE_GLYPH_RATIO,
-        height: lines.length * layer.fontSize * LINE_HEIGHT_RATIO,
-      };
+      const { width, height } = textBlock(layer, measure);
+      return { x: layer.position.x, y: layer.position.y, width, height };
     }
   }
 }

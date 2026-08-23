@@ -10,12 +10,17 @@ import {
   DEFAULT_WATERMARK_POSITION,
   DEFAULT_WATERMARK_SCALE,
   imageLayerOps,
+  createTextLayer,
+  estimateTextWidth,
   layerBounds,
+  layerRotationCentre,
   redactLayerOps,
   translateLayer,
   watermarkFrame,
   type DrawOp,
   type ImageLayer,
+  type TextLayer,
+  type TextMeasurer,
 } from "@pixen/core";
 
 const frame = { x: 10, y: 20, width: 100, height: 50 };
@@ -154,5 +159,44 @@ describe("watermarks", () => {
     const layer = createWatermarkLayer(image, { ...options, opacity: 1, scale: 0.5 });
     expect(layer.opacity).toBe(1);
     expect(layer.frame.width).toBeCloseTo(500);
+  });
+});
+
+/**
+ * A caption's box used to be a character count times an average glyph width,
+ * which is the same number for `iiii` and `WWWW` and four times wrong for one
+ * of them. Everything that draws a selection, places a handle, hit-tests a
+ * click or turns a layer asked for that box, so the letters sat outside it.
+ */
+describe("a caption's bounding box", () => {
+  const wide: TextMeasurer = (text, font) => text.length * Number.parseFloat(font) * 1.2;
+
+  const caption = (text: string, extra: Partial<TextLayer> = {}) =>
+    ({ ...createTextLayer({ x: 10, y: 20 }, text, { fontSize: 50, ...extra }) }) as TextLayer;
+
+  it("is the width the measurer gives, not a guess from the character count", () => {
+    expect(layerBounds(caption("WWWW"), wide).width).toBe(4 * 50 * 1.2);
+  });
+
+  it("differs between two strings of the same length", () => {
+    const narrow: TextMeasurer = (text) => text.replace(/[^W]/g, "").length * 40 + text.length * 4;
+    expect(layerBounds(caption("WWWW"), narrow).width).not.toBe(layerBounds(caption("iiii"), narrow).width);
+  });
+
+  it("is the widest line, not the wrapping width, when the text is narrower than its limit", () => {
+    const measure: TextMeasurer = (text) => text.length * 10;
+    expect(layerBounds(caption("ab", { maxWidth: 500 }), measure).width).toBe(20);
+  });
+
+  it("is the same box the renderer turns the layer about", () => {
+    const layer = caption("WWWW");
+    expect(layerRotationCentre(layer, wide)).toEqual({
+      x: layer.position.x + layerBounds(layer, wide).width / 2,
+      y: layer.position.y + layerBounds(layer, wide).height / 2,
+    });
+  });
+
+  it("falls back to the estimate when nothing can measure", () => {
+    expect(layerBounds(caption("WWWW")).width).toBeCloseTo(estimateTextWidth("WWWW", "50px sans-serif"), 5);
   });
 });

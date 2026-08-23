@@ -38,6 +38,7 @@ import {
   type GestureState,
 } from "../src/viewport/gestures/index.js";
 import { DEFAULT_STYLE } from "../src/tools/index.js";
+import { estimateTextWidth } from "@pixen/core";
 
 /**
  * Identity matrices make screen, stage and image coordinates the same, so these
@@ -53,6 +54,7 @@ function context(overrides: Partial<GestureContext> = {}): GestureContext {
     viewMatrix: IDENTITY,
     stageFromImage: IDENTITY,
     imageLongestEdge: 1000,
+    measure: estimateTextWidth,
     style: DEFAULT_STYLE,
     minCropSize: 24,
     createId: (prefix) => `${prefix}_${++counter}`,

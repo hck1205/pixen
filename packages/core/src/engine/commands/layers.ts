@@ -9,6 +9,7 @@ import { clamp } from "../../fp/function.js";
 import { clampInside } from "../../geometry/rect.js";
 import type { Point, Rect } from "../../geometry/types.js";
 import { layerBounds, translateLayer } from "../../model/layers.js";
+import type { TextMeasurer } from "../../model/text-layout.js";
 import { resizeLayer, rotateLayer, type LayerHandle } from "../../model/transform.js";
 import type { EditorDocument, EditorLayer } from "../../model/types.js";
 
@@ -42,14 +43,15 @@ export function dragLayerHandle(
   id: string,
   handle: LayerHandle,
   pointer: Point,
-  options: { minSize?: number; aspectRatio?: number | null; snap?: number } = {},
+  options: { minSize?: number; aspectRatio?: number | null; snap?: number; measure?: TextMeasurer } = {},
 ): EditorDocument {
   return updateLayer(document, id, (layer) =>
     handle === "rotate"
-      ? rotateLayer(layer, pointer, { snap: options.snap })
+      ? rotateLayer(layer, pointer, { snap: options.snap, measure: options.measure })
       : resizeLayer(layer, handle, pointer, {
           minSize: options.minSize,
           aspectRatio: options.aspectRatio,
+          measure: options.measure,
         }),
   );
 }
@@ -75,10 +77,10 @@ export function reorderLayer(document: EditorDocument, id: string, index: number
 }
 
 /** Keeps every layer's bounding box overlapping the image, so nothing is lost off-canvas. */
-export function clampLayersToImage(document: EditorDocument): EditorDocument {
+export function clampLayersToImage(document: EditorDocument, measure?: TextMeasurer): EditorDocument {
   const bounds: Rect = { x: 0, y: 0, width: document.source.width, height: document.source.height };
   const layers = document.layers.map((layer) => {
-    const box = layerBounds(layer);
+    const box = layerBounds(layer, measure);
     const clamped = clampInside(box, bounds);
     if (clamped.x === box.x && clamped.y === box.y) return layer;
     return translateLayer(layer, clamped.x - box.x, clamped.y - box.y);

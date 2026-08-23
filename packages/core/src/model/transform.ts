@@ -3,6 +3,7 @@ import { CROP_HANDLES, handlePosition, type CropHandle } from "../geometry/crop.
 import { center, longestEdge } from "../geometry/rect.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
 import { layerBounds } from "./layers.js";
+import type { TextMeasurer } from "./text-layout.js";
 import type { EditorLayer } from "./types.js";
 
 /**
@@ -40,11 +41,15 @@ export interface ResizeLayerOptions {
   minSize?: number;
   /** Locks width to height, as a corner drag on a bitmap usually wants. */
   aspectRatio?: number | null;
+  /** How a caption is measured, so a text layer resizes about its own box. */
+  measure?: TextMeasurer;
 }
 
 export interface RotateLayerOptions {
   /** Rounds the result to a multiple of this angle. 0 leaves it free. */
   snap?: number;
+  /** How a caption is measured, so a text layer turns about its own centre. */
+  measure?: TextMeasurer;
 }
 
 function rotatePoint(point: Point, about: Point, radians: number): Point {
@@ -74,8 +79,12 @@ const HANDLE_AXES: Record<CropHandle, { x: -1 | 0 | 1; y: -1 | 0 | 1 }> = {
  * The renderer turns a layer about its bounds centre, so the handles do too;
  * anything else would put the grab points somewhere the layer is not.
  */
-export function layerHandlePosition(layer: EditorLayer, handle: LayerHandle): Point {
-  const bounds = layerBounds(layer);
+export function layerHandlePosition(
+  layer: EditorLayer,
+  handle: LayerHandle,
+  measure?: TextMeasurer,
+): Point {
+  const bounds = layerBounds(layer, measure);
   const centre = center(bounds);
   const local =
     handle === "rotate"
@@ -137,7 +146,7 @@ export function resizeLayer(
 ): EditorLayer {
   const minSize = options.minSize ?? DEFAULT_MIN_LAYER_SIZE;
   const aspectRatio = options.aspectRatio ?? null;
-  const bounds = layerBounds(layer);
+  const bounds = layerBounds(layer, options.measure);
   const centre = center(bounds);
   const axes = HANDLE_AXES[handle];
 
@@ -198,7 +207,7 @@ export function rotateLayer(
   pointer: Point,
   options: RotateLayerOptions = {},
 ): EditorLayer {
-  const centre = center(layerBounds(layer));
+  const centre = center(layerBounds(layer, options.measure));
   // The handle sits above the layer, so a pointer straight up is no rotation.
   const angle = Math.atan2(pointer.y - centre.y, pointer.x - centre.x) + QUARTER_TURN;
   const snap = options.snap ?? 0;

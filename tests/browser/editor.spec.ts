@@ -2894,3 +2894,70 @@ test("a host preview reaches the screen without reaching the file", async ({ pag
   // between replacing the preview and replacing the source.
   expect(seen.inTheFile).not.toBe("255,0,255");
 });
+
+/**
+ * A caption's box is what everything visible about it is drawn from: the
+ * selection outline, the handles, the click target, the centre it turns about.
+ * It used to be a character count times an average glyph width, so a word of
+ * wide letters ran a long way outside its own selection — and the far end of
+ * it could not be clicked at all.
+ */
+test("a wide caption can be selected by its last letter", async ({ page }) => {
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).tool = "text";
+  });
+
+  const stage = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement).editor.stageSize,
+  );
+  const start = await stageToClient(page, { x: stage.width * 0.1, y: stage.height * 0.45 });
+  await page.mouse.click(start.x, start.y);
+  await page.keyboard.type("WWWWWWWW");
+  await page.keyboard.press("Escape");
+
+  const caption = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const layer = element.editor.document.layers[0] as unknown as {
+      id: string;
+      position: { x: number; y: number };
+      fontSize: number;
+      fontFamily: string;
+      text: string;
+    };
+    const context = document.createElement("canvas").getContext("2d")!;
+    context.font = `${layer.fontSize}px ${layer.fontFamily}`;
+    return {
+      id: layer.id,
+      position: layer.position,
+      fontSize: layer.fontSize,
+      measured: context.measureText(layer.text).width,
+      // What the old estimate would have said: 0.55 of the type size per character.
+      estimated: layer.text.length * layer.fontSize * 0.55,
+    };
+  });
+
+  // The point of the fixture: these two disagree, so the click below lands
+  // inside the letters and outside the box the estimate would have drawn.
+  expect(caption.measured).toBeGreaterThan(caption.estimated * 1.2);
+
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).tool = "select";
+  });
+  await page.evaluate((id) => {
+    (document.querySelector("pixen-image-editor") as EditorElement).editor.select(id);
+  }, caption.id);
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).editor.select(null);
+  });
+
+  const lastLetter = await stageToClient(page, {
+    x: caption.position.x + caption.measured * 0.95,
+    y: caption.position.y + caption.fontSize * 0.5,
+  });
+  await page.mouse.click(lastLetter.x, lastLetter.y);
+
+  const selected = await page.evaluate(
+    () => (document.querySelector("pixen-image-editor") as EditorElement).editor.selectedLayer?.id ?? null,
+  );
+  expect(selected).toBe(caption.id);
+});

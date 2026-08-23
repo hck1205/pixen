@@ -4,7 +4,7 @@ import type { Scene } from "../scene.js";
 import { adjustmentPlan } from "../adjustments.js";
 import { frameOps } from "./frames.js";
 import { layerOps } from "./layers.js";
-import { estimateTextWidth } from "./text.js";
+import { estimateTextWidth } from "../../model/text-layout.js";
 import type { BuildOptions, DrawOp } from "./types.js";
 
 /**

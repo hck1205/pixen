@@ -2,6 +2,7 @@ import type { CropHandle } from "../../geometry/crop.js";
 import type { Point, Rect } from "../../geometry/types.js";
 import type { ResizeIntent } from "../../image/resize.js";
 import { resolveSize } from "../../image/resize.js";
+import type { TextMeasurer } from "../../model/text-layout.js";
 import type { ClipRange } from "../../model/clip.js";
 import { cloneDocument, effectiveCrop } from "../../model/document.js";
 import type { LayerHandle } from "../../model/transform.js";
@@ -87,7 +88,7 @@ export interface DocumentChange {
  * The intent-to-command table. Keeping it a pure lookup means "what does
  * rotate-right do" has one answer, checkable without constructing an editor.
  */
-export function documentChangeFor(intent: Intent): DocumentChange | null {
+export function documentChangeFor(intent: Intent, measure?: TextMeasurer): DocumentChange | null {
   switch (intent.kind) {
     case "rotate-by":
       return { reason: "rotate", label: "Rotate", transform: (d) => commands.rotateBy(d, intent.radians) };
@@ -185,6 +186,7 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
             minSize: intent.minSize,
             aspectRatio: intent.aspectRatio,
             snap: intent.snap,
+            measure,
           }),
       };
     case "reorder-layer":

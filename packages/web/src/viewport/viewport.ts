@@ -1,6 +1,7 @@
 import {
   applyToPoint,
   compose,
+  contextMeasurer,
   createId,
   Editor,
   imageToStage,
@@ -11,6 +12,7 @@ import {
   type Matrix,
   type Point,
   type Size,
+  type TextMeasurer,
 } from "@pixen/core";
 import {
   beginGesture,
@@ -86,6 +88,12 @@ export interface ViewportCallbacks {
 export class Viewport {
   readonly canvas: HTMLCanvasElement;
   #context: CanvasRenderingContext2D;
+  /**
+   * The same measurer the renderer uses, over the same context, so the box a
+   * caption is selected by is the box its letters are drawn in. Reading the
+   * font is not destructive — every text operation sets its own before drawing.
+   */
+  #measure: TextMeasurer;
   #editor: Editor;
   #callbacks: ViewportCallbacks;
 
@@ -108,7 +116,11 @@ export class Viewport {
     if (!context) throw new Error("Pixen: could not acquire a 2D context for the viewport");
     this.canvas = canvas;
     this.#context = context;
+    this.#measure = contextMeasurer(context);
     this.#editor = editor;
+    // The engine estimates captions until something with a canvas tells it
+    // better; this is that something, and it is the renderer's own measurer.
+    editor.measureText = this.#measure;
     this.#callbacks = callbacks;
 
     this.#unsubscribe.push(editor.on("change", () => this.invalidate()));
@@ -225,6 +237,7 @@ export class Viewport {
       viewMatrix: this.#viewMatrix(),
       stageFromImage: this.#stageFromImage(),
       imageLongestEdge: longestEdge(document.source),
+      measure: this.#measure,
       style: this.#style,
       minCropSize: this.#minCropSize,
       createId,
@@ -308,6 +321,7 @@ export class Viewport {
       stage: this.#editor.stageRect,
       stageFromImage: this.#stageFromImage(),
       stageToScreen: (point) => this.stageToScreen(point),
+      measure: this.#measure,
       palette: readOverlayPalette(getComputedStyle(this.canvas)),
       matrix,
       dpr,

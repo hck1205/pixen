@@ -51,7 +51,7 @@ export function hitLayer(context: GestureContext, imagePoint: Point): EditorLaye
   for (let i = context.layers.length - 1; i >= 0; i -= 1) {
     const layer = context.layers[i]!;
     if (!layer.visible || layer.locked) continue;
-    const bounds = layerBounds(layer);
+    const bounds = layerBounds(layer, context.measure);
     if (
       imagePoint.x >= bounds.x - tolerance &&
       imagePoint.x <= bounds.x + bounds.width + tolerance &&
@@ -83,7 +83,7 @@ export function hitLayerHandle(context: GestureContext, point: Point): LayerHand
 
   let best: { handle: LayerHandle; distance: number } | null = null;
   for (const handle of LAYER_HANDLES) {
-    const image = layerHandlePosition(layer, handle);
+    const image = layerHandlePosition(layer, handle, context.measure);
     const screen = stageToScreen(context, applyToPoint(context.stageFromImage, image));
     const away = distance(screen, point);
     if (away <= LAYER_HANDLE_HIT_RADIUS && (!best || away < best.distance)) {

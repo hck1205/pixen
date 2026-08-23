@@ -3,7 +3,8 @@ import type { Matrix } from "../../geometry/types.js";
 import type { Canvas2D } from "../../image/canvas.js";
 import { applyAdjustmentsToImageData } from "../adjustments.js";
 import { supportsContextFilter } from "../filter-support.js";
-import { buildSceneOps, type BuildOptions, type DrawOp, type PathCommand, type TextMeasurer } from "../ops/index.js";
+import type { TextMeasurer } from "../../model/text-layout.js";
+import { buildSceneOps, type BuildOptions, type DrawOp, type PathCommand } from "../ops/index.js";
 import type { Scene } from "../scene.js";
 import { drawVignette } from "./decoration.js";
 import { obscureRegion } from "./redaction.js";
@@ -35,8 +36,13 @@ export interface RenderOptions {
   contextFilter?: boolean;
 }
 
-/** Measures text with the real context, which is the only accurate source. */
-function contextMeasurer(context: Canvas2D): TextMeasurer {
+/**
+ * Measures text with the real context, which is the only accurate source.
+ *
+ * Exported because the editor needs the same answer the renderer gets: a
+ * selection box drawn from an estimate does not fit the letters it is around.
+ */
+export function contextMeasurer(context: Canvas2D): TextMeasurer {
   return (text, font) => {
     context.font = font;
     return context.measureText(text).width;

@@ -9,6 +9,7 @@ import {
   type Matrix,
   type Point,
   type Rect,
+  type TextMeasurer,
 } from "@pixen/core";
 import { CORNER_ARM, cornerSegments, gridSegments, projectRect, type OverlayPlan, type Segment } from "./overlay.js";
 
@@ -212,6 +213,8 @@ export interface OverlayScene {
   palette: OverlayPalette;
   /** Image space to device pixels, for the scrim. */
   matrix: Matrix;
+  /** How a caption is measured, so its handles sit on its letters. */
+  measure: TextMeasurer;
   dpr: number;
 }
 
@@ -238,7 +241,7 @@ export function drawOverlay(context: CanvasRenderingContext2D, scene: OverlaySce
 
   // Handles are image space; everything drawn here is device pixels.
   const at = (handle: LayerHandle): Point => {
-    const screen = scene.stageToScreen(applyToPoint(scene.stageFromImage, layerHandlePosition(selected, handle)));
+    const screen = scene.stageToScreen(applyToPoint(scene.stageFromImage, layerHandlePosition(selected, handle, scene.measure)));
     return { x: screen.x * dpr, y: screen.y * dpr };
   };
 

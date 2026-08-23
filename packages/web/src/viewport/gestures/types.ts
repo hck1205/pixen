@@ -1,4 +1,4 @@
-import type { CropHandle, EditorLayer, Intent, LayerHandle, Matrix, Point, Rect } from "@pixen/core";
+import type { CropHandle, EditorLayer, Intent, LayerHandle, Matrix, Point, Rect, TextMeasurer } from "@pixen/core";
 import type { AnnotationStyle, ToolId } from "../../tools/index.js";
 
 /**
@@ -41,6 +41,8 @@ export interface GestureContext {
   /** image space -> stage space. */
   stageFromImage: Matrix;
   imageLongestEdge: number;
+  /** How a caption is measured, so a text layer's box fits its own letters. */
+  measure: TextMeasurer;
   style: AnnotationStyle;
   minCropSize?: number;
   /** Injected so tests get stable layer ids. */
