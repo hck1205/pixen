@@ -33,12 +33,10 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
     ops.push({ op: "clear", width: scene.target.width, height: scene.target.height });
   }
   if (scene.background) {
-    ops.push({
-      op: "fill-viewport",
-      color: scene.background,
-      width: scene.target.width,
-      height: scene.target.height,
-    });
+    // Under the picture, not over the canvas. On an export those are the same
+    // rectangle; in the editor the second one paints the whole workspace the
+    // colour a host chose for the file's transparency.
+    ops.push({ op: "fill-under", color: scene.background, rect: scene.regionInTarget });
   }
 
   if (useFilter) ops.push({ op: "filter", value: plan.filter });

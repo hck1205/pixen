@@ -31,11 +31,10 @@ describe("maskOps", () => {
   it("drops the picture, the adjustments and the decoration", () => {
     const ops: DrawOp[] = [
       { op: "clear", width: 10, height: 10 },
-      { op: "fill-viewport", color: "#000", width: 10, height: 10 },
+      { op: "fill-under", color: "#000", rect: frame },
       { op: "image", source: {} as CanvasImageSource, width: 10, height: 10 },
       { op: "adjust-pixels", adjustments: {} as never, width: 10, height: 10 },
       { op: "vignette", rect: frame, strength: 0.5 },
-      { op: "frame", rect: frame, style: "solid", width: 2, radius: 0, inset: 0, colour: "#fff" },
       { op: "filter", value: "blur(2px)" },
       { op: "alpha", value: 0.5 },
     ];

@@ -109,7 +109,13 @@ describe("TaskRunner", () => {
     await task.run(undefined, options, async () => "second");
     await expect(first).rejects.toThrow("off");
 
-    stale?.({ stage: "decode", loaded: 1, total: null });
+    // Assigned inside the callback above, which TypeScript cannot see; the
+    // point of the test is that calling it now reports nothing.
+    (stale as ((progress: { stage: "decode"; loaded: number; total: null }) => void) | null)?.({
+      stage: "decode",
+      loaded: 1,
+      total: null,
+    });
     expect(log.progress).toEqual([]);
   });
 

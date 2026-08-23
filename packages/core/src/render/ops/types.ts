@@ -64,7 +64,19 @@ export type DrawOp =
       seed: number;
     }
   | { op: "clear"; width: number; height: number }
-  | { op: "fill-viewport"; color: string; width: number; height: number }
+  | {
+      /**
+       * The colour under the picture — what a transparent PNG sits on when it
+       * is written to a format with no alpha.
+       *
+       * Takes a rectangle rather than a size, because "under the picture" and
+       * "over the whole canvas" are the same thing on an export and are not in
+       * the editor, where the picture floats inside a much larger canvas.
+       */
+      op: "fill-under";
+      color: string;
+      rect: Rect;
+    }
   | {
       /** A soft darkening towards the corners, drawn over the image. */
       op: "vignette";

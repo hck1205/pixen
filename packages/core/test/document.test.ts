@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ADJUSTMENT_KEYS,
+  DEFAULT_FRAME,
   ADJUSTMENT_RANGES,
   DEFAULT_ADJUSTMENTS,
   createDocument,
@@ -247,7 +248,7 @@ describe("isPristine", () => {
     const cases: Array<[string, Partial<ReturnType<typeof untouched>>]> = [
       ["crop", { crop: { x: 0, y: 0, width: 10, height: 10 } }],
       ["clip", { clip: { start: 1, end: 2 } }],
-      ["frame", { frame: { style: "solid", width: 0.02, colour: "#ffffff", radius: 0, inset: 0 } }],
+      ["frame", { frame: { ...DEFAULT_FRAME } }],
       ["aspectRatio", { aspectRatio: 1 }],
       ["rotation", { transform: { rotation: 0.1, flipX: false, flipY: false } }],
       ["flipX", { transform: { rotation: 0, flipX: true, flipY: false } }],

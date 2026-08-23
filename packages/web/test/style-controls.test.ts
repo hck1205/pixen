@@ -52,7 +52,7 @@ describe("stroke style", () => {
   it("measures dashes in stroke widths, so they scale with the line", () => {
     const thin = strokeFor({ ...DEFAULT_STYLE, dashed: true }, 1000);
     const thick = strokeFor({ ...DEFAULT_STYLE, dashed: true }, 4000);
-    expect(thin.dash![0] / thin.width).toBeCloseTo(thick.dash![0] / thick.width);
+    expect(thin.dash?.[0]! / thin.width).toBeCloseTo(thick.dash?.[0]! / thick.width);
   });
 
   it("rounds a rectangle by a fraction of its shorter side", () => {

@@ -1,5 +1,5 @@
 import { DEFAULT_ANNOTATION_COLOUR } from "./palette.js";
-import type { RedactionMode } from "./types.js";
+import type { FrameSettings, RedactionMode, Stroke } from "./types.js";
 
 /**
  * Default values for a new document and its layers.
@@ -78,8 +78,8 @@ export const MAX_REDACTION_STRENGTH = 0.08;
  * The frame a host gets by switching one on, as fractions of the longest edge.
  * A frame that scaled in pixels would be hairline on a 6000px export.
  */
-export const DEFAULT_FRAME = Object.freeze({
-  style: "solid" as const,
+export const DEFAULT_FRAME: Readonly<FrameSettings> = Object.freeze({
+  style: "solid",
   width: 0.02,
   colour: "#ffffff",
   radius: 0.03,
@@ -93,7 +93,7 @@ export const MIN_FRAME_WIDTH = 0.002;
 export const MAX_FRAME_WIDTH = 0.1;
 
 /** The stroke a new annotation gets when the caller does not supply one. */
-export const DEFAULT_STROKE = Object.freeze({
+export const DEFAULT_STROKE: Readonly<Stroke> = Object.freeze({
   color: DEFAULT_ANNOTATION_COLOUR,
   width: DEFAULT_STROKE_WIDTH,
 });

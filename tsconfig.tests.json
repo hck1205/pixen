@@ -1,0 +1,40 @@
+// The unit suites, typechecked.
+//
+// `pnpm build` compiles `src` and stops there, so a test could name an
+// operation the renderer no longer has and nothing would notice until it ran —
+// which one did: `mask.test.ts` was still listing a `frame` op that had been
+// gone for a week, and passing.
+//
+// The browser suite is not here. Playwright compiles it with its own resolution
+// and no package paths, so pointing this at it produces fifty errors that only
+// exist inside this file's view of the world.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": [
+      "vitest/globals"
+    ],
+    "paths": {
+      "@pixen/core": [
+        "./packages/core/src/index.ts"
+      ],
+      "@pixen/web": [
+        "./packages/web/src/index.ts"
+      ],
+      "@pixen/video": [
+        "./packages/video/src/index.ts"
+      ],
+      "@pixen/react": [
+        "./packages/react/src/index.tsx"
+      ]
+    },
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "packages/*/test/**/*.ts"
+  ]
+}

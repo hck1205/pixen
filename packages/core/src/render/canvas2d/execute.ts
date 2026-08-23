@@ -79,9 +79,9 @@ export function executeOps(context: Canvas2D, ops: readonly DrawOp[]): void {
       case "clear":
         context.clearRect(0, 0, op.width, op.height);
         break;
-      case "fill-viewport":
+      case "fill-under":
         context.fillStyle = op.color;
-        context.fillRect(0, 0, op.width, op.height);
+        context.fillRect(op.rect.x, op.rect.y, op.rect.width, op.rect.height);
         break;
       case "vignette":
         drawVignette(context, op);

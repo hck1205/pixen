@@ -4,10 +4,21 @@ Four suites, each answering a different question.
 
 | Command | Answers |
 | --- | --- |
+| `pnpm typecheck` | Does everything still agree about the types — the packages, **the unit suites**, the stories and the playground? |
 | `pnpm test` | Do the pure functions decide correctly? Also runs the four scans below |
 | `pnpm test:browser` | Does the real bundle behave, in a real engine, driven by a real pointer? |
 | `pnpm test:visual` | Does it still *look* the same? Opt-in; see below |
 | `pnpm stories` | What does it look like now — for a person, not an assertion. Its *Coverage* story is the feature list, checked by `pnpm test` |
+
+The typecheck covers the unit suites as well as the source, and that is
+deliberate rather than tidy. `pnpm build` compiles `src` and stops, so a test
+could name an operation the renderer no longer has and stay green forever —
+which one did: `mask.test.ts` listed a draw op that had been deleted a week
+earlier, and passed, because it only ever asserted that the op was *dropped*.
+
+The browser suite is left out of it. Playwright compiles that with its own
+resolution and no package paths, so typechecking it from here reports fifty
+disagreements that exist only inside this repository's view of the world.
 
 ## Unit tests
 

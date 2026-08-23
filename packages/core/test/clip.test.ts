@@ -141,10 +141,10 @@ describe("the clip in the document", () => {
   });
 
   it("opens a document saved before clips existed", () => {
-    const v4 = { ...stored(movingDocument()), schemaVersion: 4 };
+    const v4: Record<string, unknown> = { ...stored(movingDocument()), schemaVersion: 4 };
     delete v4.clip;
     const migrated = migrateDocument(v4);
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(migrated.clip).toBeNull();
+    expect(migrated).toMatchObject({ clip: null });
   });
 });

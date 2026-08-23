@@ -15,8 +15,6 @@ import {
 } from "@pixen/core";
 
 const DEGREE = Math.PI / 180;
-const QUARTER = Math.PI / 2;
-
 function document(width = 1600, height = 1000) {
   return createDocument({ resourceId: "res_1", width, height });
 }

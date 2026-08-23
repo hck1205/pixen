@@ -71,10 +71,13 @@ describe("request headers", () => {
   });
 
   it("sends none when a host set none, rather than an empty object", async () => {
-    const fetchSpy = vi.fn(async () => new Response(new Blob(["bytes"]), { status: 200 }));
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(new Blob(["bytes"]), { status: 200 }),
+    );
     globalThis.fetch = fetchSpy as unknown as typeof fetch;
 
     await toBlob("https://example.test/photo.jpg");
+    // The init is there — it carries the signal — and has no headers on it.
     expect(fetchSpy.mock.calls[0]?.[1]).not.toHaveProperty("headers");
   });
 });
@@ -95,7 +98,9 @@ describe("request headers", () => {
  * that is tested rather than the pixels.
  */
 describe("what counts as an input", () => {
-  const drawable = (width = 8, height = 6) => ({ width, height }) as unknown as CanvasImageSource;
+  // A canvas is the drawable `load` is documented to take; the fake is one
+  // because that is what the code will be handed.
+  const drawable = (width = 8, height = 6) => ({ width, height }) as unknown as OffscreenCanvas;
 
   it("turns everything that carries bytes into a blob", async () => {
     const bytes = new Uint8Array([1, 2, 3]).buffer;

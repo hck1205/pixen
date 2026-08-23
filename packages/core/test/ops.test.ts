@@ -16,7 +16,6 @@ import {
   createRectLayer,
   createScene,
   createTextLayer,
-  cssFilter,
   ellipseLayerOps,
   estimateTextWidth,
   layerOps,
@@ -299,7 +298,27 @@ describe("buildSceneOps", () => {
   it("paints a background under the image when one is set", () => {
     const withBackground = createScene(commands.setOutput(document(), { background: "#fff" }), { source });
     const ops = buildSceneOps(withBackground, { measureText: measure });
-    expect(kinds(ops).slice(0, 2)).toEqual(["clear", "fill-viewport"]);
+    expect(kinds(ops).slice(0, 2)).toEqual(["clear", "fill-under"]);
+  });
+
+  it("paints it under the picture rather than over the canvas", () => {
+    // On an export those are the same rectangle. In the editor the second one
+    // paints the whole workspace the colour a host chose for the file's
+    // transparency — which is what it did.
+    const withBackground = commands.setOutput(document(), { background: "#fff" });
+    const view = compose(translation(700, 450), scaling(0.5), translation(-500, -250));
+    const scene = createScene(withBackground, { source }, {
+      region: "stage",
+      target: { width: 1400, height: 900 },
+      fit: "none",
+      transform: view,
+    });
+
+    const fill = buildSceneOps(scene, { measureText: measure }).find(
+      (candidate) => candidate.op === "fill-under",
+    ) as { rect: Rect };
+    expect(fill.rect).toEqual(scene.regionInTarget);
+    expect(fill.rect.width).toBeLessThan(1400);
   });
 
   it("wraps the image draw in a filter when the engine supports one", () => {

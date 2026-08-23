@@ -13,7 +13,7 @@ describe("Vue wrapper on a server", () => {
 
   it("declares the props a host configures it with", async () => {
     const { PixenImageEditor } = await import("../src/index.js");
-    const props = Object.keys((PixenImageEditor as { props: Record<string, unknown> }).props);
+    const props = Object.keys((PixenImageEditor as unknown as { props: Record<string, unknown> }).props);
     expect(props).toEqual(
       expect.arrayContaining(["src", "document", "tools", "aspectRatios", "policy", "theme", "locale", "format", "quality"]),
     );
@@ -21,7 +21,7 @@ describe("Vue wrapper on a server", () => {
 
   it("declares the events it forwards", async () => {
     const { PixenImageEditor } = await import("../src/index.js");
-    const emits = Object.keys((PixenImageEditor as { emits: Record<string, unknown> }).emits);
+    const emits = Object.keys((PixenImageEditor as unknown as { emits: Record<string, unknown> }).emits);
     // Against the shared list rather than a copy of it: the point of the list
     // is that a wrapper cannot quietly forward fewer events than it declares.
     const { PIXEN_EVENTS } = await import("@pixen/web");

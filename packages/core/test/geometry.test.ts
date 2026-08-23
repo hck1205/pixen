@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  type Rect,
   fitWithinPixels,
   applyToPoint,
-  compose,
   fitAspectRatio,
   imageToOutput,
   imageToStage,
   invert,
   multiply,
-  rotation,
   boundsOf,
   longestEdge,
   resolveSize,
@@ -20,7 +19,6 @@ import {
   translation,
   transformBounds,
   zoomToFit,
-  IDENTITY,
 } from "@pixen/core";
 
 const HALF_TURN = Math.PI;
@@ -259,6 +257,7 @@ describe("longestEdge", () => {
   });
 
   it("reads a rect as the size it is, since every fraction is against the longer edge", () => {
-    expect(longestEdge({ x: 40, y: 90, width: 30, height: 80 })).toBe(80);
+    const rect: Rect = { x: 40, y: 90, width: 30, height: 80 };
+    expect(longestEdge(rect)).toBe(80);
   });
 });

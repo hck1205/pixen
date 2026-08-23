@@ -7,6 +7,14 @@ import { imageWorker } from "./worker/client.js";
 import { uprightImage, type UprightImage } from "./auto-orient.js";
 import { readExifOrientation, type ExifOrientation } from "./exif.js";
 
+/**
+ * Everything `load` accepts.
+ *
+ * The drawables are here because the code already took them — anything with an
+ * intrinsic size is trusted as an upright picture and used as it is — and
+ * `OffscreenCanvas` was the one that worked at runtime and was missing from
+ * this list, which is the kind of gap only a typechecked test finds.
+ */
 export type ImageInput =
   | Blob
   | ArrayBuffer
@@ -14,6 +22,7 @@ export type ImageInput =
   | ImageBitmap
   | HTMLImageElement
   | HTMLCanvasElement
+  | OffscreenCanvas
   | string;
 
 export interface DecodedImage {
