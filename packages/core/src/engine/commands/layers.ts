@@ -46,10 +46,10 @@ export function dragLayerHandle(
 ): EditorDocument {
   return updateLayer(document, id, (layer) =>
     handle === "rotate"
-      ? rotateLayer(layer, pointer, options.snap === undefined ? {} : { snap: options.snap })
+      ? rotateLayer(layer, pointer, { snap: options.snap })
       : resizeLayer(layer, handle, pointer, {
-          ...(options.minSize === undefined ? {} : { minSize: options.minSize }),
-          ...(options.aspectRatio === undefined ? {} : { aspectRatio: options.aspectRatio }),
+          minSize: options.minSize,
+          aspectRatio: options.aspectRatio,
         }),
   );
 }

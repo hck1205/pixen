@@ -182,9 +182,9 @@ export function documentChangeFor(intent: Intent): DocumentChange | null {
         label: intent.handle === "rotate" ? "Rotate annotation" : "Resize annotation",
         transform: (d) =>
           commands.dragLayerHandle(d, intent.id, intent.handle, intent.pointer, {
-            ...(intent.minSize === undefined ? {} : { minSize: intent.minSize }),
-            ...(intent.aspectRatio === undefined ? {} : { aspectRatio: intent.aspectRatio }),
-            ...(intent.snap === undefined ? {} : { snap: intent.snap }),
+            minSize: intent.minSize,
+            aspectRatio: intent.aspectRatio,
+            snap: intent.snap,
           }),
       };
     case "reorder-layer":

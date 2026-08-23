@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { applyToPoint, invert, stageToView } from "@pixen/core";
+import type { ViewFit } from "../src/viewport/view.js";
 import { responsive } from "../src/theme/styles/responsive.js";
 import {
+  zoomAt,
   CHROME_INSETS,
   clampZoom,
   COMPACT_INSETS,
@@ -208,5 +211,65 @@ describe("the compact breakpoints", () => {
     // A container query knows how much room the editor has; a media query only
     // knows the window, so it is set wider and dresses down sooner.
     expect(COMPACT_FALLBACK_MAX_WIDTH).toBeGreaterThan(COMPACT_MAX_WIDTH);
+  });
+});
+
+/**
+ * Zooming about a point.
+ *
+ * The point under the cursor has to stay under the cursor: scaling about the
+ * middle of the canvas instead makes the picture slide away from the finger,
+ * which reads as the editor fighting you. It was arithmetic inside a method
+ * and could only be checked by opening a browser and trying it.
+ */
+describe("zoomAt", () => {
+  const stage = { width: 1000, height: 500 };
+  const viewport = { width: 800, height: 600 };
+  const start = { zoom: 1, pan: { x: 0, y: 0 } };
+
+  /** Where a stage point lands on screen, for the view given. */
+  const onScreen = (view: ViewFit, point: { x: number; y: number }) =>
+    applyToPoint(stageToView(stage, viewport, view.zoom, view.pan), point);
+
+  it("keeps the anchored point under the pointer", () => {
+    const anchor = { x: 200, y: 150 };
+    const before = applyToPoint(invert(stageToView(stage, viewport, start.zoom, start.pan)), anchor);
+
+    const zoomed = zoomAt(stage, viewport, start, 2, anchor);
+    const after = onScreen(zoomed, before);
+
+    expect(after.x).toBeCloseTo(anchor.x);
+    expect(after.y).toBeCloseTo(anchor.y);
+  });
+
+  it("holds it through a zoom out as well as a zoom in", () => {
+    const anchor = { x: 700, y: 100 };
+    const before = applyToPoint(invert(stageToView(stage, viewport, start.zoom, start.pan)), anchor);
+
+    const zoomed = zoomAt(stage, viewport, start, 0.5, anchor);
+    const after = onScreen(zoomed, before);
+
+    expect(after.x).toBeCloseTo(anchor.x);
+    expect(after.y).toBeCloseTo(anchor.y);
+  });
+
+  it("scales about the middle when nothing is anchored", () => {
+    // A button has no pointer to pin, so the picture stays centred.
+    const zoomed = zoomAt(stage, viewport, start, 2);
+    expect(zoomed.pan).toEqual(start.pan);
+    expect(zoomed.zoom).toBe(2);
+  });
+
+  it("hands back the same view when the zoom would not move", () => {
+    // Already at the ceiling: no pan change either, or a wheel at full zoom
+    // would walk the picture across the canvas.
+    const atLimit = zoomAt(stage, viewport, start, 1000, { x: 10, y: 10 });
+    const again = zoomAt(stage, viewport, atLimit, 1000, { x: 10, y: 10 });
+    expect(again).toBe(atLimit);
+  });
+
+  it("stays inside the zoom limits", () => {
+    expect(zoomAt(stage, viewport, start, 1e6).zoom).toBeLessThan(1e6);
+    expect(zoomAt(stage, viewport, start, 1e-6).zoom).toBeGreaterThan(0);
   });
 });

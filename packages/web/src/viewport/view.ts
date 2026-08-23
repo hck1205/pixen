@@ -1,4 +1,15 @@
-import { createScene, zoomToFit, type Editor, type Matrix, type Scene, type Point, type Size } from "@pixen/core";
+import {
+  applyToPoint,
+  createScene,
+  invert,
+  stageToView,
+  zoomToFit,
+  type Editor,
+  type Matrix,
+  type Point,
+  type Scene,
+  type Size,
+} from "@pixen/core";
 
 /**
  * View fitting, kept pure.
@@ -185,6 +196,30 @@ export function fitView(stage: Size, viewport: Size, insets: ViewInsets = insets
       ? { x: (insets.left - insets.right) / 2, y: (insets.top - insets.bottom) / 2 }
       : { x: 0, y: 0 },
   };
+}
+
+/**
+ * Zooming about a point, which is the arithmetic a wheel and a pinch share.
+ *
+ * The point under the cursor has to stay under the cursor: scaling about the
+ * middle of the canvas instead makes the picture slide away from the finger,
+ * which reads as the editor fighting you. So the new zoom is applied, the
+ * anchor is asked where it landed, and the pan makes up the difference.
+ *
+ * Pure, and separate from the viewport, because "does the picture stay under
+ * the pointer" is a question about numbers and was previously answerable only
+ * by opening a browser and trying it.
+ */
+export function zoomAt(stage: Size, viewport: Size, view: ViewFit, factor: number, anchor?: Point): ViewFit {
+  const zoom = clampZoom(view.zoom * factor);
+  if (zoom === view.zoom) return view;
+  if (!anchor) return { zoom, pan: view.pan };
+
+  // Where the anchor points to now, and where the same stage point would land
+  // at the new zoom with the pan unchanged.
+  const before = applyToPoint(invert(stageToView(stage, viewport, view.zoom, view.pan)), anchor);
+  const after = applyToPoint(stageToView(stage, viewport, zoom, view.pan), before);
+  return { zoom, pan: { x: view.pan.x + (anchor.x - after.x), y: view.pan.y + (anchor.y - after.y) } };
 }
 
 /**

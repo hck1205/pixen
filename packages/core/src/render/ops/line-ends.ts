@@ -27,6 +27,14 @@ const ARROW_SPREAD = Math.PI / 7;
  * the one it fixed.
  */
 const ARROW_HEAD_RATIO = 3.5;
+/**
+ * How far into an arrow head the shaft may run, as a fraction of the head.
+ *
+ * Not all the way: the head's two barbs meet the shaft short of the point, so a
+ * shaft drawn to the tip pokes out between them on a thick stroke.
+ */
+const ARROW_SHAFT_OVERLAP = 0.8;
+
 /** Radius of a circle end, and half the side of a square, as multiples of it. */
 const MARK_RADIUS_RATIO = 2;
 /** Half the length of a bar, across the shaft. */
@@ -44,7 +52,7 @@ export function lineEndInset(style: LineEnd, width: number): number {
   switch (style) {
     case "arrow":
     case "arrow-solid":
-      return width * ARROW_HEAD_RATIO * 0.8;
+      return width * ARROW_HEAD_RATIO * ARROW_SHAFT_OVERLAP;
     case "circle":
     case "circle-solid":
     case "square":

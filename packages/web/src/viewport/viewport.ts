@@ -35,7 +35,15 @@ import { planOverlay } from "./overlay.js";
 import { PINCH_POINTERS, TouchPoints } from "./touch.js";
 import { drawOverlay, readOverlayPalette } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
-import { clampZoom, fitView, insetsFor, insetsFromChrome, renderScale, viewportScene, type EdgeBox } from "./view.js";
+import {
+  fitView,
+  insetsFor,
+  insetsFromChrome,
+  renderScale,
+  viewportScene,
+  zoomAt,
+  type EdgeBox,
+} from "./view.js";
 
 /** One label for the whole of "someone edited a text layer". */
 const TEXT_EDIT_LABEL = "Text";
@@ -177,20 +185,13 @@ export class Viewport {
   }
 
   zoomBy(factor: number, anchor?: Point): void {
-    const next = clampZoom(this.#zoom * factor);
-    if (next === this.#zoom) return;
+    // The arithmetic is `zoomAt`; this is what it takes effect on.
+    const view = zoomAt(this.#editor.stageSize, this.#cssSize(), { zoom: this.#zoom, pan: this.#pan }, factor, anchor);
+    if (view.zoom === this.#zoom) return;
 
-    if (anchor) {
-      // Keep the stage point under the cursor pinned while the scale changes.
-      const stagePoint = this.screenToStage(anchor);
-      this.#zoom = next;
-      this.#autoFit = false;
-      const after = this.stageToScreen(stagePoint);
-      this.#pan = { x: this.#pan.x + (anchor.x - after.x), y: this.#pan.y + (anchor.y - after.y) };
-    } else {
-      this.#zoom = next;
-      this.#autoFit = false;
-    }
+    this.#zoom = view.zoom;
+    this.#pan = view.pan;
+    this.#autoFit = false;
     this.invalidate();
     this.#callbacks.onViewChange?.();
   }

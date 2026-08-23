@@ -168,6 +168,13 @@ export function redactLayerOps(layer: RedactLayer, imageLongestEdge: number): Dr
   ];
 }
 
+/**
+ * The breathing room a text plate leaves around the letters, as a fraction of
+ * the type size — so a caption at 12px and the same caption at 200px look like
+ * the same design rather than two.
+ */
+const TEXT_PLATE_PADDING_RATIO = 0.2;
+
 export function textLayerOps(layer: TextLayer, measure: TextMeasurer): DrawOp[] {
   const font = fontFor(layer);
   const lines = wrapLines(layer.text, layer.maxWidth, font, measure);
@@ -184,7 +191,7 @@ export function textLayerOps(layer: TextLayer, measure: TextMeasurer): DrawOp[] 
         ? layer.position.x + width
         : layer.position.x;
 
-  const padding = layer.fontSize * 0.2;
+  const padding = layer.fontSize * TEXT_PLATE_PADDING_RATIO;
   return [
     {
       op: "text",
