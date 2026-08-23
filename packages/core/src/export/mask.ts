@@ -121,7 +121,9 @@ export function maskOps(ops: readonly DrawOp[], foreground: string, padding = 0)
         break;
       case "path":
         // Filled whether or not it was: an outline marks what it encloses.
-        marked.push({ ...op, fill: foreground, stroke: grow });
+        // Unless it is decoration — a frame is drawn around the picture rather
+        // than on it, and a mask of the whole picture marks nothing.
+        if (!op.decoration) marked.push({ ...op, fill: foreground, stroke: grow });
         break;
       case "layer-image":
       case "obscure":

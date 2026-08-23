@@ -88,7 +88,22 @@ export type DrawOp =
   | { op: "transform"; matrix: Matrix }
   | { op: "alpha"; value: number }
   | { op: "image"; source: CanvasImageSource; width: number; height: number }
-  | { op: "path"; commands: PathCommand[]; stroke?: StrokeStyle; fill?: string }
+  | {
+      op: "path";
+      commands: PathCommand[];
+      stroke?: StrokeStyle;
+      fill?: string;
+      /**
+       * Drawn around the picture rather than on it — the frame, today.
+       *
+       * The executor ignores this; it exists for the mask, whose whole rule is
+       * "keep the marks, drop the picture". A frame used to be an op of its own
+       * and fell into the mask's default case for free. Turning it into paths
+       * lost that distinction, and a mask started marking the whole photograph
+       * with a rectangle nobody drew.
+       */
+      decoration?: boolean;
+    }
   | {
       op: "text";
       lines: string[];

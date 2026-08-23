@@ -74,7 +74,8 @@ export function frameOps(frame: FrameSettings, region: Rect): DrawOp[] {
   if (region.width <= 0 || region.height <= 0) return [];
   const metrics = metricsFor(frame, region);
   const stroke: StrokeStyle = { color: frame.colour, width: metrics.width, dash: [] };
-  const path = (commands: PathCommand[]): DrawOp => ({ op: "path", commands, stroke });
+  // `decoration` is for the mask, which keeps marks and drops the picture.
+  const path = (commands: PathCommand[]): DrawOp => ({ op: "path", commands, stroke, decoration: true });
 
   switch (frame.style) {
     case "solid":

@@ -1,4 +1,12 @@
 import { describe, expect, it } from "vitest";
+import {
+  buildSceneOps,
+  commands,
+  createDocument,
+  createRectLayer,
+  createScene,
+  type EditorDocument,
+} from "@pixen/core";
 import { maskOps } from "../src/export/mask.js";
 import type { DrawOp } from "../src/render/ops/index.js";
 
@@ -82,5 +90,39 @@ describe("maskOps", () => {
   it("adds no stroke at all when nothing was asked for", () => {
     const [op] = maskOps([outline()], WHITE);
     expect((op as { stroke?: unknown }).stroke).toBeUndefined();
+  });
+});
+
+/**
+ * A mask keeps the marks and drops the picture — and a frame is not a mark.
+ *
+ * It used to be an op of its own and fell into the default case for free.
+ * Turning it into paths, so six treatments could be geometry rather than a
+ * switch inside the canvas executor, lost that distinction: a mask of a framed
+ * document came back with a rectangle nobody drew filled across the whole
+ * photograph. The test that should have caught it was listing an op name that
+ * had been deleted, and passing.
+ */
+describe("a framed document", () => {
+  const source = { width: 1000, height: 500 } as unknown as OffscreenCanvas;
+  const document = () => createDocument({ resourceId: "res_1", width: 1000, height: 500 });
+
+  const maskFor = (doc: EditorDocument) =>
+    maskOps(buildSceneOps(createScene(doc, { source }, { region: "crop" })), "#ffffff");
+
+  it("marks the annotation and not the frame", () => {
+    const marked = commands.addLayer(document(), createRectLayer({ x: 10, y: 10, width: 50, height: 50 }));
+    const framed = commands.setFrame(marked, { style: "solid" });
+
+    const before = maskFor(marked).filter((op) => op.op === "path");
+    const after = maskFor(framed).filter((op) => op.op === "path");
+    // Switching a frame on does not add a mark.
+    expect(after).toEqual(before);
+    expect(after).toHaveLength(1);
+  });
+
+  it("marks nothing at all when the frame is the only thing drawn", () => {
+    const framed = commands.setFrame(document(), { style: "hook" });
+    expect(maskFor(framed).filter((op) => op.op === "path")).toEqual([]);
   });
 });
