@@ -1,5 +1,5 @@
 import type { Matrix, Point, Rect } from "../../geometry/types.js";
-import type { Adjustments, FrameStyle, RedactionMode } from "../../model/types.js";
+import type { Adjustments, RedactionMode } from "../../model/types.js";
 
 /**
  * Drawing, expressed as data.
@@ -71,17 +71,6 @@ export type DrawOp =
       rect: Rect;
       /** 0 leaves the image alone; 1 is the strongest fall-off offered. */
       strength: number;
-    }
-  | {
-      /** A border drawn over the finished picture. */
-      op: "frame";
-      rect: Rect;
-      style: FrameStyle;
-      /** All four in target pixels: the builder resolves the fractions. */
-      width: number;
-      radius: number;
-      inset: number;
-      colour: string;
     }
   | { op: "filter"; value: string }
   | { op: "transform"; matrix: Matrix }

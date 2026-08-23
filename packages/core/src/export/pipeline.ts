@@ -14,6 +14,7 @@ import { resolveQuality } from "../model/defaults.js";
 import { effectiveCrop, outputSize as documentOutputSize } from "../model/document.js";
 import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../model/types.js";
 import { renderScene } from "../render/canvas2d/index.js";
+import type { ShapeProcessor } from "../render/preprocess.js";
 import { createScene } from "../render/scene.js";
 import type { ResourceManager } from "../resources/manager.js";
 import { throwIfAborted } from "../util/abort.js";
@@ -62,6 +63,8 @@ export interface ExportOptions {
   onProgress?: StepReporter<ExportStage>;
   /** Host steps at the points an export can be bent. See `ExportHooks`. */
   hooks?: ExportHooks;
+  /** Rules over each shape before it is drawn. See `preprocessLayers`. */
+  preprocess?: readonly ShapeProcessor[];
 }
 
 export interface ExportResult {
@@ -145,7 +148,12 @@ export async function exportDocument(
     const stand = await standIn(resource, roundedSize(crop.width, crop.height), target, hooks);
     const scene = createScene(
       { ...drawn, output: { ...drawn.output, background } },
-      { source: stand.source, sourceScale: stand.scale, resolveResource: resources.resolve },
+      {
+        source: stand.source,
+        sourceScale: stand.scale,
+        resolveResource: resources.resolve,
+        ...(options.preprocess ? { preprocess: options.preprocess } : {}),
+      },
       { region: "crop", target },
     );
     renderScene(surface.context, scene);

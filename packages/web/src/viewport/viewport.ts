@@ -2,7 +2,6 @@ import {
   applyToPoint,
   compose,
   createId,
-  createScene,
   Editor,
   imageToStage,
   longestEdge,
@@ -36,7 +35,7 @@ import { planOverlay } from "./overlay.js";
 import { PINCH_POINTERS, TouchPoints } from "./touch.js";
 import { drawOverlay, readOverlayPalette } from "./chrome.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
-import { clampZoom, fitView, insetsFor, insetsFromChrome, renderScale, type EdgeBox } from "./view.js";
+import { clampZoom, fitView, insetsFor, insetsFromChrome, renderScale, viewportScene, type EdgeBox } from "./view.js";
 
 /** One label for the whole of "someone edited a text layer". */
 const TEXT_EDIT_LABEL = "Text";
@@ -293,19 +292,8 @@ export class Viewport {
     context.clearRect(0, 0, width, height);
     if (!this.#editor.ready) return;
 
-    const document = this.#editor.document;
-    const preview = this.#editor.resources.getPreview(document.source.resourceId);
     const deviceMatrix = compose(scaling(dpr), this.#viewMatrix());
-
-    renderScene(
-      context,
-      createScene(
-        document,
-        { source: preview.source, sourceScale: preview.scale, resolveResource: this.#editor.resources.resolve },
-        { region: "stage", target: { width, height }, fit: "none", transform: deviceMatrix },
-      ),
-      { clear: false },
-    );
+    renderScene(context, viewportScene(this.#editor, { width, height }, deviceMatrix), { clear: false });
 
     context.setTransform(1, 0, 0, 1, 0, 0);
     this.#drawOverlay(context, deviceMatrix, dpr);

@@ -1,4 +1,4 @@
-import { zoomToFit, type Point, type Size } from "@pixen/core";
+import { createScene, zoomToFit, type Editor, type Matrix, type Scene, type Point, type Size } from "@pixen/core";
 
 /**
  * View fitting, kept pure.
@@ -185,4 +185,29 @@ export function fitView(stage: Size, viewport: Size, insets: ViewInsets = insets
       ? { x: (insets.left - insets.right) / 2, y: (insets.top - insets.bottom) / 2 }
       : { x: 0, y: 0 },
   };
+}
+
+/**
+ * The scene the viewport draws, which is the same scene the export draws.
+ *
+ * It is spelled out here rather than inline so the resemblance is checkable:
+ * the preview proxy stands in for the source, the host's shape rules are the
+ * ones the file will get, and the region is the stage rather than the crop
+ * because the viewport shows what is outside the crop as well.
+ */
+export function viewportScene(editor: Editor, target: Size, matrix: Matrix): Scene {
+  const document = editor.document;
+  const preview = editor.resources.getPreview(document.source.resourceId);
+  return createScene(
+    document,
+    {
+      source: preview.source,
+      sourceScale: preview.scale,
+      resolveResource: editor.resources.resolve,
+      // The same rules the export will apply, or the picture on screen is not
+      // the picture that comes out.
+      preprocess: editor.shapeProcessors,
+    },
+    { region: "stage", target, fit: "none", transform: matrix },
+  );
 }

@@ -1,7 +1,7 @@
 import type { Point, Rect } from "../geometry/types.js";
 import type { ClipRange } from "./clip.js";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 8;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -45,13 +45,35 @@ export interface EllipseLayer extends LayerBase {
   fill: string | null;
 }
 
+/**
+ * What sits at the end of a line.
+ *
+ * Eight, and they are eight rather than a boolean because a line means
+ * different things at each end: an arrow points, a bar measures, a circle marks
+ * a spot, a square marks a corner. The open and solid pairs are the same shape
+ * drawn stroked or filled, which is a real distinction over a busy photograph.
+ */
+export const LINE_ENDS = [
+  "none",
+  "bar",
+  "arrow",
+  "arrow-solid",
+  "circle",
+  "circle-solid",
+  "square",
+  "square-solid",
+] as const;
+
+export type LineEnd = (typeof LINE_ENDS)[number];
+
 export interface LineLayer extends LayerBase {
   type: "line";
   from: Point;
   to: Point;
   stroke: Stroke;
-  arrowStart: boolean;
-  arrowEnd: boolean;
+  /** The decoration at `from`, and the one at `to`. See `LINE_ENDS`. */
+  startStyle: LineEnd;
+  endStyle: LineEnd;
 }
 
 export interface PathLayer extends LayerBase {
@@ -175,7 +197,16 @@ export type Adjustments = Record<AdjustmentKey, number>;
  * drag, it belongs to the output the way the background colour does — and
  * keeping it out of `layers` means it cannot be reordered under an annotation.
  */
-export const FRAME_STYLES = ["solid", "inset", "rounded"] as const;
+/**
+ * The treatments a frame can take.
+ *
+ * Six, and they divide into two kinds: `solid`, `inset` and `rounded` are one
+ * rectangle drawn differently, while `hook`, `line` and `edge` are not
+ * rectangles at all — corner brackets, a set of parallel lines, and one line
+ * per side drawn short of the corners. That is why the frame stopped being a
+ * single executor with a switch in it and became a list of paths decided here.
+ */
+export const FRAME_STYLES = ["solid", "inset", "rounded", "hook", "line", "edge"] as const;
 export type FrameStyle = (typeof FRAME_STYLES)[number];
 
 export interface FrameSettings {
@@ -185,8 +216,17 @@ export interface FrameSettings {
   colour: string;
   /** Corner radius as a fraction of the longest edge; `rounded` only. */
   radius: number;
-  /** Distance from the edge, as a fraction of the longest edge; `inset` only. */
+  /** Distance from the edge, as a fraction of the longest edge. */
   inset: number;
+  /**
+   * Distance between the lines of a `line` frame, and how far an `edge` line is
+   * drawn from the corner it starts at. A fraction of the longest edge.
+   */
+  offset: number;
+  /** How many parallel lines a `line` frame draws. */
+  count: number;
+  /** Length of a corner bracket's arms, as a fraction of the longest edge. */
+  armLength: number;
 }
 
 export interface OutputSettings {

@@ -278,7 +278,7 @@ export function seedStyling(editor: Editor): void {
     createLineLayer(
       { x: width * 0.1, y: height * 0.45 },
       { x: width * 0.45, y: height * 0.45 },
-      { stroke: { ...stroke, color: "#8b5cf0" }, arrowStart: true, arrowEnd: true, name: "Both heads" },
+      { stroke: { ...stroke, color: "#8b5cf0" }, startStyle: "circle", endStyle: "arrow-solid", name: "Two ends" },
     ),
     { select: false },
   );

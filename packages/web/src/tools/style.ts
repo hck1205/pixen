@@ -4,6 +4,7 @@ import {
   DEFAULT_REDACTION_MODE,
   DEFAULT_REDACTION_STRENGTH,
   DEFAULT_STROKE_RATIO,
+  type LineEnd,
   type RedactionMode,
   type Stroke,
   type TextLayer,
@@ -28,9 +29,9 @@ export interface AnnotationStyle {
   dashed: boolean;
   /** Corner rounding for rectangles, as a fraction of the shorter side. */
   cornerRatio: number;
-  /** Which ends of an arrow get a head. */
-  arrowStart: boolean;
-  arrowEnd: boolean;
+  /** What sits at each end of a line. See `LINE_ENDS`. */
+  startStyle: LineEnd;
+  endStyle: LineEnd;
   textAlign: TextLayer["align"];
   /** A plate behind text, for a caption that has to read on any photograph. */
   textPlate: boolean;
@@ -46,8 +47,8 @@ export const DEFAULT_STYLE: AnnotationStyle = {
   fill: null,
   dashed: false,
   cornerRatio: 0,
-  arrowStart: false,
-  arrowEnd: true,
+  startStyle: "none",
+  endStyle: "arrow-solid",
   textAlign: "left",
   textPlate: false,
   redactionMode: DEFAULT_REDACTION_MODE,

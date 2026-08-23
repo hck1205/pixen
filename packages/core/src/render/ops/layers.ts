@@ -11,14 +11,15 @@ import type {
   PathLayer,
   RectLayer,
   RedactLayer,
-  Stroke,
   TextLayer,
 } from "../../model/types.js";
 import { seedFrom } from "../scramble.js";
 import type { SceneLayerNode } from "../scene.js";
 import { LINE_HEIGHT_RATIO } from "../../model/text-metrics.js";
 import { fontFor, wrapLines } from "./text.js";
-import type { DrawOp, PathCommand, StrokeStyle, TextMeasurer } from "./types.js";
+import { lineEndInset, lineEndOps } from "./line-ends.js";
+import { toStrokeStyle } from "./stroke.js";
+import type { DrawOp, PathCommand, TextMeasurer } from "./types.js";
 
 /**
  * One layer at a time: what to draw for each kind, as data.
@@ -27,10 +28,6 @@ import type { DrawOp, PathCommand, StrokeStyle, TextMeasurer } from "./types.js"
  * smoothed, which centre a rotation turns about — is made here and handed to
  * the executor already resolved.
  */
-function toStrokeStyle(stroke: Stroke): StrokeStyle {
-  return { color: stroke.color, width: stroke.width, dash: stroke.dash ?? [] };
-}
-
 export function withLayerRotation(matrix: Matrix, rotationRadians: number, centre: Point): Matrix {
   if (!rotationRadians) return matrix;
   return compose(
@@ -83,56 +80,33 @@ export function ellipseLayerOps(layer: EllipseLayer): DrawOp[] {
   ];
 }
 
-export const ARROW_HEAD_RATIO = 3.5;
-const ARROW_SPREAD = Math.PI / 7;
-
-/** The triangle for one arrow head, pointing along `angle`. */
-export function arrowHeadCommands(tip: Point, angle: number, length: number): PathCommand[] {
-  return [
-    { op: "move", to: tip },
-    {
-      op: "line",
-      to: { x: tip.x - Math.cos(angle - ARROW_SPREAD) * length, y: tip.y - Math.sin(angle - ARROW_SPREAD) * length },
-    },
-    {
-      op: "line",
-      to: { x: tip.x - Math.cos(angle + ARROW_SPREAD) * length, y: tip.y - Math.sin(angle + ARROW_SPREAD) * length },
-    },
-    { op: "close" },
-  ];
-}
-
 export function lineLayerOps(layer: LineLayer): DrawOp[] {
-  const headLength = layer.stroke.width * ARROW_HEAD_RATIO;
   const angle = Math.atan2(layer.to.y - layer.from.y, layer.to.x - layer.from.x);
   const length = distance(layer.from, layer.to);
 
-  // The shaft is pulled back so it does not poke through an arrow head.
-  const startInset = layer.arrowStart ? Math.min(headLength * 0.8, length / 2) : 0;
-  const endInset = layer.arrowEnd ? Math.min(headLength * 0.8, length / 2) : 0;
+  // The shaft stops short of whatever is drawn on the end, so it does not show
+  // through an open decoration — and never short of the middle, or a short line
+  // with two decorations would have a shaft running backwards.
+  const half = length / 2;
+  const startInset = Math.min(lineEndInset(layer.startStyle, layer.stroke.width), half);
+  const endInset = Math.min(lineEndInset(layer.endStyle, layer.stroke.width), half);
 
-  const ops: DrawOp[] = [
+  return [
     {
       op: "path",
       commands: [
-        { op: "move", to: { x: layer.from.x + Math.cos(angle) * startInset, y: layer.from.y + Math.sin(angle) * startInset } },
+        {
+          op: "move",
+          to: { x: layer.from.x + Math.cos(angle) * startInset, y: layer.from.y + Math.sin(angle) * startInset },
+        },
         { op: "line", to: { x: layer.to.x - Math.cos(angle) * endInset, y: layer.to.y - Math.sin(angle) * endInset } },
       ],
       stroke: toStrokeStyle(layer.stroke),
     },
+    // The ends point outwards, away from each other.
+    ...lineEndOps(layer.endStyle, layer.to, angle, layer.stroke),
+    ...lineEndOps(layer.startStyle, layer.from, angle + Math.PI, layer.stroke),
   ];
-
-  if (layer.arrowEnd) {
-    ops.push({ op: "path", commands: arrowHeadCommands(layer.to, angle, headLength), fill: layer.stroke.color });
-  }
-  if (layer.arrowStart) {
-    ops.push({
-      op: "path",
-      commands: arrowHeadCommands(layer.from, angle + Math.PI, headLength),
-      fill: layer.stroke.color,
-    });
-  }
-  return ops;
 }
 
 /**

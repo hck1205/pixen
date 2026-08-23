@@ -6,7 +6,14 @@
  * is and the rules it is kept honest by.
  */
 import { browser, doc, list, story, unit, type CoverageGroup } from "./evidence.js";
-import { ADJUSTMENT_KEYS, ADJUSTMENT_PRESETS, FRAME_STYLES, REDACTION_MODES, WATERMARK_POSITIONS } from "@pixen/core";
+import {
+  ADJUSTMENT_KEYS,
+  ADJUSTMENT_PRESETS,
+  FRAME_STYLES,
+  LINE_ENDS,
+  REDACTION_MODES,
+  WATERMARK_POSITIONS,
+} from "@pixen/core";
 import { DEFAULT_ASPECT_RATIOS, DEFAULT_TOOLS } from "@pixen/web";
 
 export const EDITING_COVERAGE: CoverageGroup[] = [
@@ -177,7 +184,21 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
         capability: "Frames",
         layer: "Engine",
         detail: list(FRAME_STYLES),
-        evidence: [unit("decoration.test.ts"), story("Decoration")],
+        evidence: [unit("frames.test.ts"), unit("decoration.test.ts"), story("Decoration")],
+      },
+      {
+        capability: "Line ends",
+        layer: "Engine",
+        detail: list(LINE_ENDS),
+        evidence: [unit("line-ends.test.ts"), story("Styling")],
+      },
+      {
+        capability: "Host shape rules",
+        layer: "Engine",
+        detail:
+          "A chain over each layer on its way to being drawn — pass, replace, expand or drop — told " +
+          "whether it is drawing the preview or the file, and running over a copy so the document is untouched",
+        evidence: [unit("preprocess.test.ts"), browser("editor.spec.ts"), doc("docs/PLUGINS.md")],
       },
     ],
   },

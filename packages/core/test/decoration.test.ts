@@ -7,7 +7,7 @@ import {
   createTextWatermarkLayer,
   DEFAULT_FRAME,
   DEFAULT_TEXT_WATERMARK_SCALE,
-  frameOp,
+  frameOps,
   isErr,
   isOk,
   layerBounds,
@@ -146,20 +146,25 @@ describe("frames", () => {
     );
     // A frame under an annotation would be a frame the annotation could cover.
     const order = kinds(buildSceneOps(createScene(withLayer, { source })));
-    expect(order[order.length - 1]).toBe("frame");
+    // The frame is paths now, in target space, so the identity transform in
+    // front of them is what says "from here on, the canvas rather than the
+    // picture" — and the paths after it are the last thing drawn.
+    expect(order.slice(-2)).toEqual(["transform", "path"]);
   });
 
   it("resolve their fractions against the region they are drawn around", () => {
     const region = { x: 0, y: 0, width: 2000, height: 1000 };
-    const op = frameOp({ ...DEFAULT_FRAME, width: 0.01, radius: 0.02, inset: 0.03 }, region);
-    // One setting has to suit a thumbnail and a 6000px export alike.
-    expect(op.width).toBeCloseTo(20);
-    expect(op.radius).toBeCloseTo(40);
-    expect(op.inset).toBeCloseTo(60);
+    const [op] = frameOps({ ...DEFAULT_FRAME, style: "inset", width: 0.01, inset: 0.03 }, region);
+    // One setting has to suit a thumbnail and a 6000px export alike: a 20px
+    // stroke, sitting 60px in, on a region whose longest edge is 2000.
+    expect((op as { stroke: { width: number } }).stroke.width).toBeCloseTo(20);
+    const rect = ((op as { commands: Array<{ rect: { x: number } }> }).commands[0]!).rect;
+    expect(rect.x).toBeCloseTo(60 + 10);
   });
 
   it("never resolve to a hairline that would vanish", () => {
-    expect(frameOp({ ...DEFAULT_FRAME, width: 0 }, { x: 0, y: 0, width: 100, height: 100 }).width).toBe(1);
+    const [op] = frameOps({ ...DEFAULT_FRAME, width: 0 }, { x: 0, y: 0, width: 100, height: 100 });
+    expect((op as { stroke: { width: number } }).stroke.width).toBe(1);
   });
 
   it("go around the picture, not around the canvas the picture floats in", () => {
@@ -171,12 +176,18 @@ describe("frames", () => {
       { source },
       { region: "stage", target: { width: 1400, height: 900 }, fit: "none" },
     );
-    const op = buildSceneOps(viewport).find((candidate) => candidate.op === "frame")!;
-    expect(op).toMatchObject({ rect: { width: 1000, height: 500 } });
+    // The last path in the list is the frame; the picture is 1000 x 500 inside
+    // a 1400 x 900 canvas, and the frame follows the picture.
+    const ops = buildSceneOps(viewport);
+    const op = ops[ops.length - 1] as { commands: Array<{ rect: { width: number; height: number } }> };
+    const rect = op.commands[0]!.rect;
+    expect(rect.width).toBeCloseTo(1000 - DEFAULT_FRAME.width * 1000);
+    expect(rect.height).toBeCloseTo(500 - DEFAULT_FRAME.width * 1000);
 
-    const exported = createScene(framed, { source }, { region: "crop" });
-    const exportedOp = buildSceneOps(exported).find((candidate) => candidate.op === "frame")!;
-    expect(exportedOp).toMatchObject({ rect: { x: 0, y: 0, width: 1000, height: 500 } });
+    // On an export the picture *is* the target, so the frame sits at the edge.
+    const exported = buildSceneOps(createScene(framed, { source }, { region: "crop" }));
+    const exportedOp = exported[exported.length - 1] as { commands: Array<{ rect: { x: number } }> };
+    expect(exportedOp.commands[0]!.rect.x).toBeCloseTo((DEFAULT_FRAME.width * 1000) / 2);
   });
 });
 

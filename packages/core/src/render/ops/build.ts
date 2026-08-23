@@ -1,7 +1,7 @@
+import { IDENTITY } from "../../geometry/matrix.js";
 import { longestEdge } from "../../geometry/rect.js";
-import type { Rect } from "../../geometry/types.js";
-import type { FrameSettings } from "../../model/types.js";
 import type { Scene } from "../scene.js";
+import { frameOps } from "./frames.js";
 import { layerOps } from "./layers.js";
 import { estimateTextWidth } from "./text.js";
 import type { BuildOptions, DrawOp } from "./types.js";
@@ -13,25 +13,6 @@ import type { BuildOptions, DrawOp } from "./types.js";
  * adjustment, vignette, layers, frame. Everything it assembles was decided
  * elsewhere.
  */
-
-/**
- * Resolves a frame's fractions against the target it is drawn on.
- *
- * Stored as fractions so one setting suits a thumbnail and a 6000px export;
- * resolved here so the executor only ever sees pixels.
- */
-export function frameOp(frame: FrameSettings, region: Rect): Extract<DrawOp, { op: "frame" }> {
-  const edge = longestEdge(region);
-  return {
-    op: "frame",
-    rect: region,
-    style: frame.style,
-    width: Math.max(1, frame.width * edge),
-    radius: Math.max(0, frame.radius * edge),
-    inset: Math.max(0, frame.inset * edge),
-    colour: frame.colour,
-  };
-}
 
 /**
  * The whole frame as a list of operations, in draw order.
@@ -92,7 +73,11 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   }
 
   // Around the picture, not around the canvas: in the viewport those differ.
-  if (scene.frame) ops.push(frameOp(scene.frame, scene.regionInTarget));
+  // In target space, which the identity transform says out loud rather than
+  // leaving the executor to reset it on the frame's behalf.
+  if (scene.frame) {
+    ops.push({ op: "transform", matrix: IDENTITY }, ...frameOps(scene.frame, scene.regionInTarget));
+  }
 
   return ops;
 }

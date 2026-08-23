@@ -12,9 +12,9 @@ describe("styleControlsFor", () => {
     expect(styleControlsFor({ tool: "ellipse" })).toEqual(["colour", "fill", "width", "dash"]);
   });
 
-  it("offers arrow heads only to a line", () => {
-    expect(styleControlsFor({ tool: "arrow" })).toContain("arrowEnds");
-    expect(styleControlsFor({ tool: "draw" })).not.toContain("arrowEnds");
+  it("offers line ends only to a line", () => {
+    expect(styleControlsFor({ tool: "arrow" })).toContain("lineEnds");
+    expect(styleControlsFor({ tool: "draw" })).not.toContain("lineEnds");
   });
 
   it("offers type controls to text and no stroke width", () => {

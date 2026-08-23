@@ -84,6 +84,9 @@ export const DEFAULT_FRAME = Object.freeze({
   colour: "#ffffff",
   radius: 0.03,
   inset: 0.02,
+  offset: 0.015,
+  count: 2,
+  armLength: 0.06,
 });
 
 export const MIN_FRAME_WIDTH = 0.002;

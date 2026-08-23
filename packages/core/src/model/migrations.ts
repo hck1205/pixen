@@ -1,4 +1,5 @@
 import { PixenError } from "../errors/index.js";
+import { DEFAULT_FRAME } from "./defaults.js";
 import { DEFAULT_ADJUSTMENTS, SCHEMA_VERSION } from "./types.js";
 
 export type DocumentMigration = (document: Record<string, unknown>) => Record<string, unknown>;
@@ -83,6 +84,58 @@ function migrateV5ToV6(document: Record<string, unknown>): Record<string, unknow
   return { ...document, output: { upscale: false, ...output } };
 }
 
+/**
+ * v6 -> v7 replaced a line's two booleans with two named decorations.
+ *
+ * `arrowStart: true` drew a *filled* head, so it becomes `arrow-solid` rather
+ * than `arrow` — the open one is a new drawing, and a migration that quietly
+ * restyled every arrow in a customer's archive would be a worse bug than the
+ * one it fixed. False becomes `none`, which is what it drew.
+ *
+ * The old fields are dropped rather than carried: they are the same information
+ * in a shape the renderer no longer reads, and leaving them would mean two
+ * answers to what is on the end of a line.
+ */
+function migrateV6ToV7(document: Record<string, unknown>): Record<string, unknown> {
+  const layers = Array.isArray(document.layers) ? document.layers : [];
+  return {
+    ...document,
+    layers: layers.map((raw) => {
+      if (typeof raw !== "object" || raw === null) return raw;
+      const layer = raw as Record<string, unknown>;
+      if (layer.type !== "line") return layer;
+      const { arrowStart, arrowEnd, ...rest } = layer;
+      return {
+        ...rest,
+        startStyle: rest.startStyle ?? (arrowStart === true ? "arrow-solid" : "none"),
+        endStyle: rest.endStyle ?? (arrowEnd === true ? "arrow-solid" : "none"),
+      };
+    }),
+  };
+}
+
+/**
+ * v7 -> v8 gave the frame the three measurements its new treatments need.
+ *
+ * A v7 document has one of the three rectangles, which read none of them, so
+ * this is a default rather than a change of meaning — the same shape as the
+ * frame's own arrival in v4. Spread after the defaults, so a document that
+ * somehow carries them keeps what it has.
+ */
+function migrateV7ToV8(document: Record<string, unknown>): Record<string, unknown> {
+  const stored = document.frame;
+  if (typeof stored !== "object" || stored === null) return document;
+  return {
+    ...document,
+    frame: {
+      offset: DEFAULT_FRAME.offset,
+      count: DEFAULT_FRAME.count,
+      armLength: DEFAULT_FRAME.armLength,
+      ...(stored as Record<string, unknown>),
+    },
+  };
+}
+
 export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
   if (migrations.has(fromVersion)) {
     throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
@@ -96,6 +149,8 @@ migrations.set(2, migrateV2ToV3);
 migrations.set(3, migrateV3ToV4);
 migrations.set(4, migrateV4ToV5);
 migrations.set(5, migrateV5ToV6);
+migrations.set(6, migrateV6ToV7);
+migrations.set(7, migrateV7ToV8);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {

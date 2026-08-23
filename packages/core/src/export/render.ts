@@ -14,6 +14,14 @@ import type { Size } from "../geometry/types.js";
 import { renderScene } from "../render/canvas2d/index.js";
 import { createScene } from "../render/scene.js";
 import type { ResourceManager } from "../resources/manager.js";
+import type { ShapeProcessor } from "../render/preprocess.js";
+
+export interface PictureOptions {
+  target?: Size;
+  region?: "crop" | "stage";
+  /** Rules over each shape before it is drawn. See `preprocessLayers`. */
+  preprocess?: readonly ShapeProcessor[];
+}
 
 /**
  * Renders to a canvas without encoding, for hosts that want pixels — a WebGL
@@ -24,7 +32,7 @@ import type { ResourceManager } from "../resources/manager.js";
 export function renderDocumentToCanvas(
   document: EditorDocument,
   resources: ResourceManager,
-  options: { target?: Size; region?: "crop" | "stage" } = {},
+  options: PictureOptions = {},
 ): CanvasSurface {
   const resource = resources.require(document.source.resourceId);
   const region = options.region ?? "crop";
@@ -33,7 +41,12 @@ export function renderDocumentToCanvas(
 
   const scene = createScene(
     document,
-    { source: resource.source, sourceScale: 1, resolveResource: resources.resolve },
+    {
+      source: resource.source,
+      sourceScale: 1,
+      resolveResource: resources.resolve,
+      ...(options.preprocess ? { preprocess: options.preprocess } : {}),
+    },
     { region, target },
   );
   return drawnSurface(target, (surface) => renderScene(surface.context, scene));
@@ -54,7 +67,7 @@ export function renderDocumentToCanvas(
 export function renderDocumentToImageData(
   document: EditorDocument,
   resources: ResourceManager,
-  options: { target?: Size; region?: "crop" | "stage" } = {},
+  options: PictureOptions = {},
 ): ImageData {
   const surface = renderDocumentToCanvas(document, resources, options);
   try {

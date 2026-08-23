@@ -59,6 +59,13 @@ export interface PixenStrings {
   frameSolid: string;
   frameInset: string;
   frameRounded: string;
+  frameHook: string;
+  frameLine: string;
+  frameEdge: string;
+  frameInset2: string;
+  frameOffset: string;
+  frameArm: string;
+  frameCount: string;
   frameWidth: string;
   frameColour: string;
   canvas: string;
@@ -79,8 +86,17 @@ export interface PixenStrings {
   alignCenter: string;
   alignRight: string;
   textPlate: string;
-  arrowStart: string;
-  arrowEnd: string;
+  /** What sits at each end of a line, and the eight it may be. */
+  lineStart: string;
+  lineEnd: string;
+  endNone: string;
+  endBar: string;
+  endArrow: string;
+  endArrowSolid: string;
+  endCircle: string;
+  endCircleSolid: string;
+  endSquare: string;
+  endSquareSolid: string;
   output: string;
   outputWidth: string;
   outputHeight: string;

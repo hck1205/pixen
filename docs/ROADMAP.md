@@ -46,7 +46,8 @@ unit tests and a browser suite driving the real bundle.
 - [x] Blur and pixelate redaction modes
 - [x] Image watermarks: corner, edge, centre or tiled, with opacity
 - [x] Text watermarks (a text layer plus the same placement maths)
-- [x] Frames: solid, inset and rounded, drawn over the finished picture
+- [x] Frames: six treatments — solid, inset, rounded, corner hooks, parallel lines
+      and floating edges — drawn over the finished picture
 - [x] Vue wrapper (`@pixen/vue`)
 - [x] Svelte bindings (`@pixen/svelte`): an action, with no Svelte dependency
 - [ ] Angular: no package planned. The element binds with Angular's own property

@@ -5,7 +5,14 @@
  * verdict is allowed to mean.
  */
 import { browser, doc, list, required, story, unit, visual, type ClaimGroup } from "../claim.js";
-import { ADJUSTMENT_KEYS, ADJUSTMENT_PRESETS, FRAME_STYLES, REDACTION_MODES, WATERMARK_POSITIONS } from "@pixen/core";
+import {
+  ADJUSTMENT_KEYS,
+  ADJUSTMENT_PRESETS,
+  FRAME_STYLES,
+  LINE_ENDS,
+  REDACTION_MODES,
+  WATERMARK_POSITIONS,
+} from "@pixen/core";
 import { DEFAULT_TOOLS } from "@pixen/web";
 
 export const ANNOTATE_CLAIMS: ClaimGroup[] = [
@@ -69,8 +76,8 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "Line ends",
-        pixen: "An arrow head at either end, or neither — one style, chosen per end",
-        verdict: "open",
+        pixen: list(LINE_ENDS),
+        verdict: "met",
         market: required(
           "shape styles",
           "Eight decorations available at each end independently: none, a bar, an open and a solid arrow, " +
@@ -78,35 +85,45 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
         ),
         evidence: [unit("decoration.test.ts"), story("Styling")],
         note:
-          "Both ends are already independent and the head is drawn from trigonometry, so the shape of the " +
-          "gap is six more head shapes rather than a mechanism",
+          "Eight at each end, independently. The open and solid pairs are the same shape stroked or " +
+          "filled, which is a real distinction over a busy photograph — and what decides how far the " +
+          "shaft stops short, since a solid decoration hides what is under it and an open one does not",
       },
       {
         capability: "Styles a host defines",
-        pixen: "Not offered: the end and frame styles are the ones Pixen draws",
-        verdict: "open",
+        pixen:
+          "A shape rule can return any layers it likes, so an application's own decoration is a rule " +
+          "rather than a fork — the same seam the preview and the file both go through",
+        verdict: "met",
         market: required(
           "shape styles",
           "The default end and frame styles can be merged with a host's own, so an application adds " +
           "decorations the SDK never shipped",
         ),
-        evidence: [doc("docs/PLUGINS.md")],
-        note: "The same seam the shape preprocessor above wants, seen from the styling side",
+        evidence: [unit("preprocess.test.ts"), browser("editor.spec.ts"), doc("docs/PLUGINS.md")],
+        note:
+          "Not a style registry: a host that wants a dashed double arrow writes the shapes for it rather " +
+          "than registering a name Pixen would then have to draw",
       },
       {
         capability: "A shape preprocessor",
-        pixen: "Not offered: a host cannot yet transform a shape between the gesture and the document",
-        verdict: "open",
+        pixen:
+          "`shapeProcessors` is a chain over each layer on its way to being drawn: return nothing to pass, " +
+          "or the layers to draw in its place. It runs over a copy, so the stored document is untouched " +
+          "and undo still means what it said",
+        verdict: "met",
         market: required(
           "shape styles",
           "A chain of processors run over each shape before it is drawn — to the screen and to the output — " +
           "each one able to expand one shape into several, told whether this is the preview or the file, " +
           "and leaving the stored shape untouched",
         ),
-        evidence: [doc("docs/PLUGINS.md")],
+        evidence: [unit("preprocess.test.ts"), browser("editor.spec.ts"), doc("docs/PLUGINS.md")],
         note:
-          "It is the mechanism the end styles and the frame styles are built on in the supplied material, " +
-          "which is why those two rows are open as well: one seam, three features",
+          "Told whether it is drawing the preview or the file, because \"not in the export\" and \"not on " +
+          "screen\" are different requests — a draft watermark is the first one. The chain runs each rule " +
+          "over what the last produced rather than all of them over the original, which would double a " +
+          "shape the moment two of them matched it",
       },
       {
         capability: "Selection handles",
@@ -176,8 +193,8 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "Frames",
-        pixen: `${list(FRAME_STYLES)} — with colour, width, inset and corner radius`,
-        verdict: "open",
+        pixen: `${list(FRAME_STYLES)} — with colour, width, inset, radius, spacing, count and arm length`,
+        verdict: "met",
         market: required(
           "shape styles",
           "Six treatments — a solid border, corner hooks, a line or a line per edge inset from the crop, a " +
@@ -186,9 +203,10 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
         ),
         evidence: [unit("decoration.test.ts"), story("Decoration"), visual("visual.spec.ts")],
         note:
-          "Three of the six are drawn, and they are the three that are geometry rather than decoration. " +
-          "The nine-slice one is the interesting gap: it needs an image resource per frame, which the " +
-          "document model can carry today and the frame settings cannot",
+          "Six, and the panel offers each treatment only the measurements it reads — a slider that changes " +
+          "nothing says the setting does something. Two of the supplied set are not here: a nine-slice " +
+          "frame needs an image per frame, and a polaroid needs the picture drawn smaller inside the card " +
+          "rather than a border over it. Both are compositions rather than decorations",
       },
     ],
   },

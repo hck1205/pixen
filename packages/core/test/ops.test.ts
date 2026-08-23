@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyToPoint,
-  ARROW_HEAD_RATIO,
-  arrowHeadCommands,
+  lineEndInset,
   buildSceneOps,
   commands,
   createArrowLayer,
@@ -106,14 +105,14 @@ describe("line and arrow layers", () => {
     const ops = lineLayerOps(layer);
     expect(kinds(ops)).toEqual(["path", "path"]);
 
-    const inset = layer.stroke.width * ARROW_HEAD_RATIO * 0.8;
+    const inset = lineEndInset("arrow-solid", layer.stroke.width);
     expect(pathOp(ops).commands[1]).toEqual({ op: "line", to: { x: 200 - inset, y: 0 } });
     expect(pathOp(ops, 1).fill).toBe(layer.stroke.color);
   });
 
-  it("puts a head on both ends when asked", () => {
+  it("puts a decoration on both ends when asked", () => {
     const ops = lineLayerOps(
-      createLineLayer({ x: 0, y: 0 }, { x: 200, y: 0 }, { arrowStart: true, arrowEnd: true }),
+      createLineLayer({ x: 0, y: 0 }, { x: 200, y: 0 }, { startStyle: "circle", endStyle: "arrow-solid" }),
     );
     expect(kinds(ops)).toEqual(["path", "path", "path"]);
   });
@@ -124,14 +123,14 @@ describe("line and arrow layers", () => {
     expect((shaft.commands[1] as { to: { x: number } }).to.x).toBeCloseTo(2);
   });
 
-  it("builds a three-point head around the tip", () => {
-    const head = arrowHeadCommands({ x: 100, y: 0 }, 0, 10);
-    expect(kinds([{ op: "path", commands: head }])).toEqual(["path"]);
-    expect(head[0]).toEqual({ op: "move", to: { x: 100, y: 0 } });
-    expect(head).toHaveLength(4);
-    // Both barbs sit behind the tip.
-    expect((head[1] as { to: { x: number } }).to.x).toBeLessThan(100);
-    expect((head[2] as { to: { x: number } }).to.x).toBeLessThan(100);
+  it("stops the shaft at the middle of a short line with two decorations", () => {
+    // Two insets on a line shorter than both of them would leave a shaft
+    // running backwards, which draws as nothing on some engines and as a
+    // stray mark on others.
+    const layer = createLineLayer({ x: 0, y: 0 }, { x: 4, y: 0 }, { startStyle: "circle", endStyle: "arrow-solid" });
+    const shaft = pathOp(lineLayerOps(layer));
+    expect((shaft.commands[0] as { to: { x: number } }).to.x).toBeCloseTo(2);
+    expect((shaft.commands[1] as { to: { x: number } }).to.x).toBeCloseTo(2);
   });
 });
 

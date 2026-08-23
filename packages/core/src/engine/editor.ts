@@ -18,16 +18,13 @@ import type {
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
 import { sourceFromResource } from "../resources/source.js";
-import {
-  exportDocument,
-  resolveOutputFormat,
-  type ExportOptions,
-  type ExportResult,
-} from "../export/pipeline.js";
-import { renderDocumentToCanvas, renderDocumentToImageData } from "../export/render.js";
-import { renderMask, type MaskOptions } from "../export/mask.js";
-import { uploadExport, type UploadResponse, type UploadTarget } from "../export/upload.js";
-import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
+import type { ExportOptions, ExportResult } from "../export/pipeline.js";
+import type { PictureOptions } from "../export/render.js";
+import type { ShapeProcessor } from "../render/preprocess.js";
+import type { MaskOptions } from "../export/mask.js";
+import type { UploadResponse, UploadTarget } from "../export/upload.js";
+import type { ExportVariant, VariantSpec } from "../export/variants.js";
+import { EditorOutputs } from "./outputs.js";
 import {
   createStickerLayer,
   createTextWatermarkLayer,
@@ -46,7 +43,7 @@ import {
   type SessionOutcome,
   type SessionState,
 } from "./session/index.js";
-import { TaskRunner, tracked, type TaskAttempt } from "./tasks/index.js";
+import { TaskRunner, tracked } from "./tasks/index.js";
 import { editorEmissions, type EditorEvents } from "./events.js";
 import { missingResource, planRestore, repointSource } from "./restore.js";
 
@@ -77,6 +74,14 @@ const EXPORT_FAILURE = { code: "EXPORT_FAILED", message: "The image could not be
  */
 export class Editor {
   readonly resources: ResourceManager;
+  /**
+   * Rules the host applies to each shape on its way to being drawn, in order.
+   *
+   * A list rather than one function, because narrow rules compose and a single
+   * one has to recognise everything. See `preprocessLayers`; pushing to it
+   * takes effect on the next render, and the stored document never changes.
+   */
+  readonly shapeProcessors: ShapeProcessor[] = [];
   readonly #emitter = new Emitter<EditorEvents>();
   /**
    * Announces a failure and hands it back to be thrown.
@@ -121,7 +126,21 @@ export class Editor {
       new ResourceManager({ previewMaxSize: options.previewMaxSize ?? DEFAULT_PREVIEW_MAX_SIZE });
     this.#ownsResources = !options.resources;
     this.#historyLimit = options.historyLimit ?? DEFAULT_HISTORY_LIMIT;
+    // After `resources`, which it holds: every way a picture leaves the editor
+    // needs the same three things, and this is where they finally exist.
+    this.#outputs = new EditorOutputs({
+      document: () => this.document,
+      resources: this.resources,
+      processors: () => this.shapeProcessors,
+      task: this.#exportTask as unknown as TaskRunner<{ format: string }>,
+      exported: (result) => this.#emitter.emit("export", result),
+      failure: EXPORT_FAILURE,
+      assertAlive: () => this.#assertAlive(),
+    });
   }
+
+  /** Every way a picture leaves the editor. See `EditorOutputs`. */
+  readonly #outputs: EditorOutputs;
 
   // --- state ---------------------------------------------------------------
 
@@ -625,25 +644,8 @@ export class Editor {
 
   // --- output --------------------------------------------------------------
 
-  /**
-   * Every way out of the editor is the same task: announce a start, report the
-   * steps, end once. Three entry points shared it before this had a name.
-   */
-  #runExport<T>(options: ExportOptions, work: (attempt: TaskAttempt) => Promise<T>): Promise<T> {
-    this.#assertAlive();
-    return this.#exportTask.run(
-      { format: resolveOutputFormat(this.document, options.format) },
-      { ...EXPORT_FAILURE, signal: options.signal },
-      work,
-    );
-  }
-
   async export(options: ExportOptions = {}): Promise<ExportResult> {
-    return this.#runExport(options, async (attempt) => {
-      const result = await exportDocument(this.document, this.resources, tracked(options, attempt));
-      this.#emitter.emit("export", result);
-      return result;
-    });
+    return this.#outputs.export(options);
   }
 
   /**
@@ -655,11 +657,7 @@ export class Editor {
    * calls off whichever of them is running.
    */
   async exportTo(target: UploadTarget, options: ExportOptions = {}): Promise<UploadResponse> {
-    return this.#runExport(options, async (attempt) => {
-      const result = await exportDocument(this.document, this.resources, tracked(options, attempt));
-      this.#emitter.emit("export", result);
-      return uploadExport(result, target, { signal: attempt.signal, onProgress: attempt.report });
-    });
+    return this.#outputs.exportTo(target, options);
   }
 
   /**
@@ -679,18 +677,15 @@ export class Editor {
    * rendered — see `planVariants` — so a host can show what it is about to get.
    */
   async exportVariants(specs: readonly VariantSpec[], options: ExportOptions = {}): Promise<ExportVariant[]> {
-    return this.#runExport(options, (attempt) =>
-      exportVariants(this.document, this.resources, specs, tracked(options, attempt)),
-    );
+    return this.#outputs.variants(specs, options);
   }
 
   /**
    * The edit as pixels, without encoding it. For hosts that want a texture or
    * an encoder of their own. The caller owns the surface and releases it.
    */
-  renderToCanvas(options: { target?: Size; region?: "crop" | "stage" } = {}): CanvasSurface {
-    this.#assertAlive();
-    return renderDocumentToCanvas(this.document, this.resources, options);
+  renderToCanvas(options: PictureOptions = {}): CanvasSurface {
+    return this.#outputs.canvas(options);
   }
 
   /**
@@ -698,15 +693,13 @@ export class Editor {
    * model's input, a WASM filter, a comparison in a test. Nothing to release:
    * the pixels are copied out and the surface is let go.
    */
-  renderToImageData(options: { target?: Size; region?: "crop" | "stage" } = {}): ImageData {
-    this.#assertAlive();
-    return renderDocumentToImageData(this.document, this.resources, options);
+  renderToImageData(options: PictureOptions = {}): ImageData {
+    return this.#outputs.pixels(options);
   }
 
   /** The marked areas alone, for a model that works on part of a picture. */
   renderMask(options: MaskOptions = {}): CanvasSurface {
-    this.#assertAlive();
-    return renderMask(this.document, this.resources, options);
+    return this.#outputs.mask(options);
   }
 
   /** JSON-safe snapshot; pair it with `restore` to resume a session. */

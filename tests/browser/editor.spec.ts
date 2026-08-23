@@ -2764,3 +2764,72 @@ test("a host can swap the picture for one export without touching the document",
   // And the document still describes the picture it was loaded with.
   expect(result.unchanged).toBe(true);
 });
+
+test("a host rule rewrites every shape on its way to being drawn", async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement & {
+      editor: {
+        document: { source: { width: number; height: number }; layers: unknown[] };
+        addLayer(layer: unknown, options?: { select?: boolean }): void;
+        shapeProcessors: Array<(layer: unknown, context: { preview: boolean }) => unknown[] | undefined>;
+        renderToImageData(options?: Record<string, unknown>): ImageData;
+      };
+    };
+    const { width, height } = element.editor.document.source;
+    const rect = (id: string, x: number, colour: string) => ({
+      id,
+      type: "rect",
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      frame: { x: width * x, y: height * 0.3, width: width * 0.2, height: height * 0.4 },
+      color: colour,
+      fill: colour,
+      strokeWidth: 2,
+      dash: null,
+      cornerRadius: 0,
+    });
+    element.editor.addLayer(rect("keep", 0.1, "#ff0000"), { select: false });
+    element.editor.addLayer(rect("draft", 0.6, "#00ff00"), { select: false });
+
+    // Two narrow rules rather than one that recognises everything.
+    element.editor.shapeProcessors.push((layer, context) => {
+      const shape = layer as { id: string };
+      // A draft mark: on screen while editing, never in the file.
+      return shape.id === "draft" && !context.preview ? [] : undefined;
+    });
+    element.editor.shapeProcessors.push((layer) => {
+      const shape = layer as { id: string; color: string; fill: string };
+      return shape.id === "keep" ? [{ ...shape, color: "#0000ff", fill: "#0000ff" }] : undefined;
+    });
+
+    const read = (region: "crop" | "stage") =>
+      element.editor.renderToImageData({ target: { width: 100, height: 100 }, region });
+    const colourAt = (pixels: ImageData, fx: number) => {
+      const index = (Math.round(pixels.height * 0.5) * pixels.width + Math.round(pixels.width * fx)) * 4;
+      return `${pixels.data[index]},${pixels.data[index + 1]},${pixels.data[index + 2]}`;
+    };
+    const pixels = read("crop");
+    const at = (fx: number) => colourAt(pixels, fx);
+
+    return {
+      recoloured: at(0.2),
+      whereTheDraftWas: at(0.7),
+      // The stage is what the viewport draws, so the draft belongs in it.
+      draftOnScreen: colourAt(read("stage"), 0.7),
+      // The stored document is what undo restores, so it must be untouched.
+      stored: element.editor.document.layers.map((layer) => (layer as { id: string; color: string }).color),
+    };
+  });
+
+  // The rule the host wrote, applied on the way to the file.
+  expect(result.recoloured).toBe("0,0,255");
+  // And the draft is not in it — whatever the picture is there, it is not green.
+  expect(result.whereTheDraftWas).not.toBe("0,255,0");
+  // On screen it is, which is the whole point of telling a rule which one it is
+  // drawing: "not in the export" and "not on screen" are different requests.
+  expect(result.draftOnScreen).toBe("0,255,0");
+  // Nothing was rewritten in the document itself.
+  expect(result.stored).toEqual(["#ff0000", "#00ff00"]);
+});

@@ -5,7 +5,7 @@ import { applyAdjustmentsToImageData } from "../adjustments.js";
 import { supportsContextFilter } from "../filter-support.js";
 import { buildSceneOps, type BuildOptions, type DrawOp, type PathCommand, type TextMeasurer } from "../ops/index.js";
 import type { Scene } from "../scene.js";
-import { drawFrame, drawVignette } from "./decoration.js";
+import { drawVignette } from "./decoration.js";
 import { obscureRegion } from "./redaction.js";
 
 /**
@@ -85,9 +85,6 @@ export function executeOps(context: Canvas2D, ops: readonly DrawOp[]): void {
         break;
       case "vignette":
         drawVignette(context, op);
-        break;
-      case "frame":
-        drawFrame(context, op);
         break;
       case "filter":
         context.filter = op.value;

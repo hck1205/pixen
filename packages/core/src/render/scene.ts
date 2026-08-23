@@ -5,6 +5,7 @@ import { imageToStage, stageToOutput } from "../geometry/spaces.js";
 import type { Matrix, Rect, Size } from "../geometry/types.js";
 import { effectiveCrop, outputSize, stageRect } from "../model/document.js";
 import type { Adjustments, EditorDocument, EditorLayer, FrameSettings } from "../model/types.js";
+import { preprocessLayers, type ShapeProcessor } from "./preprocess.js";
 
 export type SceneRegion = "crop" | "stage";
 
@@ -55,6 +56,11 @@ export interface Scene {
 
 export interface SceneInput {
   source: CanvasImageSource;
+  /**
+   * The host's chance to rewrite each shape before it is drawn. See
+   * `preprocessLayers`; an empty list, which is the default, is a no-op.
+   */
+  preprocess?: readonly ShapeProcessor[];
   /** Pixels of `source` per image pixel. 1 for the full-resolution bitmap. */
   sourceScale?: number;
   /**
@@ -120,7 +126,14 @@ export function createScene(document: EditorDocument, input: SceneInput, options
       // The preview bitmap is smaller than the image, so undo its scale first.
       matrix: compose(imageToTarget, scaling(1 / sourceScale)),
     },
-    layers: document.layers
+    // Preprocessed first, then filtered: a processor may hide a layer by
+    // returning it invisible, or produce one, and the visibility rule should
+    // read the same either way.
+    layers: preprocessLayers(document.layers, input.preprocess ?? [], {
+      preview: options.region === "stage",
+      transform: document.transform,
+      scale: layerScale,
+    })
       .filter((layer) => layer.visible && layer.opacity > 0)
       .map((layer) => {
         const resource = layer.type === "image" ? input.resolveResource?.(layer.resourceId) : null;

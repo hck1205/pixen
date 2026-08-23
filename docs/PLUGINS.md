@@ -110,6 +110,31 @@ others: this is cleanup, and half-cleanup is worse than the error.
 A plugin that adds and removes controls as state changes can call the removers
 itself; removing something twice is a no-op.
 
+## Shape rules
+
+`editor.shapeProcessors` is a chain each layer goes through on its way to being
+drawn. A rule returns `undefined` to pass, or the layers to draw in its place —
+none, itself, or several.
+
+```ts
+editor.shapeProcessors.push((layer, { preview }) =>
+  layer.type === "text" && layer.name === "draft" && !preview ? [] : undefined,
+);
+```
+
+It is not a render hook: a rule never sees a canvas and cannot draw. It is a
+rule *about shapes* — snap this rectangle to a grid, give every layer carrying a
+marker the house style, expand one annotation into a callout of three, keep a
+placeholder on screen and out of the file.
+
+Two things make it safe to hand out. It runs over a copy on the way to the
+renderer, so the stored document is untouched and undo still means what it said.
+And it is told whether this is the preview or the file, because "not in the
+export" and "not on screen" are both things a host wants to say.
+
+The chain runs each rule over what the last one produced, not all of them over
+the original — otherwise two rules matching the same shape would double it.
+
 ## What is deliberately not here
 
 - **Custom tools and gestures.** A tool is a rail button, an inspector, a
@@ -118,7 +143,8 @@ itself; removing something twice is a no-op.
 - **Custom layer types.** The document schema is a stored contract with a
   migration path; a plugin adding a layer type would produce documents Pixen
   itself could not read back.
-- **Render hooks.** The scene is a draw list precisely so a different renderer
+- **Render hooks.** A shape rule is not one — it decides what to draw, never how.
+  The scene is a draw list precisely so a different renderer
   can execute it later. Letting plugins draw into the Canvas2D executor would
   make that change breaking.
 

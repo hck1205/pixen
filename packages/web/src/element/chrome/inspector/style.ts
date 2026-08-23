@@ -1,4 +1,4 @@
-import { longestEdge, type EditorLayer, type TextLayer } from "@pixen/core";
+import { LINE_ENDS, longestEdge, type EditorLayer, type LineEnd, type TextLayer } from "@pixen/core";
 import { field, input, optionButton, textButton } from "../../dom/index.js";
 import {
   CORNER_RATIO_RANGE,
@@ -24,6 +24,64 @@ export function buildStyleControls(context: ChromeContext, subject: StyleSubject
   // is about. See `styleTarget`.
   const target = styleTarget(subject, context.editor.selectedLayer);
   return styleControlsFor(subject).flatMap((control) => buildControl(context, control, target));
+}
+
+/**
+ * A decoration's name, drawn as a glyph rather than translated.
+ *
+ * An arrow is an arrow in every language, and the eight of them are easier to
+ * tell apart as marks than as words — "open square" and "solid square" read as
+ * the same button until you look twice. The accessible name is still the word,
+ * because a screen reader cannot see the mark.
+ */
+/** Which string names each decoration, for the accessible name. */
+const END_STRING_KEYS: Readonly<Record<LineEnd, keyof PixenStrings>> = {
+  none: "endNone",
+  bar: "endBar",
+  arrow: "endArrow",
+  "arrow-solid": "endArrowSolid",
+  circle: "endCircle",
+  "circle-solid": "endCircleSolid",
+  square: "endSquare",
+  "square-solid": "endSquareSolid",
+};
+
+const END_GLYPHS: Readonly<Record<LineEnd, string>> = {
+  none: "—",
+  bar: "⊢",
+  arrow: "→",
+  "arrow-solid": "➤",
+  circle: "○",
+  "circle-solid": "●",
+  square: "□",
+  "square-solid": "■",
+};
+
+/** The eight buttons for one end of a line. */
+function endPicker(
+  context: ChromeContext,
+  field: "startStyle" | "endStyle",
+  current: LineEnd,
+  selected: EditorLayer | null,
+): Node {
+  const label = field === "startStyle" ? "lineStart" : "lineEnd";
+  const row = document.createElement("div");
+  row.className = "cluster";
+  row.append(
+    ...LINE_ENDS.map((end) =>
+      textButton({
+        // The glyph is the visible text and the word is the accessible name:
+        // an arrow is an arrow in every language, and a screen reader cannot
+        // see the mark.
+        text: END_GLYPHS[end],
+        label: `${context.strings[label]}: ${context.strings[END_STRING_KEYS[end]]}`,
+        active: current === end,
+        dataset: { field, end },
+        onClick: () => styleWriter(context, selected)({ [field]: end }, { [field]: end }),
+      }),
+    ),
+  );
+  return row;
 }
 
 const ALIGNMENTS: ReadonlyArray<{ value: TextLayer["align"]; key: keyof PixenStrings }> = [
@@ -164,20 +222,12 @@ function buildControl(context: ChromeContext, control: StyleControl, selected: E
         }),
       ];
 
-    case "arrowEnds":
+    case "lineEnds":
+      // Two rows of eight rather than one of sixteen: a person picks what goes
+      // on *this* end, and the two ends are independent.
       return [
-        textButton({
-          text: strings.arrowStart,
-          active: style.arrowStart,
-          onClick: () =>
-            apply({ arrowStart: !style.arrowStart }, { arrowStart: !style.arrowStart }),
-        }),
-        textButton({
-          text: strings.arrowEnd,
-          active: style.arrowEnd,
-          onClick: () =>
-            apply({ arrowEnd: !style.arrowEnd }, { arrowEnd: !style.arrowEnd }),
-        }),
+        field(strings.lineStart, endPicker(context, "startStyle", style.startStyle, selected)),
+        field(strings.lineEnd, endPicker(context, "endStyle", style.endStyle, selected)),
       ];
   }
 }

@@ -70,14 +70,14 @@ export function createLineLayer(from: Point, to: Point, options: Partial<LineLay
     from,
     to,
     stroke: { ...DEFAULT_STROKE },
-    arrowStart: false,
-    arrowEnd: false,
+    startStyle: "none",
+    endStyle: "none",
     ...options,
   };
 }
 
 export function createArrowLayer(from: Point, to: Point, options: Partial<LineLayer> = {}): LineLayer {
-  return createLineLayer(from, to, { arrowEnd: true, ...options });
+  return createLineLayer(from, to, { endStyle: "arrow-solid", ...options });
 }
 
 export function createPathLayer(points: Point[], options: Partial<PathLayer> = {}): PathLayer {

@@ -19,7 +19,7 @@ export type StyleControl =
   | "fontSize"
   | "align"
   | "textPlate"
-  | "arrowEnds";
+  | "lineEnds";
 
 export interface StyleSubject {
   /** The active tool, which decides what the *next* annotation will look like. */
@@ -65,7 +65,7 @@ export function styleControlsFor(subject: StyleSubject): StyleControl[] {
     case "ellipse":
       return SHAPE_CONTROLS;
     case "line":
-      return ["colour", "width", "dash", "arrowEnds"];
+      return ["colour", "width", "dash", "lineEnds"];
     case "path":
       return ["colour", "width", "dash"];
     case "text":

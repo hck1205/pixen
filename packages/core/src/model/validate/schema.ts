@@ -23,6 +23,7 @@ import {
   ADJUSTMENT_KEYS,
   FRAME_STYLES,
   IMAGE_FORMATS,
+  LINE_ENDS,
   REDACTION_MODES,
   type AdjustmentKey,
   type EditorDocument,
@@ -132,6 +133,9 @@ export const frameSettings: Validator<FrameSettings> = object<FrameSettings>({
   colour: field("colour", withDefault(text, DEFAULT_FRAME.colour)),
   radius: field("radius", withDefault(finiteNumber, DEFAULT_FRAME.radius)),
   inset: field("inset", withDefault(finiteNumber, DEFAULT_FRAME.inset)),
+  offset: field("offset", withDefault(finiteNumber, DEFAULT_FRAME.offset)),
+  count: field("count", withDefault(finiteNumber, DEFAULT_FRAME.count)),
+  armLength: field("armLength", withDefault(finiteNumber, DEFAULT_FRAME.armLength)),
 });
 
 // --- layers ----------------------------------------------------------------
@@ -173,8 +177,8 @@ const LAYER_FIELDS: { [K in LayerType]: Fields<Extract<EditorLayer, { type: K }>
     from: field("from", point),
     to: field("to", point),
     stroke: field("stroke", withDefault(stroke, { ...DEFAULT_STROKE })),
-    arrowStart: field("arrowStart", withDefault(boolean, false)),
-    arrowEnd: field("arrowEnd", withDefault(boolean, false)),
+    startStyle: field("startStyle", withDefault(literalUnion(...LINE_ENDS), "none")),
+    endStyle: field("endStyle", withDefault(literalUnion(...LINE_ENDS), "none")),
   },
   path: {
     ...layerBase,

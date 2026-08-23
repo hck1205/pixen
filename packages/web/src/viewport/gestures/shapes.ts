@@ -42,8 +42,8 @@ export function shapeLayerFor(tool: ShapeTool, origin: Point, context: GestureCo
       return createArrowLayer(origin, origin, {
         id: context.createId("line"),
         stroke,
-        arrowStart: context.style.arrowStart,
-        arrowEnd: context.style.arrowEnd,
+        startStyle: context.style.startStyle,
+        endStyle: context.style.endStyle,
       });
   }
 }

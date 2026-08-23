@@ -118,7 +118,7 @@ one, applying each registered step in order:
 ```js
 import { registerMigration } from "@pixen/core";
 
-registerMigration(6, (document) => ({ ...document, /* v6 -> v7 changes */ }));
+registerMigration(8, (document) => ({ ...document, /* v8 -> v9 changes */ }));
 ```
 
 Shipped so far:
@@ -130,6 +130,8 @@ Shipped so far:
 | v3 → v4 | Added the optional `frame`. A v3 document had none, and `null` is exactly that |
 | v4 → v5 | Added the optional `clip`, and `duration` on the source. A v4 document is a still picture, and `null` is exactly "all of it" |
 | v5 → v6 | Added `output.upscale`, and let `output.quality` be unset. A v5 document exported through the panel *did* enlarge past its source, so `true` would preserve what it did — `false` is chosen anyway, because the panel and the batch call disagreed and only one of them can be right. The quality is left exactly as found: turning an explicit number into "unset" would re-encode somebody's archive at a different size the next time it was opened |
+| v6 → v7 | Replaced a line's two booleans with a named decoration at each end. `arrowStart: true` drew a *filled* head, so it migrates to `arrow-solid` rather than `arrow`: the open one is a new drawing, and quietly restyling every arrow in an archive would be a worse bug than the one it fixed |
+| v7 → v8 | Gave the frame the three measurements its new treatments read — spacing, line count and arm length. A v7 document has one of the three rectangles, which read none of them |
 
 - A document from a **newer** build fails with `UNSUPPORTED_SCHEMA_VERSION`
   rather than being partially understood.

@@ -8,4 +8,7 @@
 export * from "./types.js";
 export * from "./text.js";
 export * from "./layers.js";
+export * from "./frames.js";
+export * from "./line-ends.js";
+export * from "./stroke.js";
 export * from "./build.js";
