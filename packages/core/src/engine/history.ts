@@ -1,4 +1,5 @@
 import { last } from "../fp/function.js";
+import { isStepName, STEP_LABELS, type StepName } from "./session/steps.js";
 import { err, ok, type Result } from "../fp/result.js";
 
 /**
@@ -13,15 +14,41 @@ import { err, ok, type Result } from "../fp/result.js";
  * hold no pixels: a snapshot is a small JSON object while bitmaps stay in the
  * resource manager.
  */
+/**
+ * One undoable step.
+ *
+ * `label` is what it is called in English; `step` is what it *is*, for anything
+ * that can word it in the reader's own language. A step a host opened itself
+ * has a label and no name, because the wording is theirs.
+ */
 export interface HistoryEntry<T> {
   readonly label: string;
+  readonly step: StepName | null;
   readonly before: T;
   readonly after: T;
 }
 
 export interface PendingTransaction<T> {
   readonly label: string;
+  readonly step: StepName | null;
   readonly before: T;
+}
+
+/**
+ * How a step is asked for: one of the engine's own names, or a host's wording.
+ *
+ * One argument for both, because the two never need telling apart at the call
+ * site: a name is looked up and becomes translatable, and anything else is used
+ * exactly as given. Translating a host's own wording is not ours to do.
+ *
+ * The union is written this way so an editor still suggests the step names
+ * while accepting any string, and so widening it never broke a caller passing
+ * a label — every one of them still type-checks and still means what it did.
+ */
+export type StepLabel = StepName | (string & {});
+
+function resolveStep(named: StepLabel): { label: string; step: StepName | null } {
+  return isStepName(named) ? { label: STEP_LABELS[named], step: named } : { label: named, step: null };
 }
 
 export interface HistoryState<T> {
@@ -38,6 +65,9 @@ export interface HistorySummary {
   canRedo: boolean;
   undoLabel: string | null;
   redoLabel: string | null;
+  /** The same two steps by name, for a host that translates them. */
+  undoStep: StepName | null;
+  redoStep: StepName | null;
   depth: number;
   inTransaction: boolean;
 }
@@ -59,6 +89,8 @@ export function summarise<T>(state: HistoryState<T>): HistorySummary {
     canRedo: state.future.length > 0,
     undoLabel: last(state.past)?.label ?? null,
     redoLabel: last(state.future)?.label ?? null,
+    undoStep: last(state.past)?.step ?? null,
+    redoStep: last(state.future)?.step ?? null,
     depth: state.past.length,
     inTransaction: state.pending !== null,
   };
@@ -78,24 +110,30 @@ function pushEntry<T>(state: HistoryState<T>, entry: HistoryEntry<T>): HistorySt
  * Records an already-applied atomic change. While a transaction is open this is
  * a no-op: the gesture as a whole is what will be recorded, not its frames.
  */
-export function record<T>(state: HistoryState<T>, label: string, before: T, after: T): HistoryState<T> {
+export function record<T>(
+  state: HistoryState<T>,
+  named: StepLabel,
+  before: T,
+  after: T,
+): HistoryState<T> {
   if (state.pending) return state;
-  return pushEntry(state, { label, before, after });
+  return pushEntry(state, { ...resolveStep(named), before, after });
 }
 
 export function begin<T>(
   state: HistoryState<T>,
-  label: string,
+  named: StepLabel,
   snapshot: T,
 ): Result<HistoryState<T>, HistoryFailure> {
+  const opening = resolveStep(named);
   if (state.pending) {
     return err({
       kind: "transaction-already-open",
       openLabel: state.pending.label,
-      requestedLabel: label,
+      requestedLabel: opening.label,
     });
   }
-  return ok({ ...state, pending: { label, before: snapshot } });
+  return ok({ ...state, pending: { ...opening, before: snapshot } });
 }
 
 export type Equals<T> = (a: T, b: T) => boolean;
@@ -119,7 +157,12 @@ export function commit<T>(
   if (equals(pending.before, snapshot)) return ok({ state: closed, recorded: false });
 
   return ok({
-    state: pushEntry(closed, { label: pending.label, before: pending.before, after: snapshot }),
+    state: pushEntry(closed, {
+      label: pending.label,
+      step: pending.step,
+      before: pending.before,
+      after: snapshot,
+    }),
     recorded: true,
   });
 }

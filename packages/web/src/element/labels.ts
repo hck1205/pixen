@@ -1,4 +1,4 @@
-import type { HistorySummary, Size } from "@pixen/core";
+import type { HistorySummary, Size, StepName } from "@pixen/core";
 import { PANEL_LABEL_KEYS, TOOL_META, type PanelId } from "./constants.js";
 import type { ToolId } from "../tools/index.js";
 import type { PixenStrings } from "../i18n/index.js";
@@ -33,17 +33,31 @@ export function shortcutLabel(apple: boolean, key: string): string {
   return apple ? `${modifierLabel(apple)}${key}` : `${modifierLabel(apple)}+${key}`;
 }
 
-/** "Undo (⌘Z)", or "Undo crop (⌘Z)" once there is something named to undo. */
+/**
+ * The step at the top of the stack, in the reader's own language.
+ *
+ * The engine names its own steps and words a host's; a name is looked up here,
+ * and anything without one — a plugin's step, a host's transaction — is shown
+ * exactly as it was worded. The engine's English is the last resort, for a
+ * locale that has not been completed.
+ */
+export function stepLabel(strings: PixenStrings, step: StepName | null, label: string | null): string | null {
+  if (!step) return label;
+  const key = `step${step[0]!.toUpperCase()}${step.slice(1)}` as keyof PixenStrings;
+  return strings[key] ?? label;
+}
+
+/** "Undo (⌘Z)", or "Undo: Crop (⌘Z)" once there is something named to undo. */
 export function undoLabel(strings: PixenStrings, history: HistorySummary | null, apple: boolean): string {
   const shortcut = shortcutLabel(apple, "Z");
-  const action = history?.canUndo ? history.undoLabel : null;
-  return action ? `${strings.undo}: ${action} (${shortcut})` : `${strings.undo} (${shortcut})`;
+  const action = history?.canUndo ? stepLabel(strings, history.undoStep, history.undoLabel) : null;
+  return action ? `${strings.undo}${strings.stepSeparator}${action} (${shortcut})` : `${strings.undo} (${shortcut})`;
 }
 
 export function redoLabel(strings: PixenStrings, history: HistorySummary | null, apple: boolean): string {
   const shortcut = shortcutLabel(apple, "⇧Z");
-  const action = history?.canRedo ? history.redoLabel : null;
-  return action ? `${strings.redo}: ${action} (${shortcut})` : `${strings.redo} (${shortcut})`;
+  const action = history?.canRedo ? stepLabel(strings, history.redoStep, history.redoLabel) : null;
+  return action ? `${strings.redo}${strings.stepSeparator}${action} (${shortcut})` : `${strings.redo} (${shortcut})`;
 }
 
 /** Zoom as a percentage, rounded the way a user reads it. */

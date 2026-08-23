@@ -6,4 +6,5 @@
  * the history and selection rules that go with it.
  */
 export * from "./intents.js";
+export * from "./steps.js";
 export * from "./reduce.js";

@@ -8,6 +8,7 @@ import type { ResizeIntent } from "../image/resize.js";
 import type { DecodeOptions, ImageInput } from "../image/decode.js";
 import { cloneDocument, createDocument, effectiveCrop, outputSize, stageRect, stageSize } from "../model/document.js";
 import { estimateTextWidth, type TextMeasurer } from "../model/text-layout.js";
+
 import { serializeDocument } from "../model/serialize.js";
 import type {
   Adjustments,
@@ -36,7 +37,7 @@ import {
 } from "../export/placement.js";
 import { findLayer } from "../model/layers.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
-import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
+import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary, type StepLabel } from "./history.js";
 import {
   createSession,
   reduce,
@@ -276,7 +277,7 @@ export class Editor {
         this.dispatch({
           kind: "transform",
           reason: "replace-source",
-          label: "Replace image",
+          step: "replaceImage",
           transform: (document) => commands.replaceSource(document, sourceFromResource(resource)),
         });
 
@@ -391,12 +392,14 @@ export class Editor {
    * same values the interface would have produced, and gets one undo step for
    * the lot. An empty list does nothing rather than recording an empty step.
    */
-  dispatchAll(intents: readonly Intent[], label = "Apply edits"): this {
+  dispatchAll(intents: readonly Intent[], label?: string): this {
     this.#assertAlive();
     if (intents.length === 0) return this;
     if (intents.length === 1) return this.dispatch(intents[0]!);
 
-    return this.transact(label, () => {
+    // The default is a step name, which a locale can translate; a label the
+    // caller passed is theirs, and is used exactly as given. See `StepLabel`.
+    return this.transact(label ?? "applyEdits", () => {
       for (const intent of intents) this.dispatch(intent);
       return this;
     });
@@ -429,8 +432,8 @@ export class Editor {
    * Opens a transaction. Every change until `commitTransaction` collapses into a
    * single undo step, which is what makes a drag feel like one action.
    */
-  beginTransaction(label: string): this {
-    return this.dispatch({ kind: "begin-transaction", label });
+  beginTransaction(named: StepLabel): this {
+    return this.dispatch({ kind: "begin-transaction", label: named });
   }
 
   /**
@@ -452,8 +455,8 @@ export class Editor {
   }
 
   /** Convenience wrapper: rolls back if the body throws. */
-  transact<T>(label: string, body: () => T): T {
-    this.beginTransaction(label);
+  transact<T>(named: StepLabel, body: () => T): T {
+    this.beginTransaction(named);
     try {
       const result = body();
       this.commitTransaction();

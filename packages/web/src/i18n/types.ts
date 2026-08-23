@@ -112,4 +112,46 @@ export interface PixenStrings {
   sizeNatural: string;
   /** The output size may exceed the picture. See `OutputSettings.upscale`. */
   allowUpscale: string;
+
+  /**
+   * The names of the steps the engine can undo, one per `StepName`.
+   *
+   * An undo button that says what it will undo is the difference between a
+   * guess and a decision — and it was making that difference in English in
+   * every language, because the verb came from here and the step did not. A
+   * label a host worded itself is not in this list and is shown as given.
+   */
+  /**
+   * What sits between "Undo" and the step it will undo.
+   *
+   * A locale string because it is one: French puts a space before a colon and
+   * the others do not, so hard-coding `": "` was correct in eight languages and
+   * wrong in the ninth.
+   */
+  stepSeparator: string;
+  stepRotate: string;
+  stepStraighten: string;
+  stepFlipHorizontal: string;
+  stepFlipVertical: string;
+  stepCrop: string;
+  stepResetCrop: string;
+  stepMoveCrop: string;
+  stepTrim: string;
+  stepResetTrim: string;
+  stepAspectRatio: string;
+  stepAdjust: string;
+  stepOutput: string;
+  stepFrame: string;
+  stepResize: string;
+  stepAddLayer: string;
+  stepEditLayer: string;
+  stepMoveLayer: string;
+  stepMoveLayerHandle: string;
+  stepRotateLayer: string;
+  stepReorderLayer: string;
+  stepDeleteLayer: string;
+  stepReset: string;
+  stepReplaceDocument: string;
+  stepReplaceImage: string;
+  stepApplyEdits: string;
 }

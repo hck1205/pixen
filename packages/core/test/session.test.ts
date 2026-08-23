@@ -12,6 +12,7 @@ import {
   type Intent,
   type SessionEvent,
   type SessionState,
+  type StepName,
 } from "@pixen/core";
 
 const QUARTER = Math.PI / 2;
@@ -39,31 +40,35 @@ function eventsOf(state: SessionState, intent: Intent): readonly SessionEvent[] 
 
 describe("intent to command mapping", () => {
   it("names every document intent for the undo stack", () => {
-    const cases: Array<[Intent, string, string]> = [
-      [{ kind: "rotate-by", radians: 1 }, "rotate", "Rotate"],
-      [{ kind: "rotate-quarter-turns", turns: 1 }, "rotate", "Rotate"],
-      [{ kind: "flip", axis: "x" }, "flip", "Flip horizontal"],
-      [{ kind: "flip", axis: "y" }, "flip", "Flip vertical"],
-      [{ kind: "set-crop", rect: null }, "crop", "Reset crop"],
-      [{ kind: "pan-crop", delta: { x: 0, y: 0 } }, "crop-pan", "Move crop"],
-      [{ kind: "set-aspect-ratio", ratio: 1 }, "aspect-ratio", "Aspect ratio"],
-      [{ kind: "set-adjustments", adjustments: {} }, "adjustments", "Adjust"],
-      [{ kind: "resize", resize: { width: 100 } }, "resize", "Resize"],
-      [{ kind: "remove-layer", id: "x" }, "layer-remove", "Delete annotation"],
-      [{ kind: "reset" }, "reset", "Reset"],
+    // The name, not the wording: the engine says which step this is, and
+    // whoever shows it says so in the reader's own language.
+    const cases: Array<[Intent, string, StepName]> = [
+      [{ kind: "rotate-by", radians: 1 }, "rotate", "rotate"],
+      [{ kind: "rotate-quarter-turns", turns: 1 }, "rotate", "rotate"],
+      [{ kind: "flip", axis: "x" }, "flip", "flipHorizontal"],
+      [{ kind: "flip", axis: "y" }, "flip", "flipVertical"],
+      [{ kind: "set-crop", rect: null }, "crop", "resetCrop"],
+      [{ kind: "pan-crop", delta: { x: 0, y: 0 } }, "crop-pan", "moveCrop"],
+      [{ kind: "set-aspect-ratio", ratio: 1 }, "aspect-ratio", "aspectRatio"],
+      [{ kind: "set-adjustments", adjustments: {} }, "adjustments", "adjust"],
+      [{ kind: "resize", resize: { width: 100 } }, "resize", "resize"],
+      [{ kind: "remove-layer", id: "x" }, "layer-remove", "deleteLayer"],
+      [{ kind: "reset" }, "reset", "reset"],
     ];
 
-    for (const [intent, reason, label] of cases) {
+    for (const [intent, reason, step] of cases) {
       const change = documentChangeFor(intent);
       expect(change, intent.kind).not.toBeNull();
       expect(change!.reason, intent.kind).toBe(reason);
-      expect(change!.label, intent.kind).toBe(label);
+      expect(change!.step, intent.kind).toBe(step);
+      // A named step carries no wording of its own, or the two could disagree.
+      expect(change!.label, intent.kind).toBeUndefined();
     }
   });
 
   it("distinguishes setting a crop from clearing it", () => {
     const set = documentChangeFor({ kind: "set-crop", rect: { x: 0, y: 0, width: 10, height: 10 } });
-    expect(set!.label).toBe("Crop");
+    expect(set!.step).toBe("crop");
   });
 
   it("has no command for the control intents", () => {

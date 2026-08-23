@@ -88,7 +88,8 @@ function applyDocumentChange(state: SessionState, change: DocumentChange): Sessi
 
   const transient = state.history.pending !== null;
   const shouldRecord = !transient && change.silent !== true;
-  const history = shouldRecord ? record(state.history, change.label, before, after) : state.history;
+  const named = change.step ?? change.label;
+  const history = shouldRecord ? record(state.history, named, before, after) : state.history;
   const selection = pruneSelection(after, state.selection);
 
   const events: SessionEvent[] = [{ type: "change", document: after, reason: change.reason, transient }];
@@ -131,7 +132,7 @@ export function reduce(
     }
 
     case "begin-transaction": {
-      const opened = begin(state.history, intent.label, state.document);
+      const opened = begin(state.history, intent.step ?? intent.label, state.document);
       if (!opened.ok) return err(historyError(opened.error));
       return ok({
         state: { ...state, history: opened.value },

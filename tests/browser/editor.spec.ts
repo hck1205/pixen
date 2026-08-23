@@ -2990,3 +2990,38 @@ test("a wide caption can be selected by its last letter", async ({ page }) => {
   );
   expect(selected).toBe(caption.id);
 });
+
+/**
+ * The undo button says what it will undo, which is the difference between a
+ * guess and a decision — and it was saying it in English in every language,
+ * because the verb came from the locale and the step came from the engine.
+ */
+test("the undo button names its step in the editor's own language", async ({ page }) => {
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).setAttribute("locale", "ko");
+  });
+
+  const undo = page.locator("pixen-image-editor").locator('[data-action="undo"]');
+  const before = (await undo.getAttribute("aria-label")) ?? "";
+
+  // A crop, which is one of the engine's own named steps.
+  await page.evaluate(() => {
+    (document.querySelector("pixen-image-editor") as EditorElement).editor.dispatch({
+      kind: "set-crop",
+      rect: { x: 10, y: 10, width: 200, height: 200 },
+    });
+  });
+  await expect(undo).toBeEnabled();
+
+  const after = (await undo.getAttribute("aria-label")) ?? "";
+  const korean = await page.evaluate(() => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    return element.editor.historyState.undoStep;
+  });
+
+  expect(korean).toBe("crop");
+  expect(after).not.toBe(before);
+  // The step, in Korean, and not the engine's English.
+  expect(after).toContain("자르기");
+  expect(after).not.toContain("Crop");
+});

@@ -19,6 +19,8 @@ const history = (over: Partial<HistorySummary> = {}): HistorySummary => ({
   depth: 0,
   undoLabel: null,
   redoLabel: null,
+  undoStep: null,
+  redoStep: null,
   inTransaction: false,
   ...over,
 });

@@ -86,6 +86,8 @@ without one of them learning that the picture moves.
       the trim strip
 - [x] The costs and the limits written down for someone deciding whether to buy
       it ([VIDEO.md](VIDEO.md))
+- [x] Undo step names in the reader's own language: the engine names its steps,
+      every shipped locale words them, and a host's own label is left as given
 
 Two costs, both measured rather than assumed. Recording runs at wall-clock speed
 — a thirty-second clip takes thirty seconds — because `MediaRecorder` samples a

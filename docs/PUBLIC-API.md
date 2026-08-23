@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-456 names.
+461 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -171,6 +171,8 @@ RestorePlan
 Result
 RotateLayerOptions
 SCHEMA_VERSION
+STEP_LABELS
+STEP_NAMES
 Scene
 SceneImageNode
 SceneInput
@@ -185,6 +187,8 @@ ShapeProcessor
 Size
 SourceDescriptor
 SourceTransform
+StepLabel
+StepName
 StepProgress
 StepReporter
 StickerOptions
@@ -332,6 +336,7 @@ isLossy
 isOk
 isPixenError
 isPristine
+isStepName
 isWorkerResponse
 jsonEquals
 labelledFilename
@@ -474,7 +479,7 @@ zoomToFit
 
 ## @pixen/web
 
-212 names.
+213 names.
 
 ```
 ARROW_VECTORS
@@ -679,6 +684,7 @@ shapeLayerFor
 shortcutLabel
 sizeLabel
 stageToScreen
+stepLabel
 strokeFor
 template
 textBoxPlacement

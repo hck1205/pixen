@@ -66,7 +66,12 @@ export const EXEMPT = {
   // resource manager, without which the engine estimates how wide a caption is
   // and a text layer resizes about a box that is not around its letters. A
   // field, an option, an import and the paragraph saying why.
-  "packages/core/src/engine/editor.ts": 769,
+  //
+  // Raised again from 769 for named history steps: `transact` and
+  // `beginTransaction` take a `StepLabel` rather than a bare string, so a step
+  // the engine performs can be worded in the reader's own language, and the
+  // paragraph on `dispatchAll` says which of the two its argument is.
+  "packages/core/src/engine/editor.ts": 772,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's

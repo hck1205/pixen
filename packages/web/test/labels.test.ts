@@ -1,20 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { en, ko } from "../src/i18n/index.js";
-import { panelLabel, shortcutLabel,
+import { STEP_LABELS, STEP_NAMES, type HistorySummary } from "@pixen/core";
+import { ar, de, en, es, fr, ja, ko, pt, zh } from "../src/i18n/index.js";
+import {
   isAppleShortcutPlatform,
   modifierLabel,
+  panelLabel,
   redoLabel,
+  shortcutLabel,
   sizeLabel,
+  stepLabel,
   undoLabel,
   zoomLabel,
 } from "../src/element/labels.js";
-import type { HistorySummary } from "@pixen/core";
 
 const history = (overrides: Partial<HistorySummary> = {}): HistorySummary => ({
   canUndo: false,
   canRedo: false,
   undoLabel: null,
   redoLabel: null,
+  undoStep: null,
+  redoStep: null,
   depth: 0,
   inTransaction: false,
   ...overrides,
@@ -130,5 +135,56 @@ describe("panelLabel", () => {
 
   it("is in the locale it was given", () => {
     expect(panelLabel("layers", "crop", ko)).toBe(ko.layers);
+  });
+});
+
+/**
+ * The undo button was saying what it would undo in English in every language:
+ * the verb came from the locale and the step came from the engine, so Korean
+ * read "실행취소: Crop". The engine now names its steps and the locale words
+ * them, and a step a host worded itself is still shown exactly as given.
+ */
+describe("a step in the reader's language", () => {
+  it("words a named step from the locale", () => {
+    expect(stepLabel(ko, "crop", "Crop")).toBe(ko.stepCrop);
+    expect(stepLabel(ja, "deleteLayer", "Delete annotation")).toBe(ja.stepDeleteLayer);
+  });
+
+  it("leaves a label with no name exactly as it was written", () => {
+    expect(stepLabel(ko, null, "Background removal")).toBe("Background removal");
+  });
+
+  it("has nothing to say when there is nothing on the stack", () => {
+    expect(stepLabel(ko, null, null)).toBeNull();
+  });
+
+  it("puts the translated step in the button's own label", () => {
+    const summary = history({ canUndo: true, undoStep: "crop", undoLabel: "Crop" });
+    expect(undoLabel(ko, summary, false)).toBe(`${ko.undo}${ko.stepSeparator}${ko.stepCrop} (Ctrl+Z)`);
+    expect(undoLabel(en, summary, false)).toBe("Undo: Crop (Ctrl+Z)");
+  });
+
+  it("does the same for redo, on the other side of the stack", () => {
+    const summary = history({ canRedo: true, redoStep: "straighten", redoLabel: "Straighten" });
+    expect(redoLabel(ko, summary, false)).toBe(`${ko.redo}${ko.stepSeparator}${ko.stepStraighten} (Ctrl+⇧Z)`);
+    // French puts a space before a colon; the separator is a locale string.
+    expect(redoLabel(fr, history({ canRedo: true, redoStep: "crop", redoLabel: "Crop" }), false)).toBe(
+      `${fr.redo} : ${fr.stepCrop} (Ctrl+⇧Z)`,
+    );
+  });
+
+  it("covers every step the engine can name, in every locale it ships", () => {
+    // A missing key would fall back to English silently, which is the bug this
+    // whole change is about — so the coverage is the test.
+    for (const [name, strings] of Object.entries({ en, ar, de, es, fr, ja, ko, pt, zh })) {
+      for (const step of STEP_NAMES) {
+        const worded = stepLabel(strings, step, "fallback");
+        expect(worded, `${name}.${step}`).toBeTruthy();
+        expect(worded, `${name}.${step}`).not.toBe("fallback");
+        if (name !== "en") {
+          expect(worded, `${name}.${step} is still English`).not.toBe(STEP_LABELS[step]);
+        }
+      }
+    }
   });
 });

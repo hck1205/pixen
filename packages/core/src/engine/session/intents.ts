@@ -3,6 +3,7 @@ import type { Point, Rect } from "../../geometry/types.js";
 import type { ResizeIntent } from "../../image/resize.js";
 import { resolveSize } from "../../image/resize.js";
 import type { TextMeasurer } from "../../model/text-layout.js";
+import type { StepName } from "./steps.js";
 import type { ClipRange } from "../../model/clip.js";
 import { cloneDocument, effectiveCrop } from "../../model/document.js";
 import type { LayerHandle } from "../../model/transform.js";
@@ -61,8 +62,17 @@ export type Intent =
   | { kind: "select"; id: string | null }
   | { kind: "reset" }
   | { kind: "set-document"; document: EditorDocument }
-  | { kind: "transform"; reason: string; transform: (document: EditorDocument) => EditorDocument; label?: string; silent?: boolean }
-  | { kind: "begin-transaction"; label: string }
+  | {
+      kind: "transform";
+      reason: string;
+      transform: (document: EditorDocument) => EditorDocument;
+      /** Wording of the host's own, used exactly as given. */
+      label?: string;
+      /** Or one of the engine's own steps, which a locale can translate. */
+      step?: StepName;
+      silent?: boolean;
+    }
+  | { kind: "begin-transaction"; label: string; step?: StepName }
   | { kind: "commit-transaction" }
   | { kind: "rollback-transaction" }
   | { kind: "undo" }
@@ -75,14 +85,19 @@ export type SessionEvent =
   | { type: "selection"; id: string | null }
   | { type: "history"; summary: HistorySummary };
 
-/** A document-only change: which command runs, and how it appears in history. */
-export interface DocumentChange {
+/**
+ * A document-only change: which command runs, and how it appears in history.
+ *
+ * A step the engine performs names itself and is worded by whoever is showing
+ * it; a `transform` intent carries a host's own label, which is used as given.
+ * Exactly one of the two, so a step cannot be both named and worded.
+ */
+export type DocumentChange = {
   reason: string;
-  label: string;
   transform: (document: EditorDocument) => EditorDocument;
   /** Mid-gesture steps are not their own undo entries. */
   silent?: boolean;
-}
+} & ({ step: StepName; label?: undefined } | { step?: undefined; label: string });
 
 /**
  * The intent-to-command table. Keeping it a pure lookup means "what does
@@ -91,69 +106,69 @@ export interface DocumentChange {
 export function documentChangeFor(intent: Intent, measure?: TextMeasurer): DocumentChange | null {
   switch (intent.kind) {
     case "rotate-by":
-      return { reason: "rotate", label: "Rotate", transform: (d) => commands.rotateBy(d, intent.radians) };
+      return { reason: "rotate", step: "rotate", transform: (d) => commands.rotateBy(d, intent.radians) };
     case "rotate-quarter-turns":
       return {
         reason: "rotate",
-        label: "Rotate",
+        step: "rotate",
         transform: (d) => commands.rotateQuarterTurns(d, intent.turns),
       };
     case "straighten":
       return {
         reason: "straighten",
-        label: "Straighten",
+        step: "straighten",
         transform: (d) => commands.straighten(d, intent.radians),
       };
     case "flip":
       return {
         reason: "flip",
-        label: intent.axis === "x" ? "Flip horizontal" : "Flip vertical",
+        step: intent.axis === "x" ? "flipHorizontal" : "flipVertical",
         transform: (d) => commands.flip(d, intent.axis),
       };
     case "set-crop":
       return {
         reason: "crop",
-        label: intent.rect ? "Crop" : "Reset crop",
+        step: intent.rect ? "crop" : "resetCrop",
         transform: (d) => commands.setCrop(d, intent.rect),
       };
     case "drag-crop-handle":
       return {
         reason: "crop-drag",
-        label: "Crop",
+        step: "crop",
         transform: (d) => commands.dragCropHandle(d, intent.handle, intent.pointer, intent.minSize),
       };
     case "pan-crop":
-      return { reason: "crop-pan", label: "Move crop", transform: (d) => commands.panCrop(d, intent.delta) };
+      return { reason: "crop-pan", step: "moveCrop", transform: (d) => commands.panCrop(d, intent.delta) };
     case "set-clip":
       return {
         reason: "clip",
-        label: intent.range ? "Trim" : "Reset trim",
+        step: intent.range ? "trim" : "resetTrim",
         transform: (d) => commands.setClip(d, intent.range),
       };
     case "set-aspect-ratio":
       return {
         reason: "aspect-ratio",
-        label: "Aspect ratio",
+        step: "aspectRatio",
         transform: (d) => commands.setAspectRatio(d, intent.ratio),
       };
     case "set-adjustments":
       return {
         reason: "adjustments",
-        label: "Adjust",
+        step: "adjust",
         transform: (d) => commands.setAdjustments(d, intent.adjustments),
       };
     case "set-output":
       return {
         reason: "output",
-        label: "Output settings",
+        step: "output",
         transform: (d) => commands.setOutput(d, intent.output),
       };
     case "set-frame":
-      return { reason: "frame", label: "Frame", transform: (d) => commands.setFrame(d, intent.frame) };
+      return { reason: "frame", step: "frame", transform: (d) => commands.setFrame(d, intent.frame) };
     case "resize":
       return {
         reason: "resize",
-        label: "Resize",
+        step: "resize",
         transform: (d) => {
           const target = resolveSize(effectiveCrop(d), intent.resize);
           return commands.setOutput(d, { width: target.width, height: target.height });
@@ -162,25 +177,25 @@ export function documentChangeFor(intent: Intent, measure?: TextMeasurer): Docum
     case "add-layer":
       return {
         reason: "layer-add",
-        label: "Add annotation",
+        step: "addLayer",
         transform: (d) => commands.addLayer(d, intent.layer, intent.index),
       };
     case "update-layer":
       return {
         reason: "layer-update",
-        label: "Edit annotation",
+        step: "editLayer",
         transform: (d) => commands.updateLayer(d, intent.id, intent.patch),
       };
     case "move-layer":
       return {
         reason: "layer-move",
-        label: "Move annotation",
+        step: "moveLayer",
         transform: (d) => commands.moveLayerBy(d, intent.id, intent.delta),
       };
     case "drag-layer-handle":
       return {
         reason: "layer-transform",
-        label: intent.handle === "rotate" ? "Rotate annotation" : "Resize annotation",
+        step: intent.handle === "rotate" ? "rotateLayer" : "moveLayerHandle",
         transform: (d) =>
           commands.dragLayerHandle(d, intent.id, intent.handle, intent.pointer, {
             minSize: intent.minSize,
@@ -192,27 +207,29 @@ export function documentChangeFor(intent: Intent, measure?: TextMeasurer): Docum
     case "reorder-layer":
       return {
         reason: "layer-reorder",
-        label: "Reorder annotation",
+        step: "reorderLayer",
         transform: (d) => commands.reorderLayer(d, intent.id, intent.index),
       };
     case "remove-layer":
       return {
         reason: "layer-remove",
-        label: "Delete annotation",
+        step: "deleteLayer",
         transform: (d) => commands.removeLayer(d, intent.id),
       };
     case "reset":
-      return { reason: "reset", label: "Reset", transform: commands.resetEdits };
+      return { reason: "reset", step: "reset", transform: commands.resetEdits };
     case "set-document":
       return {
         reason: "set-document",
-        label: "Replace document",
+        step: "replaceDocument",
         transform: () => cloneDocument(intent.document),
       };
     case "transform":
       return {
         reason: intent.reason,
-        label: intent.label ?? intent.reason,
+        // A named step, a label, or — for a host that gave neither — the reason,
+        // which is at least a word about what happened.
+        ...(intent.step ? { step: intent.step } : { label: intent.label ?? intent.reason }),
         transform: intent.transform,
         ...(intent.silent === undefined ? {} : { silent: intent.silent }),
       };

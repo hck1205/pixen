@@ -9,6 +9,7 @@ import {
   record,
   redo,
   rollback,
+  STEP_LABELS,
   summarise,
   undo,
   type HistoryState,
@@ -35,6 +36,8 @@ describe("createHistory", () => {
       canRedo: false,
       undoLabel: null,
       redoLabel: null,
+      undoStep: null,
+      redoStep: null,
       depth: 0,
       inTransaction: false,
     });
@@ -222,5 +225,40 @@ describe("jsonEquals", () => {
   it("compares by structure", () => {
     expect(jsonEquals({ a: [1, 2] }, { a: [1, 2] })).toBe(true);
     expect(jsonEquals({ a: [1, 2] }, { a: [2, 1] })).toBe(false);
+  });
+});
+
+/**
+ * A step the engine performs is named, so a reader can be shown it in their own
+ * language; a step a host opened is worded, and its wording is used as given.
+ * Both end up on the stack, and the summary carries the pair.
+ */
+describe("a step's name and its wording", () => {
+  it("words a named step from the one table, and remembers the name", () => {
+    const state = record(fresh(), "crop", "0", "1");
+    const summary = summarise(state);
+    expect(summary.undoStep).toBe("crop");
+    expect(summary.undoLabel).toBe(STEP_LABELS.crop);
+  });
+
+  it("leaves a host's own wording alone, and names nothing", () => {
+    const summary = summarise(record(fresh(), "Background removal", "0", "1"));
+    expect(summary.undoStep).toBeNull();
+    expect(summary.undoLabel).toBe("Background removal");
+  });
+
+  it("carries the name through a transaction, not only a direct record", () => {
+    const open = unwrap(begin(fresh(), "applyEdits", "0"));
+    const { state } = unwrap(commit(open, "1"));
+    expect(summarise(state).undoStep).toBe("applyEdits");
+    expect(summarise(state).undoLabel).toBe(STEP_LABELS.applyEdits);
+  });
+
+  it("moves the pair to the redo side on undo", () => {
+    const { state } = unwrap(undo(record(fresh(), "straighten", "0", "1")));
+    const summary = summarise(state);
+    expect(summary.redoStep).toBe("straighten");
+    expect(summary.redoLabel).toBe(STEP_LABELS.straighten);
+    expect(summary.undoStep).toBeNull();
   });
 });

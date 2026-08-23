@@ -101,6 +101,25 @@ with no translation anywhere reads as the key, so a developer can search for it.
 
 `@pixen/video`'s trim strip is the first customer, and the reason this exists.
 
+### Naming a plugin's undo step
+
+The undo button says what it will undo, and the editor's own steps are named
+rather than worded — `StepName` — so a locale can translate them. A plugin's
+step is not in that list, so word it yourself and it is shown exactly as given:
+
+```ts
+editor.dispatch({
+  kind: "transform",
+  reason: "background-removal",
+  label: text("removeBackground"),   // your own string, in your own locale
+  transform: (document) => document,
+});
+```
+
+Reading it back through `addStrings` is the point: the label lands in the undo
+button beside the editor's own verb, so a plugin that translates its labels puts
+a whole sentence in the reader's language rather than half of one.
+
 ## Lifecycle
 
 `use()` calls the plugin immediately and remembers the teardown. Every teardown
