@@ -37,11 +37,38 @@ type EditorElement = HTMLElement & {
   }>;
 };
 
+/**
+ * Waits for the view to stop moving.
+ *
+ * The viewport fits itself from a `ResizeObserver`, so anything that changes
+ * the space around the canvas — a picture arriving, a style bar growing a row
+ * because a caption is now selected — re-fits it a frame or two later. A test
+ * that reads a stage point, converts it and hands the result to the mouse lands
+ * one round trip after reading, and if the view moved in between it clicks
+ * somewhere else. That was one failure in three in the test that clicks
+ * furthest from a layer's origin, where the drift is largest.
+ *
+ * Two consecutive frames agreeing is the view having settled.
+ */
+async function settleView(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const viewport = (document.querySelector("pixen-image-editor") as EditorElement).viewport;
+    if (!viewport) return false;
+    const read = (): string =>
+      JSON.stringify([viewport.stageToScreen({ x: 0, y: 0 }), viewport.stageToScreen({ x: 1000, y: 1000 })]);
+    return new Promise<boolean>((resolve) => {
+      const before = read();
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve(read() === before)));
+    });
+  });
+}
+
 async function waitForImage(page: Page): Promise<void> {
   await page.waitForFunction(() => {
     const element = document.querySelector("pixen-image-editor") as EditorElement | null;
     return Boolean(element?.editor?.ready);
   });
+  await settleView(page);
 }
 
 async function state(page: Page) {
@@ -2950,6 +2977,8 @@ test("a wide caption can be selected by its last letter", async ({ page }) => {
     (document.querySelector("pixen-image-editor") as EditorElement).editor.select(null);
   });
 
+  // The style bar grew a row when the caption appeared, which re-fits the view.
+  await settleView(page);
   const lastLetter = await stageToClient(page, {
     x: caption.position.x + caption.measured * 0.95,
     y: caption.position.y + caption.fontSize * 0.5,

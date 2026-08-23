@@ -67,6 +67,7 @@ Three of these are enforced mechanically, and the rest are read for:
 | `pnpm check:exports` | Delete rather than deprecate |
 | `pnpm check:duplication` | Commonise the third occurrence |
 | `pnpm check:size` | A file past 300 lines is split, or its reason is written down, and an exemption ratchets down as the file shrinks |
+| `pnpm check:surface` | Every `@pixen/*` export is recorded in `docs/PUBLIC-API.md`, so adding one is a reviewed line rather than a side effect of a barrel |
 
 The checks are a floor, not the standard. They cannot see a file answering two
 questions, a decision buried in an effect, or a literal that wants a name — so
@@ -82,7 +83,9 @@ asked to come down with it, so the slack is not banked as future headroom.
 
 The public API is the exception: `@pixen/*` exports, custom element attributes,
 `part` names and slot names are contracts. Changing one is a decision, not
-cleanup.
+cleanup — and `docs/PUBLIC-API.md` is the record, so it has to be a visible one.
+A barrel that says `export *` is how that decision gets made by accident; name
+what a package-level barrel re-exports.
 
 ## Architecture in one screen
 
@@ -117,7 +120,8 @@ this project has actually shipped were invisible to unit tests.
 
 ## Where to read more
 
-`docs/TESTING.md` (the four suites) · `docs/ARCHITECTURE.md` (layers and coordinate model) · `docs/DOCUMENT-SCHEMA.md`
+`docs/TESTING.md` (the four suites) · `docs/ARCHITECTURE.md` (layers and coordinate model) · `docs/PUBLIC-API.md`
+(every exported name) · `docs/DOCUMENT-SCHEMA.md`
 (the stored contract) · `docs/BROWSER-SUPPORT.md` (what degrades where) ·
 `docs/FRAMEWORKS.md` (integration) · `docs/PLUGINS.md` (extension surface) · `docs/SECURITY.md` · `docs/PROVENANCE.md` ·
 `CONTRIBUTING.md`.

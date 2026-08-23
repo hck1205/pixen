@@ -23,7 +23,8 @@
     "stories:build": "node scripts/build-stories.mjs",
     "check:exports": "node scripts/unused-exports.mjs",
     "check:duplication": "node scripts/duplicate-blocks.mjs",
-    "check:size": "node scripts/module-budget.mjs"
+    "check:size": "node scripts/module-budget.mjs",
+    "check:surface": "node scripts/public-surface.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

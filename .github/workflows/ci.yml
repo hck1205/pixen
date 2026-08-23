@@ -38,6 +38,12 @@ jobs:
       - name: Module-size budget
         run: pnpm check:size
 
+      # The published API, against the file that records it: a name added by a
+      # starred barrel reaches every host that upgrades, and used to reach
+      # nobody's review.
+      - name: Public-surface scan
+        run: pnpm check:surface
+
       - name: Build packages
         run: pnpm build
 
