@@ -103,6 +103,10 @@ importers:
       '@pixen/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@pixen/web':
+        specifier: workspace:*
+        version: link:../web
 
   packages/vue:
     dependencies:

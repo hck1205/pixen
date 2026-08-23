@@ -14,7 +14,7 @@ documentation explains.
 | `@pixen/react` | React bindings | core, web |
 | `@pixen/vue` | Vue 3 bindings | core, web |
 | `@pixen/svelte` | Svelte bindings, as an action | core, web |
-| `@pixen/video` | Trimming and video export, sold separately | core |
+| `@pixen/video` | Trimming, the trim strip, and video export, sold separately | core (types only from web, for the plugin) |
 
 `apps/playground` is the demo and the browser-test fixture — two pages, one for
 stills and one for video. `apps/stories` is the Ladle story browser — the visual

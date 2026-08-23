@@ -7,6 +7,7 @@ import { ja } from "./ja.js";
 import { ko } from "./ko.js";
 import { pt } from "./pt.js";
 import { zh } from "./zh.js";
+import { baseLanguage, pickLocale } from "./pick.js";
 import type { PixenStrings } from "./types.js";
 
 /**
@@ -40,14 +41,8 @@ export function registerLocale(locale: string, strings: Partial<PixenStrings>): 
   locales.set(locale, { ...en, ...strings });
 }
 
-/** The base language of a tag: `ko-KR` is `ko`, and `zh-Hans-CN` is `zh`. */
-function baseLanguage(locale: string): string {
-  return locale.split("-")[0]?.toLowerCase() ?? "";
-}
-
 export function resolveStrings(locale: string | null | undefined): PixenStrings {
-  if (!locale) return en;
-  return locales.get(locale) ?? locales.get(baseLanguage(locale)) ?? en;
+  return pickLocale(locales, locale) ?? en;
 }
 
 /** Writing direction for a locale tag, for hosts that do not set one. */
@@ -60,5 +55,6 @@ export function availableLocales(): string[] {
   return [...locales.keys()].sort();
 }
 
+export { pickLocale } from "./pick.js";
 export { ar, de, en, es, fr, ja, ko, pt, zh };
 export type { PixenStrings };

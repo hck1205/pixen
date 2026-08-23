@@ -413,3 +413,58 @@ test("a moving document says what it needs rather than exporting a frame of it",
   // Named, not a TypeError from somewhere inside: a host reads this code.
   expect(message).toBe("INVALID_STATE");
 });
+
+test("the trim strip sets the clip, in the language the editor is in", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+
+  const editor = page.locator("#editor");
+  const strip = editor.locator('[role="group"] input[data-handle="start"]');
+
+  // A still picture has no clip, so the strip is not there to be dragged.
+  await expect(strip).toHaveCount(0);
+
+  await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 2 });
+    await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "sample.webm" });
+  });
+  await expect(strip).toHaveCount(1);
+
+  // Its labels are the plugin's own, and they follow the element's locale.
+  await expect(strip).toHaveAttribute("aria-label", "Start");
+  await page.evaluate(() => document.querySelector("#editor")!.setAttribute("locale", "ko"));
+  await expect(editor.locator('input[data-handle="start"]')).toHaveAttribute("aria-label", "시작");
+
+  const before = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    return {
+      clip: element.editor.document.clip,
+      depth: (element.editor as unknown as { historyState: { depth: number } }).historyState.depth,
+    };
+  });
+
+  // Drag the start handle to the middle of the strip.
+  const box = (await editor.locator('input[data-handle="start"]').boundingBox())!;
+  await page.mouse.move(box.x + 4, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+
+  const after = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    return {
+      clip: element.editor.document.clip as { start: number; end: number } | null,
+      duration: element.editor.document.source.duration as number,
+      depth: (element.editor as unknown as { historyState: { depth: number } }).historyState.depth,
+    };
+  });
+
+  expect(before.clip).toBeNull();
+  expect(after.clip).not.toBeNull();
+  // Somewhere near the middle, and still inside the source.
+  expect(after.clip!.start).toBeGreaterThan(after.duration * 0.2);
+  expect(after.clip!.start).toBeLessThan(after.clip!.end);
+  // However many times the value changed on the way, the drag is one step.
+  expect(after.depth - before.depth).toBe(1);
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { en, ko } from "../src/i18n/index.js";
-import { shortcutLabel,
+import { panelLabel, shortcutLabel,
   isAppleShortcutPlatform,
   modifierLabel,
   redoLabel,
@@ -102,5 +102,33 @@ describe("shortcutLabel", () => {
   it("is the spelling the undo button uses, so the chrome cannot disagree with itself", () => {
     expect(undoLabel(en, history(), false)).toContain(`(${shortcutLabel(false, "Z")})`);
     expect(undoLabel(en, history(), true)).toContain(`(${shortcutLabel(true, "Z")})`);
+  });
+});
+
+/**
+ * The panel's own name, announced when it opens.
+ *
+ * A decision rather than a lookup: the tool panel has no name of its own and
+ * borrows the armed tool's, and a tool with no entry falls back — because the
+ * announcement is for a screen reader, and silence is the answer that helps
+ * nobody.
+ */
+describe("panelLabel", () => {
+  it("names a panel that has its own name", () => {
+    expect(panelLabel("adjust", "crop", en)).toBe(en.adjustments);
+    expect(panelLabel("layers", "crop", en)).toBe(en.layers);
+  });
+
+  it("borrows the armed tool's name for the tool panel", () => {
+    expect(panelLabel("tool", "text", en)).toBe(en.text);
+    expect(panelLabel("tool", "crop", en)).toBe(en.crop);
+  });
+
+  it("says something rather than nothing for a tool it does not know", () => {
+    expect(panelLabel("tool", "not-a-tool" as never, en)).toBe(en.crop);
+  });
+
+  it("is in the locale it was given", () => {
+    expect(panelLabel("layers", "crop", ko)).toBe(ko.layers);
   });
 });

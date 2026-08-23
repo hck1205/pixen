@@ -40,15 +40,13 @@ import { observeEditor, type ObserverPorts } from "./observe.js";
 import { ImageIntake } from "./input/image-intake.js";
 import { resolveKeyboardAction } from "./input/keyboard.js";
 import { runKeyboardAction, type ActionPorts } from "./input/run-action.js";
-import { isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
+import { panelLabel, isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
 import { normaliseAspectRatios } from "./ratios.js";
 import {
   OBSERVED_ATTRIBUTES,
-  TOOL_META,
   ZOOM_STEP,
   type AspectRatioOption,
   type ObservedAttribute,
-  PANEL_LABEL_KEYS,
   type PanelId,
 } from "./constants.js";
 import { PluginRegistry, type PixenPlugin } from "../plugins/index.js";
@@ -113,6 +111,7 @@ export class PixenImageEditorElement extends ElementBase {
   #annotationStyle: AnnotationStyle = { ...DEFAULT_STYLE };
   #policy: ImagePolicy | PresetName | null = null;
   #strings: PixenStrings = resolveStrings("en");
+  #locale: string | null = null;
   #panel: PanelId = "tool";
   #disabled = false;
   /** True when the host set `dir` itself, which then outranks the locale. */
@@ -122,7 +121,10 @@ export class PixenImageEditorElement extends ElementBase {
   #readouts: Readouts = {};
   #apple = isAppleShortcutPlatform(typeof navigator === "undefined" ? "" : navigator.platform);
   #unsubscribe: Array<() => void> = [];
-  #plugins = new PluginRegistry(() => this.#renderChrome());
+  #plugins = new PluginRegistry({
+    changed: () => this.#renderChrome(),
+    locale: () => this.#locale,
+  });
 
   /**
    * What the editor is doing, said out loud. Built here rather than on connect
@@ -274,6 +276,9 @@ export class PixenImageEditorElement extends ElementBase {
     setFormat: (format) => this.editor.setFormat(format),
     setQuality: (quality) => this.editor.setQuality(quality),
     setLocale: (locale) => {
+      // Kept as the tag, not only as the resolved table: a plugin's own strings
+      // are looked up against it, and `ko-KR` has to still find `ko`.
+      this.#locale = locale;
       this.#strings = resolveStrings(locale);
       this.#applyDirection(locale);
       this.#renderChrome();
@@ -510,7 +515,7 @@ export class PixenImageEditorElement extends ElementBase {
     },
     togglePanel: (panel) => {
       this.#panel = this.#panel === panel ? "tool" : panel;
-      this.#announce(this.#panelLabel());
+      this.#announce(panelLabel(this.#panel, this.tool, this.#strings));
       this.#syncUI();
     },
     setAnnotationStyle: (patch) => {
@@ -543,12 +548,6 @@ export class PixenImageEditorElement extends ElementBase {
     this.#actionsHost.replaceChildren(...buildActions(context));
     this.#emptyHost.replaceChildren(...buildEmptyState(context));
     this.#dropHost.textContent = strings.dropHint;
-  }
-
-  /** What the panel that just opened is called; the tool panel is its tool. */
-  #panelLabel(): string {
-    const key = PANEL_LABEL_KEYS[this.#panel] ?? TOOL_META[this.tool]?.key ?? "crop";
-    return this.#strings[key];
   }
 
   #syncUI(): void {
@@ -632,6 +631,7 @@ export class PixenImageEditorElement extends ElementBase {
       strings: this.#strings,
       addAction: (action) => this.#plugins.addAction(action),
       addInspectorSection: (section) => this.#plugins.addInspectorSection(section),
+      addStrings: (locales) => this.#plugins.addStrings(locales),
     });
     this.#plugins.retain(teardown);
     return this;

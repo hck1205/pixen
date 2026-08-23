@@ -46,11 +46,18 @@ export const VIDEO_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "A timeline",
-        pixen: "Not offered: the range is set through the API, and there are no handles to drag",
-        verdict: "open",
+        pixen:
+          "A strip with the kept region shown and a handle at each end, installed as a plugin the way the " +
+          "extension is sold — draggable, keyboard-operable, announced, and one undo step per drag",
+        verdict: "met",
         market: required("video extension", "Handles on a timeline strip, dragged to set the trim"),
-        evidence: [doc("docs/ROADMAP.md")],
-        note: "Blocked behind the plugin-strings gap above: a timeline shipped in a separate package has nothing to label itself with",
+        evidence: [unit("track.test.ts"), browser("video.spec.ts"), doc("docs/ROADMAP.md")],
+        note:
+          "The handles are range inputs. Two of them over one track is fiddlier to style than two divs " +
+          "would be, and it is what makes the strip reachable from a keyboard and announced — neither of " +
+          "which a div gets without being rebuilt into one. Dragging the start past the end stops at the " +
+          "end rather than swapping them: the pointer is already past it, and a swap makes the picture " +
+          "jump out from under the finger",
       },
       {
         capability: "Export",

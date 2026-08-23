@@ -8,10 +8,18 @@
  */
 import "@pixen/web";
 import type { EditorDocument } from "@pixen/core";
-import { exportClip, exportMedia, openVideo, supportedRecordingType, type VideoSource } from "@pixen/video";
+import {
+  exportClip,
+  exportMedia,
+  openVideo,
+  supportedRecordingType,
+  trimPlugin,
+  type VideoSource,
+} from "@pixen/video";
 import { recordSampleClip, SAMPLE_MIDDLE_BAND, SAMPLE_SECONDS } from "./sample-clip.js";
 
 type EditorElement = HTMLElement & {
+  use(plugin: unknown): unknown;
   editor: {
     document: EditorDocument;
     dispatch(intent: unknown): unknown;
@@ -89,6 +97,10 @@ async function exportOpened(): Promise<void> {
     exportButton.disabled = false;
   }
 }
+
+// The trim strip ships with the extension rather than with the editor, so the
+// demo installs it the way a customer would.
+element?.use(trimPlugin);
 
 openButton?.addEventListener("click", () => void openSample());
 exportButton?.addEventListener("click", () => void exportOpened());

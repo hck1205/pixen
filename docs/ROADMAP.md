@@ -77,9 +77,10 @@ without one of them learning that the picture moves.
       against a source that states its own duration ([DOCUMENT-SCHEMA.md](DOCUMENT-SCHEMA.md))
 - [x] Open a moving source, and never proxy it into a preview bitmap
 - [x] Export the trimmed clip, with a seam for a host's own encoder
-- [ ] Timeline UI for the trim handles
-- [ ] A plugin surface that can carry its own locale strings, which an extension
-      shipped as a separate package needs and does not have yet
+- [x] Timeline UI for the trim handles, shipped as a plugin in the extension package
+- [x] A plugin surface that can carry its own locale strings, which an extension
+      shipped as a separate package needs — `addStrings`, whose first customer is
+      the trim strip
 
 Two costs, both measured rather than assumed. Recording runs at wall-clock speed
 — a thirty-second clip takes thirty seconds — because `MediaRecorder` samples a

@@ -14,3 +14,4 @@ export * from "./source.js";
 export * from "./encode.js";
 export * from "./export.js";
 export * from "./media.js";
+export * from "./trim/index.js";

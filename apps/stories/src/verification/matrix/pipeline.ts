@@ -106,14 +106,19 @@ export const PIPELINE_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "A plugin's own strings",
-        pixen: "Not offered: a plugin cannot yet add locale strings of its own",
-        verdict: "open",
+        pixen:
+          "`addStrings` takes a plugin's own tables and hands back the reader for them — its keys stay its " +
+          "own, the reader follows the element's locale after it registered, and a language the plugin " +
+          "does not carry falls back per key rather than per table",
+        verdict: "met",
         market: required(
           "video extension",
           "An extension shipped as a separate package brings its own translated interface with it",
         ),
-        evidence: [doc("docs/ROADMAP.md"), doc("docs/PLUGINS.md")],
-        note: "The gap the video package found: it has a timeline to label and nowhere to put the labels",
+        evidence: [unit("plugins.test.ts"), browser("video.spec.ts"), doc("docs/PLUGINS.md")],
+        note:
+          "The gap the video package found, and its first customer: the trim strip ships nine languages " +
+          "in `@pixen/video` and none of them are in the editor's table",
       },
       {
         capability: "Cancellation",

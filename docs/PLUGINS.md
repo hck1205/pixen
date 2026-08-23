@@ -42,6 +42,7 @@ API that already exists.
 | `strings` | The active locale's strings, so a plugin can match the interface |
 | `addAction(action)` | A button beside undo, redo and export. Returns a remover |
 | `addInspectorSection(section)` | Controls in the inspector. Returns a remover |
+| `addStrings(locales)` | The plugin's own translations. Returns the reader for them |
 
 ### `addAction`
 
@@ -74,6 +75,31 @@ Sections appear after the active tool's own controls and before the view
 controls: after what the tool needs, before what the viewport needs. `build`
 returns DOM nodes — plugins are first-party code, so what they build is trusted
 the way the host's own code is.
+
+### `addStrings`
+
+A plugin shipped as its own package has labels of its own, and two bad options
+without this: ship English to everybody, or paste its strings into the editor's
+table, where a key collision is one release away.
+
+```ts
+const text = context.addStrings({
+  en: { start: "Start", end: "End" },   // required: the fallback for everything else
+  ko: { start: "시작", end: "끝" },
+  ja: { start: "開始" },                 // partial is fine — see below
+});
+
+text("start");   // "시작" when the element is on `ko` or `ko-KR`
+```
+
+The keys are the plugin's own, so two plugins cannot collide with each other or
+with Pixen. The reader looks the locale up each time it is called, so a plugin
+that registered once still follows the element when the language changes; a tag
+matches its base language the way the editor's own strings do; a language the
+plugin does not carry falls back to `en` **per key**, not per table; and a key
+with no translation anywhere reads as the key, so a developer can search for it.
+
+`@pixen/video`'s trim strip is the first customer, and the reason this exists.
 
 ## Lifecycle
 

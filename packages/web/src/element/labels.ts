@@ -1,4 +1,6 @@
 import type { HistorySummary, Size } from "@pixen/core";
+import { PANEL_LABEL_KEYS, TOOL_META, type PanelId } from "./constants.js";
+import type { ToolId } from "../tools/index.js";
 import type { PixenStrings } from "../i18n/index.js";
 
 /**
@@ -57,3 +59,14 @@ export function sizeLabel(size: Size): string {
   return `${Math.round(size.width)} × ${Math.round(size.height)}`;
 }
 
+/**
+ * What the panel that just opened is called.
+ *
+ * A decision rather than a lookup, which is why it is here: the tool panel has
+ * no name of its own, so it borrows the armed tool's, and a tool with no entry
+ * falls back to the crop — because the announcement is for a screen reader and
+ * silence is the one answer that helps nobody.
+ */
+export function panelLabel(panel: PanelId, tool: ToolId, strings: PixenStrings): string {
+  return strings[PANEL_LABEL_KEYS[panel] ?? TOOL_META[tool]?.key ?? "crop"];
+}
