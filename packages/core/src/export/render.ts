@@ -41,11 +41,7 @@ export function renderDocumentToCanvas(
 
   const scene = createScene(
     document,
-    {
-      source: resource.source,
-      resolveResource: resources.resolve,
-      ...(options.preprocess ? { preprocess: options.preprocess } : {}),
-    },
+    { source: resource.source, resolveResource: resources.resolve, preprocess: options.preprocess },
     { region, target },
   );
   return drawnSurface(target, (surface) => renderScene(surface.context, scene));

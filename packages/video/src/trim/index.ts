@@ -6,5 +6,6 @@
  * than only by dragging one.
  */
 export * from "./plugin.js";
+export * from "./strip.js";
 export * from "./strings.js";
 export * from "./track.js";

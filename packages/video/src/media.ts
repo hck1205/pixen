@@ -71,8 +71,8 @@ export async function exportMedia(
       ...options.image,
       // A still export names the size by its axes rather than as a box.
       ...(size ? { width: size.width, height: size.height } : {}),
-      ...(signal ? { signal } : {}),
-      ...(onProgress ? { onProgress } : {}),
+      signal,
+      onProgress,
     });
     return { kind: "image", ...result };
   }
@@ -86,9 +86,9 @@ export async function exportMedia(
 
   const result = await exportClip(document, options.element, resources, {
     ...options.video,
-    ...(size ? { size } : {}),
-    ...(signal ? { signal } : {}),
-    ...(onProgress ? { onProgress } : {}),
+    size,
+    signal,
+    onProgress,
   });
   return { kind: "video", ...result };
 }

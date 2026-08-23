@@ -148,11 +148,7 @@ export async function exportDocument(
     const stand = await standIn(resource, roundedSize(crop.width, crop.height), target, hooks);
     const scene = createScene(
       { ...drawn, output: { ...drawn.output, background } },
-      {
-        source: stand,
-        resolveResource: resources.resolve,
-        ...(options.preprocess ? { preprocess: options.preprocess } : {}),
-      },
+      { source: stand, resolveResource: resources.resolve, preprocess: options.preprocess },
       { region: "crop", target },
     );
     renderScene(surface.context, scene);

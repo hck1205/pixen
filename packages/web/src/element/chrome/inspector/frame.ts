@@ -27,7 +27,9 @@ const STYLE_KEYS = {
  * does something. Corner brackets have an arm length and a plain border does
  * not, so the panel asks this rather than showing all five to everybody.
  */
-const STYLE_CONTROLS: Record<FrameStyle, ReadonlyArray<"inset" | "radius" | "offset" | "count" | "armLength">> = {
+type FrameMeasurement = "inset" | "radius" | "offset" | "count" | "armLength";
+
+const STYLE_CONTROLS: Record<FrameStyle, readonly FrameMeasurement[]> = {
   solid: [],
   inset: ["inset"],
   rounded: ["radius"],
@@ -40,11 +42,27 @@ const STYLE_CONTROLS: Record<FrameStyle, ReadonlyArray<"inset" | "radius" | "off
 const FRACTION_RANGE = { min: 0, max: 0.12, step: 0.002 };
 const COUNT_RANGE = { min: 1, max: 5, step: 1 };
 
+/**
+ * The slider each measurement gets, named the way `STYLE_KEYS` is.
+ *
+ * A table of string *keys* rather than resolved strings, so it can sit here
+ * beside the other one instead of being rebuilt inside the builder every time
+ * the panel is drawn.
+ */
+const TUNING = {
+  inset: { key: "frameInsetAmount", field: "frame-inset", range: FRACTION_RANGE },
+  radius: { key: "frameRadius", field: "frame-radius", range: FRACTION_RANGE },
+  offset: { key: "frameOffset", field: "frame-offset", range: FRACTION_RANGE },
+  armLength: { key: "frameArm", field: "frame-arm", range: FRACTION_RANGE },
+  count: { key: "frameCount", field: "frame-count", range: COUNT_RANGE },
+} as const satisfies Record<FrameMeasurement, { key: keyof PixenStrings; field: string; range: object }>;
+
 /** Width is a fraction of the longest edge, so the step is small. */
 const FRAME_WIDTH_RANGE = { min: MIN_FRAME_WIDTH, max: MAX_FRAME_WIDTH, step: 0.002 };
 
 /**
- * The frame: off, or one of three styles with a width and a colour.
+ * The frame: off, or one of six treatments with a width, a colour, and the
+ * measurements that treatment actually reads.
  *
  * "None" is a button in the same row rather than a separate toggle, because
  * choosing no frame is the same kind of decision as choosing a round one.
@@ -73,14 +91,6 @@ export function buildFrameControls(context: ChromeContext): Node[] {
   // Width and colour are meaningless with no frame, so they only appear with one.
   if (!frame) return nodes;
 
-  const TUNING = {
-    inset: { label: strings.frameInset2, field: "frame-inset", range: FRACTION_RANGE },
-    radius: { label: strings.frameRounded, field: "frame-radius", range: FRACTION_RANGE },
-    offset: { label: strings.frameOffset, field: "frame-offset", range: FRACTION_RANGE },
-    armLength: { label: strings.frameArm, field: "frame-arm", range: FRACTION_RANGE },
-    count: { label: strings.frameCount, field: "frame-count", range: COUNT_RANGE },
-  } as const;
-
   nodes.push(
     transactedSlider(editor, {
       label: strings.frameWidth,
@@ -91,7 +101,9 @@ export function buildFrameControls(context: ChromeContext): Node[] {
     }),
     ...STYLE_CONTROLS[frame.style].map((name) =>
       transactedSlider(editor, {
-        ...TUNING[name],
+        label: strings[TUNING[name].key],
+        field: TUNING[name].field,
+        range: TUNING[name].range,
         value: frame[name],
         onInput: (value) => editor.setFrame({ [name]: value }),
       }),

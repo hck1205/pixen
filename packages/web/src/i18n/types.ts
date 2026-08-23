@@ -65,10 +65,11 @@ export interface PixenStrings {
   frameHook: string;
   frameLine: string;
   frameEdge: string;
-  frameInset2: string;
+  frameInsetAmount: string;
   frameOffset: string;
   frameArm: string;
   frameCount: string;
+  frameRadius: string;
   frameWidth: string;
   frameColour: string;
   canvas: string;
