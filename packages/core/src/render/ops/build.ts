@@ -61,9 +61,15 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   if (scene.adjustments.vignette > 0) {
     // Over the image and under the annotations: the vignette is part of the
     // picture, and an arrow drawn on top should not be dimmed by it.
+    //
+    // Around the picture rather than around the canvas, for the same reason the
+    // frame is — and it was around the canvas. On an export those are the same
+    // rectangle, so the file was right and only the editor was wrong: the
+    // darkening was centred on the viewport and its corners fell outside the
+    // photograph, which is the one place a vignette is supposed to be.
     ops.push({
       op: "vignette",
-      rect: { x: 0, y: 0, width: scene.target.width, height: scene.target.height },
+      rect: scene.regionInTarget,
       strength: scene.adjustments.vignette,
     });
   }

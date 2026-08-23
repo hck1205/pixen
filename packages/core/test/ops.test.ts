@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   applyToPoint,
+  compose,
   lineEndInset,
+  scaling,
+  translation,
+  type Rect,
   buildSceneOps,
   commands,
   createArrowLayer,
@@ -349,6 +353,25 @@ describe("the pixel fallback", () => {
     const order = kinds(ops);
     expect(order.indexOf("vignette")).toBeGreaterThan(order.indexOf("image"));
     expect(order.indexOf("vignette")).toBeLessThan(order.lastIndexOf("path"));
+  });
+
+  it("darkens the picture's corners rather than the canvas's", () => {
+    // On an export the picture *is* the target, so this only ever showed up in
+    // the editor: the darkening was centred on the viewport and its corners
+    // fell outside the photograph, which is the one place a vignette belongs.
+    const vignetted = commands.setAdjustments(document(), { vignette: 0.5 });
+    const view = compose(translation(700, 450), scaling(0.5), translation(-500, -250));
+    const scene = createScene(vignetted, { source }, {
+      region: "stage",
+      target: { width: 1400, height: 900 },
+      fit: "none",
+      transform: view,
+    });
+
+    const op = buildSceneOps(scene).find((candidate) => candidate.op === "vignette") as { rect: Rect };
+    expect(op.rect).toEqual(scene.regionInTarget);
+    // Which is the picture, not the canvas it floats in.
+    expect(op.rect.width).toBeLessThan(1400);
   });
 
   it("leaves the vignette out when it is neutral", () => {
