@@ -213,6 +213,20 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
           "frame needs an image per frame, and a polaroid needs the picture drawn smaller inside the card " +
           "rather than a border over it. Both are compositions rather than decorations",
       },
+      {
+        capability: "Retouch",
+        pixen:
+          "A spot remover: the ellipse inscribed in a rectangle, healed by diffusing the boundary " +
+          "inwards. No colour is invented — every value is made of pixels that were already there — " +
+          "and it is a layer, so a repair undoes, moves and survives a round trip",
+        verdict: "met",
+        market: required("plugins", "A retouch tool for removing blemishes"),
+        evidence: [unit("heal.test.ts"), browser("editor.spec.ts")],
+        note:
+          "There is no texture in it: a blemish over a striped shirt heals to a smear rather than to " +
+          "stripes. That is the honest limit of anything that runs in a millisecond, and the reason " +
+          "this is a spot remover rather than content-aware fill",
+      },
     ],
   },
 ];

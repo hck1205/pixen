@@ -51,6 +51,9 @@ export function resolveQuality(format: string, stored: number | null | undefined
 
 export const DEFAULT_LAYER_OPACITY = 1;
 /** Layers are the picture's own unless a caller says otherwise. See `LAYER_SPACES`. */
+/** How soft a spot's edge is by default. See `healRegion`. */
+export const DEFAULT_RETOUCH_FEATHER = 0.25;
+
 export const DEFAULT_LAYER_SPACE: LayerSpace = "image";
 
 export const DEFAULT_LAYER_ROTATION = 0;

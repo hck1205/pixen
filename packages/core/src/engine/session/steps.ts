@@ -31,6 +31,7 @@ export type StepName =
   | "frame"
   | "resize"
   | "addLayer"
+  | "retouch"
   | "editLayer"
   | "moveLayer"
   | "moveLayerHandle"
@@ -60,6 +61,7 @@ export const STEP_LABELS: Record<StepName, string> = {
   frame: "Frame",
   resize: "Resize",
   addLayer: "Add annotation",
+  retouch: "Retouch",
   editLayer: "Edit annotation",
   moveLayer: "Move annotation",
   moveLayerHandle: "Resize annotation",

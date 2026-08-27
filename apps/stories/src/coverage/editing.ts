@@ -22,6 +22,16 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
     summary: "Everything that changes where the pixels are rather than what colour they are.",
     entries: [
       {
+        capability: "Retouch",
+        layer: "Engine",
+        detail:
+          "A blemish is taken out by growing the surroundings over it: every pixel in the spot reads " +
+          "the four boundaries along its own rays and takes them weighted by nearness, so no colour " +
+          "is invented and the gradient carries through. It is a layer, so a repair undoes and " +
+          "survives a saved document — the source bitmap is never written to",
+        evidence: [unit("heal.test.ts"), browser("editor.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+      },
+      {
         capability: "A crop that may hang off the picture",
         layer: "Engine",
         detail:

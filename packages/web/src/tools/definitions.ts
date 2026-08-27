@@ -11,6 +11,7 @@ export const DEFAULT_TOOLS: ToolDefinition[] = [
   { id: "text" },
   { id: "sticker" },
   { id: "redact" },
+  { id: "retouch" },
 ];
 
 /** Normalises the `tools` property, which hosts may pass as ids or objects. */

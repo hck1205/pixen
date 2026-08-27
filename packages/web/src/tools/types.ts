@@ -8,7 +8,8 @@ export type ToolId =
   | "draw"
   | "text"
   | "sticker"
-  | "redact";
+  | "redact"
+  | "retouch";
 
 export interface ToolDefinition {
   id: ToolId;

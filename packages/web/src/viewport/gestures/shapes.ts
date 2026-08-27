@@ -4,6 +4,7 @@ import {
   createEllipseLayer,
   createRectLayer,
   createRedactLayer,
+  createRetouchLayer,
   type EditorLayer,
   type Point,
   type Rect,
@@ -36,6 +37,8 @@ export function shapeLayerFor(tool: ShapeTool, origin: Point, context: GestureCo
         mode: context.style.redactionMode,
         strength: context.style.redactionStrength,
       });
+    case "retouch":
+      return createRetouchLayer(frame, { id: context.createId("retouch") });
     case "ellipse":
       return createEllipseLayer(frame, { id: context.createId("ellipse"), stroke, fill: context.style.fill });
     case "arrow":
@@ -78,6 +81,7 @@ export function isDegenerate(layer: EditorLayer, imageLongestEdge: number): bool
     case "rect":
     case "ellipse":
     case "redact":
+    case "retouch":
     case "image":
       return layer.frame.width < minimum && layer.frame.height < minimum;
     case "line":
@@ -95,4 +99,5 @@ export const SHAPE_TOOLS: Readonly<Record<string, ShapeTool>> = {
   ellipse: "ellipse",
   arrow: "arrow",
   redact: "redact",
+  retouch: "retouch",
 };

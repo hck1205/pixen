@@ -183,6 +183,9 @@ function buildControl(context: ChromeContext, control: StyleControl, selected: E
  */
 export function recolourPatch(layer: EditorLayer, colour: string): Partial<EditorLayer> {
   switch (layer.type) {
+    // A repair has no colour of its own: it is made of the picture around it.
+    case "retouch":
+      return {};
     case "text":
       return { color: colour };
     case "line":

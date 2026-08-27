@@ -1,5 +1,6 @@
 import { boundsOf } from "../geometry/rect.js";
 import type { Point, Rect } from "../geometry/types.js";
+import { DEFAULT_RETOUCH_FEATHER } from "./defaults.js";
 import { createId } from "../util/id.js";
 import {
   DEFAULT_CORNER_RADIUS,
@@ -22,6 +23,7 @@ import type {
   EditorLayer,
   ImageLayer,
   RedactLayer,
+  RetouchLayer,
   EllipseLayer,
   LineLayer,
   PathLayer,
@@ -167,6 +169,23 @@ export function findLayerOfType<T extends EditorLayer["type"]>(
 }
 
 /**
+ * A spot to heal, as the ellipse inscribed in `frame`.
+ *
+ * Sized from a rectangle like the other rectangular kinds, so moving, resizing
+ * and scaling it needs no code of its own — only the drawing knows it is round.
+ */
+export function createRetouchLayer(frame: Rect, options: Partial<RetouchLayer> = {}): RetouchLayer {
+  return {
+    id: createId("retouch"),
+    type: "retouch",
+    ...layerDefaults,
+    frame,
+    feather: DEFAULT_RETOUCH_FEATHER,
+    ...options,
+  };
+}
+
+/**
  * Image-space bounding box of a layer, ignoring its own rotation.
  *
  * `measure` is how a caption's width is found. Without one the estimate stands
@@ -180,6 +199,7 @@ export function layerBounds(layer: EditorLayer, measure: TextMeasurer = estimate
     case "ellipse":
     case "image":
     case "redact":
+    case "retouch":
       return layer.frame;
     case "line": {
       const x = Math.min(layer.from.x, layer.to.x);
@@ -206,6 +226,7 @@ export function translateLayer(layer: EditorLayer, dx: number, dy: number): Edit
     case "ellipse":
     case "image":
     case "redact":
+    case "retouch":
       return { ...layer, frame: { ...layer.frame, x: layer.frame.x + dx, y: layer.frame.y + dy } };
     case "line":
       return {

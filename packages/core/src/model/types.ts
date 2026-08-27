@@ -6,7 +6,7 @@ import type { LineEnd } from "./line.js";
 export type { LineEnd };
 export { LINE_ENDS } from "./line.js";
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -30,6 +30,7 @@ export {
   type PathLayer,
   type RectLayer,
   type RedactLayer,
+  type RetouchLayer,
   type Stroke,
   type TextLayer,
 } from "./annotations.js";

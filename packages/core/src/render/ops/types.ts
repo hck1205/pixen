@@ -98,6 +98,8 @@ export type DrawOp =
    * picture in the editor.
    */
   | { op: "backdrop"; source: CanvasImageSource; rect: Rect; clip: Rect }
+  /** A blemish grown over from its surroundings. See `healRegion`. */
+  | { op: "heal"; frame: Rect; feather: number }
   | {
       op: "path";
       commands: PathCommand[];

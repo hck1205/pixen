@@ -189,7 +189,9 @@ export function documentChangeFor(intent: Intent, measure?: TextMeasurer): Docum
     case "add-layer":
       return {
         reason: "layer-add",
-        step: "addLayer",
+        // Adding a repair is not adding an annotation, and the undo button is
+        // where the difference shows: "Undo: Retouch" is what happened.
+        step: intent.layer.type === "retouch" ? "retouch" : "addLayer",
         transform: (d) => commands.addLayer(d, intent.layer, intent.index),
       };
     case "update-layer":

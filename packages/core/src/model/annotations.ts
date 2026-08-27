@@ -130,6 +130,24 @@ export interface RedactLayer extends LayerBase {
   colour: string;
 }
 
+/**
+ * A blemish taken out by growing the surroundings over it.
+ *
+ * Stored as a rectangle like everything else, and read as the ellipse inscribed
+ * in it — so a spot moves, resizes and scales with the same code every other
+ * layer uses, and only the drawing knows it is round.
+ *
+ * It is a layer rather than a brush stroke baked into the picture because
+ * everything here is: the source bitmap is never written to, so a repair can be
+ * undone, moved, or lifted out of a saved document a year later.
+ */
+export interface RetouchLayer extends LayerBase {
+  type: "retouch";
+  frame: Rect;
+  /** How much of the radius fades back to the picture. See `healRegion`. */
+  feather: number;
+}
+
 export type EditorLayer =
   | RectLayer
   | EllipseLayer
@@ -137,5 +155,6 @@ export type EditorLayer =
   | PathLayer
   | TextLayer
   | ImageLayer
-  | RedactLayer;
+  | RedactLayer
+  | RetouchLayer;
 export type LayerType = EditorLayer["type"];

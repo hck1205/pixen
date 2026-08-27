@@ -1,5 +1,5 @@
 import { meanScale } from "../../geometry/matrix.js";
-import { transformBounds } from "../../geometry/rect.js";
+import { clampToPixels, transformBounds } from "../../geometry/rect.js";
 import type { Matrix, Rect, Size } from "../../geometry/types.js";
 import { drawnSurface, releaseSurface, type Canvas2D, type CanvasSurface } from "../../image/canvas.js";
 import { supportsContextFilter } from "../filter-support.js";
@@ -30,7 +30,7 @@ export function obscureRegion(context: Canvas2D, op: Extract<DrawOp, { op: "obsc
   }
 
   const canvas = context.canvas;
-  const clamped = clampRect(transformBounds(transform, frame), canvas.width, canvas.height);
+  const clamped = clampToPixels(transformBounds(transform, frame), canvas.width, canvas.height);
   // Reachable only for a transform that collapses the region to nothing, since
   // `clampRect` floors the near edge and ceils the far one and so never returns
   // less than a pixel of a region that has any area at all. There is nothing to
@@ -65,16 +65,6 @@ export function obscureStrength(strength: number, transform: Matrix): number {
   return strength * meanScale(transform);
 }
 
-function clampRect(rect: Rect, width: number, height: number): Rect {
-  const x = Math.max(0, Math.floor(rect.x));
-  const y = Math.max(0, Math.floor(rect.y));
-  return {
-    x,
-    y,
-    width: Math.min(Math.ceil(rect.x + rect.width), width) - x,
-    height: Math.min(Math.ceil(rect.y + rect.height), height) - y,
-  };
-}
 
 /**
  * Copies a device-space region of the canvas into a surface of its own.
@@ -128,7 +118,7 @@ function drawBack(context: Canvas2D, surface: CanvasSurface, from: Rect, region:
 function blurRegion(context: Canvas2D, region: Rect, radius: number): boolean {
   if (!supportsContextFilter(context)) return false;
   const margin = Math.ceil(radius * 2);
-  const source = clampRect(
+  const source = clampToPixels(
     { x: region.x - margin, y: region.y - margin, width: region.width + margin * 2, height: region.height + margin * 2 },
     context.canvas.width,
     context.canvas.height,

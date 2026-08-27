@@ -3,7 +3,7 @@ import { center } from "../../geometry/rect.js";
 import type { Matrix, Point } from "../../geometry/types.js";
 import { layerBounds } from "../../model/layers.js";
 import type { TextMeasurer } from "../../model/text-layout.js";
-import type { EditorLayer, ImageLayer, RedactLayer } from "../../model/types.js";
+import type { EditorLayer, ImageLayer, RedactLayer, RetouchLayer } from "../../model/types.js";
 import { seedFrom } from "../scramble.js";
 import type { SceneLayerNode } from "../scene.js";
 import { ellipseLayerOps, lineLayerOps, pathLayerOps, rectLayerOps } from "./shapes.js";
@@ -53,6 +53,18 @@ export function redactLayerOps(layer: RedactLayer, imageLongestEdge: number): Dr
   ];
 }
 
+/**
+ * A spot to heal: one operation, the ellipse inscribed in the frame.
+ *
+ * Like a redaction, the executor is what reads the canvas back — and, like a
+ * redaction, a canvas it may not read leaves the picture alone rather than
+ * failing, because a repair that did not happen is a visible blemish and not a
+ * security hole.
+ */
+export function retouchLayerOps(layer: RetouchLayer): DrawOp[] {
+  return [{ op: "heal", frame: layer.frame, feather: layer.feather }];
+}
+
 /** Image-space bounding box a layer's own rotation turns around. */
 export function layerRotationCentre(layer: EditorLayer, measure: TextMeasurer): Point {
   return center(layerBounds(layer, measure));
@@ -84,5 +96,7 @@ function layerBodyOps(node: SceneLayerNode, measure: TextMeasurer, imageLongestE
       return imageLayerOps(layer, node.resource);
     case "redact":
       return redactLayerOps(layer, imageLongestEdge);
+    case "retouch":
+      return retouchLayerOps(layer);
   }
 }

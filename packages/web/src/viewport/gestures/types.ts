@@ -8,7 +8,7 @@ import type { AnnotationStyle, ToolId } from "../../tools/index.js";
  * State and effects are data, which is what lets every path a drag can take be
  * reachable from a unit test with plain objects.
  */
-export type ShapeTool = "rect" | "ellipse" | "arrow" | "redact";
+export type ShapeTool = "rect" | "ellipse" | "arrow" | "redact" | "retouch";
 
 export type GestureState =
   | { kind: "idle" }

@@ -3094,3 +3094,87 @@ test("a crop can hang off the picture, onto the background behind it", async ({ 
   // in a state its own rule forbids.
   expect(outcome.broughtHome!.x).toBeGreaterThanOrEqual(0);
 });
+
+/**
+ * Taking a blemish out by growing the surroundings over it.
+ *
+ * It is a layer like everything else, so a repair undoes, moves and survives a
+ * round trip through a saved document — the source bitmap is never written to.
+ */
+test("retouching grows the surroundings over a blemish", async ({ page }) => {
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const editor = element.editor;
+    const { width, height } = editor.document.source;
+
+    // A dark disc on the sky, which is a smooth background — the case a spot
+    // remover is actually for.
+    const spot = { x: width * 0.55, y: height * 0.12, r: Math.round(width * 0.03) };
+    editor.addLayer({
+      id: "blemish",
+      type: "ellipse",
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      space: "image",
+      frame: { x: spot.x - spot.r, y: spot.y - spot.r, width: spot.r * 2, height: spot.r * 2 },
+      color: "#101010",
+      fill: "#101010",
+      strokeWidth: 0,
+      dash: null,
+    } as never);
+
+    const readSpot = async () => {
+      const data = await editor.renderToImageData();
+      const x = Math.round((spot.x / width) * data.width);
+      const y = Math.round((spot.y / height) * data.height);
+      const i = (y * data.width + x) * 4;
+      return { r: data.data[i]!, g: data.data[i + 1]!, b: data.data[i + 2]! };
+    };
+    const nearby = async () => {
+      const data = await editor.renderToImageData();
+      const x = Math.round(((spot.x + spot.r * 3) / width) * data.width);
+      const y = Math.round((spot.y / height) * data.height);
+      const i = (y * data.width + x) * 4;
+      return { r: data.data[i]!, g: data.data[i + 1]!, b: data.data[i + 2]! };
+    };
+
+    const blemished = await readSpot();
+    editor.addLayer({
+      id: "heal",
+      type: "retouch",
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      space: "image",
+      frame: { x: spot.x - spot.r * 1.5, y: spot.y - spot.r * 1.5, width: spot.r * 3, height: spot.r * 3 },
+      feather: 0.25,
+    } as never);
+    const healed = await readSpot();
+    const surroundings = await nearby();
+
+    // And it is a layer: undo takes it back.
+    editor.undo();
+    const undone = await readSpot();
+
+    // After undoing, what was undone is what redo would put back.
+    return { blemished, healed, surroundings, undone, step: editor.historyState.redoStep };
+  });
+
+  // The blemish was dark and is now near what surrounds it.
+  expect(outcome.blemished.r).toBeLessThan(40);
+  expect(outcome.healed.r).toBeGreaterThan(40);
+  const distance = (a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }) =>
+    Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+  expect(distance(outcome.healed, outcome.surroundings)).toBeLessThan(
+    distance(outcome.blemished, outcome.surroundings),
+  );
+
+  // A repair is undoable, because the source bitmap was never written to.
+  expect(outcome.undone.r).toBeLessThan(40);
+  // And the undo button says what it is taking back: adding a repair is not
+  // adding an annotation, and the step name is where the difference shows.
+  expect(outcome.step).toBe("retouch");
+});

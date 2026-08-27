@@ -8,6 +8,7 @@ import {
   DEFAULT_LAYER_OPACITY,
   DEFAULT_LAYER_ROTATION,
   DEFAULT_LAYER_SPACE,
+  DEFAULT_RETOUCH_FEATHER,
   DEFAULT_LAYER_VISIBLE,
   DEFAULT_REDACTION_MODE,
   DEFAULT_REDACTION_STRENGTH,
@@ -97,6 +98,12 @@ const LAYER_FIELDS: { [K in LayerType]: Fields<Extract<EditorLayer, { type: K }>
     resourceId: field("resourceId", text),
     frame: field("frame", rect),
     repeat: field("repeat", withDefault(boolean, false)),
+  },
+  retouch: {
+    ...layerBase,
+    type: constant("retouch"),
+    frame: field("frame", rect),
+    feather: field("feather", withDefault(finiteNumber, DEFAULT_RETOUCH_FEATHER)),
   },
   redact: {
     ...layerBase,

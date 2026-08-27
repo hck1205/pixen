@@ -234,3 +234,21 @@ export function fitScale(size: Size, box: Size, mode: "contain" | "cover"): numb
   const vertical = box.height / size.height;
   return mode === "contain" ? Math.min(horizontal, vertical) : Math.max(horizontal, vertical);
 }
+
+/**
+ * A rect snapped onto the pixels it covers, inside a surface of that size.
+ *
+ * The near edge floors and the far edge ceils, so a region with any area at all
+ * still covers at least one pixel — which is what the two things that read the
+ * canvas back, redaction and retouching, both need before asking for it.
+ */
+export function clampToPixels(rect: Rect, width: number, height: number): Rect {
+  const x = Math.max(0, Math.floor(rect.x));
+  const y = Math.max(0, Math.floor(rect.y));
+  return {
+    x,
+    y,
+    width: Math.min(Math.ceil(rect.x + rect.width), width) - x,
+    height: Math.min(Math.ceil(rect.y + rect.height), height) - y,
+  };
+}

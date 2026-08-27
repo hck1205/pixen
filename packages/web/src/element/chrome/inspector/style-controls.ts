@@ -90,6 +90,8 @@ function toolLayerKind(tool: ToolId): EditorLayer["type"] | null {
       return "line";
     case "draw":
       return "path";
+    case "retouch":
+      return "retouch";
     case "text":
       return "text";
     case "redact":

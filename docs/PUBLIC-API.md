@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-475 names.
+480 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -59,6 +59,7 @@ DEFAULT_OUTPUT
 DEFAULT_PREVIEW_MAX_SIZE
 DEFAULT_REDACTION_MODE
 DEFAULT_REDACTION_STRENGTH
+DEFAULT_RETOUCH_FEATHER
 DEFAULT_STROKE
 DEFAULT_STROKE_RATIO
 DEFAULT_TEXT_ALIGN
@@ -177,6 +178,7 @@ ResourceManager
 ResourceManagerOptions
 RestorePlan
 Result
+RetouchLayer
 RotateLayerOptions
 SCHEMA_VERSION
 STEP_LABELS
@@ -254,6 +256,7 @@ clampClip
 clampInside
 clampSelection
 clampStraighten
+clampToPixels
 clipDuration
 clipFractions
 clipFromFractions
@@ -279,6 +282,7 @@ createLineLayer
 createPathLayer
 createRectLayer
 createRedactLayer
+createRetouchLayer
 createScene
 createSession
 createStickerLayer
@@ -427,6 +431,7 @@ resizeLayer
 resolveOutputFormat
 resolveQuality
 resolveSize
+retouchLayerOps
 right
 rollback
 rotateLayer

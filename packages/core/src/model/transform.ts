@@ -113,6 +113,7 @@ export function scaleLayerToBounds(layer: EditorLayer, from: Rect, to: Rect): Ed
     case "ellipse":
     case "image":
     case "redact":
+    case "retouch":
       return { ...layer, frame: to };
     case "line":
       return { ...layer, from: map(layer.from), to: map(layer.to) };

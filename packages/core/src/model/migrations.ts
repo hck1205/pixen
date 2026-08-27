@@ -170,6 +170,7 @@ migrations.set(8, migrateV8ToV9);
 migrations.set(9, migrateV9ToV10);
 migrations.set(10, migrateV10ToV11);
 migrations.set(11, migrateV11ToV12);
+migrations.set(12, migrateV12ToV13);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -268,4 +269,16 @@ function migrateV11ToV12(document: Record<string, unknown>): Record<string, unkn
       ...output,
     },
   };
+}
+
+/**
+ * v12 -> v13 added the retouch layer.
+ *
+ * Nothing to fill in: a v12 document simply has none. The version moves because
+ * a v12 build reading a v13 document would meet a layer kind it has no case for
+ * — and an unhandled kind is a blemish left in a picture somebody thought they
+ * had repaired, which is worse than an error.
+ */
+function migrateV12ToV13(document: Record<string, unknown>): Record<string, unknown> {
+  return document;
 }

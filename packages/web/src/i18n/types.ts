@@ -7,6 +7,7 @@ export interface PixenStrings {
   draw: string;
   text: string;
   redact: string;
+  retouch: string;
   rotateLeft: string;
   rotateRight: string;
   flipHorizontal: string;
@@ -145,6 +146,7 @@ export interface PixenStrings {
   stepFrame: string;
   stepResize: string;
   stepAddLayer: string;
+  stepRetouch: string;
   stepEditLayer: string;
   stepMoveLayer: string;
   stepMoveLayerHandle: string;

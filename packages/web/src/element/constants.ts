@@ -86,6 +86,7 @@ export const TOOL_META: Readonly<Record<ToolId, ToolMeta>> = {
   text: { icon: "text", key: "text", shortcut: "t" },
   sticker: { icon: "sticker", key: "sticker", shortcut: "s" },
   redact: { icon: "redact", key: "redact", shortcut: "x" },
+  retouch: { icon: "retouch", key: "retouch", shortcut: "h" },
 };
 
 /** One press of the zoom buttons. */

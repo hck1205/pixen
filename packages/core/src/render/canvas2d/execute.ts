@@ -7,6 +7,7 @@ import type { TextMeasurer } from "../../model/text-layout.js";
 import { buildSceneOps, type BuildOptions, type DrawOp, type PathCommand } from "../ops/index.js";
 import type { Scene } from "../scene.js";
 import { drawVignette } from "./decoration.js";
+import { healSpot } from "./retouch.js";
 import { obscureRegion } from "./redaction.js";
 
 /**
@@ -104,6 +105,9 @@ export function executeOps(context: Canvas2D, ops: readonly DrawOp[]): void {
         break;
       case "image":
         context.drawImage(op.source, 0, 0, op.width, op.height);
+        break;
+      case "heal":
+        healSpot(context, op, transform);
         break;
       case "backdrop":
         context.save();
