@@ -16,7 +16,7 @@ import { expect, test, type Page } from "@playwright/test";
 const REALTIME_BUDGET_MS = 60_000;
 
 type Demo = {
-  recordSampleClip(options?: { seconds?: number }): Promise<Blob>;
+  recordSampleClip(options?: { seconds?: number; withSound?: boolean }): Promise<Blob>;
   openVideo(
     editor: unknown,
     input: Blob | string,
@@ -27,7 +27,15 @@ type Demo = {
     element: HTMLVideoElement,
     resources: unknown,
     options?: Record<string, unknown>,
-  ): Promise<{ blob: Blob; width: number; height: number; duration: number; bytes: number; type: string }>;
+  ): Promise<{
+    blob: Blob;
+    width: number;
+    height: number;
+    duration: number;
+    bytes: number;
+    type: string;
+    hasSound: boolean;
+  }>;
   exportMedia(
     document: unknown,
     resources: unknown,
@@ -524,4 +532,90 @@ test("a clip from another origin is refused rather than exported as an empty hea
   expect(outcome.message).toContain("crossOrigin");
   // Recorded so the fixture is checkable: the element never got past its header.
   expect(outcome.readyState).toBeLessThan(2);
+});
+
+/**
+ * Recording a canvas records a canvas. `captureStream` gives video and nothing
+ * else, so every exported clip came back silent whatever the source had —
+ * measured: one audio track in, none out. That is not "no audio editing", it is
+ * losing the soundtrack without saying so.
+ *
+ * The sample carries a steady tone, so how loud the result is comes back as a
+ * number rather than as a judgement.
+ */
+test("the clip keeps its sound, at the level the export was asked for", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+
+  const measured = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 2, withSound: true });
+
+    const loudnessOf = async (blob: Blob): Promise<number> => {
+      const context = new AudioContext();
+      try {
+        const decoded = await context.decodeAudioData(await blob.arrayBuffer());
+        const samples = decoded.getChannelData(0);
+        // The middle half, so whatever happens at either end does not dominate.
+        const from = Math.floor(samples.length * 0.25);
+        const to = Math.floor(samples.length * 0.75);
+        let sum = 0;
+        for (let i = from; i < to; i += 1) sum += samples[i]! * samples[i]!;
+        return Math.sqrt(sum / (to - from));
+      } finally {
+        await context.close();
+      }
+    };
+
+    const tracksOf = async (blob: Blob): Promise<number> => {
+      const probe = document.createElement("video");
+      probe.muted = true;
+      probe.playsInline = true;
+      probe.src = URL.createObjectURL(blob);
+      await new Promise((resolve, reject) => {
+        probe.onloadeddata = resolve;
+        probe.onerror = reject;
+        setTimeout(reject, 8000);
+      });
+      return (probe as unknown as { captureStream(): MediaStream }).captureStream().getAudioTracks().length;
+    };
+
+    const exportWith = async (options: Record<string, unknown>) => {
+      const source = await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "tone.webm" });
+      const written = await window.pixenVideoDemo.exportClip(
+        element.editor.document,
+        source.element,
+        element.editor.resources,
+        options,
+      );
+      return { hasSound: written.hasSound, type: written.type, blob: written.blob };
+    };
+
+    const source = await loudnessOf(clip);
+    const kept = await exportWith({});
+    const quiet = await exportWith({ volume: 0.25 });
+    const off = await exportWith({ volume: 0 });
+
+    return {
+      source,
+      kept: { ...kept, loudness: await loudnessOf(kept.blob), tracks: await tracksOf(kept.blob) },
+      quiet: { ...quiet, loudness: await loudnessOf(quiet.blob) },
+      off: { ...off, tracks: await tracksOf(off.blob) },
+    };
+  });
+
+  // Kept by default, and kept as it was: no gain stage, so no resampling.
+  expect(measured.kept.hasSound).toBe(true);
+  expect(measured.kept.tracks).toBe(1);
+  expect(measured.kept.loudness / measured.source).toBeCloseTo(1, 1);
+
+  // A quarter of the level is a quarter of the level.
+  expect(measured.quiet.hasSound).toBe(true);
+  expect(measured.quiet.loudness / measured.source).toBeCloseTo(0.25, 1);
+
+  // Zero leaves the track out rather than writing silence into it, and the
+  // container stops claiming an audio codec it has nothing to put in.
+  expect(measured.off.hasSound).toBe(false);
+  expect(measured.off.tracks).toBe(0);
+  expect(measured.off.type).not.toContain("opus");
 });

@@ -85,21 +85,45 @@ Everything in the first column goes through the same `createScene` and
 `renderScene` the still export uses, so it lands on every frame without knowing
 the picture moves.
 
-| Reaches every frame | Time only | Still pictures only |
+| Reaches every frame | Time and sound only | Still pictures only |
 | --- | --- | --- |
 | Crop and aspect ratio | The clip range | EXIF carried from the source |
 | Rotation, flip, straighten | The trim strip | `quality` and `maxBytes` |
-| All adjustments and presets | | `maxPixels` |
+| All adjustments and presets | The soundtrack's level | `maxPixels` |
 | Frames and vignette | | `exportVariants`, `processImages` |
 | Every annotation, including redaction | | The preview proxy |
 
-Two of those deserve their own line:
+Three of those deserve their own line:
 
 - **There is no preview proxy.** A resource with a duration is never downscaled
   into a stand-in bitmap, so `previewMaxSize` does nothing and the viewport is
   always drawing the real thing.
 - **`bitrate` replaces `quality`.** A recording has no re-encode loop to fit a
   byte budget, so `maxBytes` has no equivalent — ask for a bitrate instead.
+- **The sound comes with the picture.** See below.
+
+## The soundtrack
+
+The clip keeps its sound. `volume` is a multiplier on the source's own level:
+
+```js
+await exportClip(document, element, resources, { volume: 0.25 });  // quieter
+await exportClip(document, element, resources, { volume: 0 });     // no audio track
+```
+
+Omitted keeps the sound exactly as it is — no gain stage, so the original track
+is re-recorded rather than a resampled copy of it. `0` leaves the track out of
+the file rather than writing silence into it, which is a different thing to
+everything downstream, and the container then stops claiming an Opus track it
+has nothing to put in. Above `1` amplifies, and clips like anything else would.
+`hasSound` on the result says which happened.
+
+Measured on a steady tone: kept at the source's own level within a thousandth,
+a quarter asked for and a quarter measured, and `0` producing a file with no
+audio track at all.
+
+A source with no sound of its own is silent whatever is asked for, and so is one
+the page may not read — the same cross-origin wall the frames hit, below.
 
 ## Exporting the right kind of thing
 

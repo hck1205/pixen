@@ -22,7 +22,14 @@ import {
   type Size,
   type StepReporter,
 } from "@pixen/core";
-import { canvasRecorder, taintedCanvasError, type ClipRecorder, type RecorderOptions } from "./encode.js";
+import { soundtrackFor } from "./audio.js";
+import {
+  canvasRecorder,
+  taintedCanvasError,
+  type ClipRecorder,
+  type RecordedSound,
+  type RecorderOptions,
+} from "./encode.js";
 import { runClip, seekTo } from "./playback.js";
 
 /** What a cancelled video export calls itself, in one place. */
@@ -33,14 +40,26 @@ export type VideoExportStage = "render" | "encode";
 export interface VideoExportOptions extends RecorderOptions {
   /** Output pixels. Defaults to what the document exports a still at. */
   size?: Size;
+  /**
+   * The soundtrack's level, as a multiple of the source's own.
+   *
+   * Omitted keeps the sound exactly as it is. `0` leaves the track out of the
+   * file rather than writing silence into it, which is the difference between a
+   * clip with no audio and a clip with a silent audio track. See
+   * `planSoundtrack`.
+   */
+  volume?: number;
   signal?: AbortSignal;
   /** Reports the clip's own seconds against its length. See `VideoExportStage`. */
   onProgress?: StepReporter<VideoExportStage>;
   /**
    * Somewhere other than a `MediaRecorder` for the frames to go — WebCodecs, a
    * WASM encoder, an upload that streams. See `ClipRecorder`.
+   *
+   * The soundtrack is handed over too, already at the level asked for, because
+   * an encoder that writes a file has to write both halves of it.
    */
-  recorder?: (canvas: HTMLCanvasElement, size: Size) => ClipRecorder;
+  recorder?: (canvas: HTMLCanvasElement, size: Size, sound: RecordedSound) => ClipRecorder;
 }
 
 export interface VideoExportResult {
@@ -52,6 +71,8 @@ export interface VideoExportResult {
   bytes: number;
   /** The container actually written. WebM unless a host's own recorder said otherwise. */
   type: string;
+  /** Whether the file carries the source's sound. See `volume`. */
+  hasSound: boolean;
 }
 
 /**
@@ -88,7 +109,13 @@ export async function exportClip(
   const context = canvas.getContext("2d");
   if (!context) throw new PixenError("EXPORT_FAILED", "Could not acquire a 2D context for the video export");
 
-  const recorder = options.recorder ? options.recorder(canvas, target) : canvasRecorder(canvas, options);
+  // Captured before the recorder, because what the recorder is asked to write
+  // depends on whether there is a soundtrack to write: WebM carries Opus, and
+  // asking for it with nothing to put in it asks for a track that never comes.
+  const sound = soundtrackFor(element, options.volume);
+  const recorder = options.recorder
+    ? options.recorder(canvas, target, sound)
+    : canvasRecorder(canvas, options, sound);
   const wasPaused = element.paused;
   const startedAt = element.currentTime;
 
@@ -120,11 +147,13 @@ export async function exportClip(
       duration: length,
       bytes: blob.size,
       type: blob.type,
+      hasSound: sound.plan !== "silent",
     };
   } catch (cause) {
     recorder.cancel();
     throw cause;
   } finally {
+    await sound.release();
     element.pause();
     element.currentTime = startedAt;
     if (!wasPaused) void element.play().catch(() => undefined);

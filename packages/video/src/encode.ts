@@ -47,21 +47,36 @@ export interface RecorderOptions {
   mimeType?: string;
 }
 
+/** What goes into the file besides the canvas. See `soundtrackFor`. */
+export interface RecordedSound {
+  readonly tracks: readonly MediaStreamTrack[];
+}
+
 /**
  * In preference order, most to least wanted.
  *
  * VP9 first because it is the better codec at the same bitrate; VP8 because it
  * is the one every browser with `MediaRecorder` has had for longest. The bare
  * `video/webm` is the last resort that lets the browser pick for itself.
+ *
+ * A clip with sound asks for the same picture codecs paired with Opus, which is
+ * the only audio codec WebM carries. Asking for it when there is no sound to
+ * write would be asking the browser for a track that never arrives.
  */
-const CANDIDATE_TYPES: readonly string[] = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+const SILENT_TYPES: readonly string[] = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+const SOUND_TYPES: readonly string[] = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
 
 const DEFAULT_FRAME_RATE = 30;
 
-/** The container and codec this browser will actually write, or `null`. */
-export function supportedRecordingType(preferred?: string): string | null {
+/**
+ * The container and codec this browser will actually write, or `null`.
+ *
+ * `withSound` picks which list is tried; a preferred type is taken as given and
+ * is the caller's business to get right.
+ */
+export function supportedRecordingType(preferred?: string, withSound = false): string | null {
   if (typeof MediaRecorder === "undefined") return null;
-  const wanted = preferred ? [preferred] : CANDIDATE_TYPES;
+  const wanted = preferred ? [preferred] : withSound ? SOUND_TYPES : SILENT_TYPES;
   return wanted.find((type) => MediaRecorder.isTypeSupported(type)) ?? null;
 }
 
@@ -106,15 +121,23 @@ function captureCanvas(canvas: HTMLCanvasElement, frameRate: number): MediaStrea
   }
 }
 
-export function canvasRecorder(canvas: HTMLCanvasElement, options: RecorderOptions = {}): ClipRecorder {
-  const mimeType = supportedRecordingType(options.mimeType);
+export function canvasRecorder(
+  canvas: HTMLCanvasElement,
+  options: RecorderOptions = {},
+  sound: RecordedSound = { tracks: [] },
+): ClipRecorder {
+  const withSound = sound.tracks.length > 0;
+  const mimeType = supportedRecordingType(options.mimeType, withSound);
   if (mimeType === null) {
     throw new PixenError("UNSUPPORTED_FORMAT", "This browser cannot record video from a canvas", {
-      details: { requested: options.mimeType ?? CANDIDATE_TYPES },
+      details: { requested: options.mimeType ?? (withSound ? SOUND_TYPES : SILENT_TYPES) },
     });
   }
 
   const stream = captureCanvas(canvas, options.frameRate ?? DEFAULT_FRAME_RATE);
+  // Added to the canvas's own stream rather than recorded separately: one
+  // recorder writing one file is what keeps the two in step.
+  for (const track of sound.tracks) stream.addTrack(track);
   const recorder = new MediaRecorder(stream, {
     mimeType,
     ...(options.bitrate === undefined ? {} : { videoBitsPerSecond: options.bitrate }),

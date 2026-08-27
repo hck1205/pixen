@@ -43,7 +43,12 @@ export interface SampleClipOptions {
   width?: number;
   height?: number;
   mimeType?: string;
+  /** Records a steady tone alongside the picture, for trying the soundtrack. */
+  withSound?: boolean;
 }
+
+/** A plain tone: one frequency, so what comes out the other end is measurable. */
+const SAMPLE_TONE_HZ = 440;
 
 /**
  * Records a sample clip in real time, which is the only speed there is.
@@ -64,7 +69,9 @@ export async function recordSampleClip(options: SampleClipOptions = {}): Promise
   if (!context) throw new Error("Could not acquire a 2D context for the sample clip");
 
   const stream = canvas.captureStream(SAMPLE_FRAME_RATE);
-  const mimeType = options.mimeType ?? "video/webm;codecs=vp8";
+  const tone = options.withSound ? startTone() : null;
+  if (tone) for (const track of tone.tracks) stream.addTrack(track);
+  const mimeType = options.mimeType ?? (tone ? "video/webm;codecs=vp8,opus" : "video/webm;codecs=vp8");
   const recorder = new MediaRecorder(stream, { mimeType });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (event) => {
@@ -110,5 +117,29 @@ export async function recordSampleClip(options: SampleClipOptions = {}): Promise
   recorder.stop();
   await stopped;
   for (const track of stream.getTracks()) track.stop();
+  await tone?.stop();
   return new Blob(chunks, { type: "video/webm" });
+}
+
+/**
+ * A steady tone to record alongside the picture.
+ *
+ * The sample is made in the browser, so its soundtrack has to be too. One
+ * frequency at a constant level, because the thing worth asserting about an
+ * exported soundtrack is how loud it is, and a tone makes that a number.
+ */
+function startTone(): { tracks: MediaStreamTrack[]; stop: () => Promise<void> } {
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const destination = context.createMediaStreamDestination();
+  oscillator.frequency.value = SAMPLE_TONE_HZ;
+  oscillator.connect(destination);
+  oscillator.start();
+  return {
+    tracks: destination.stream.getAudioTracks(),
+    stop: async () => {
+      oscillator.stop();
+      await context.close();
+    },
+  };
 }

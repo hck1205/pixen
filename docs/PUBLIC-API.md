@@ -749,15 +749,18 @@ pixen
 
 ## @pixen/video
 
-27 names.
+32 names.
 
 ```
 ClipRecorder
 Handle
 MediaExportOptions
 MediaExportResult
+RecordedSound
 RecorderOptions
 SharedMediaOptions
+Soundtrack
+SoundtrackPlan
 TRIM_STRINGS
 TrackLayout
 VideoExportOptions
@@ -772,6 +775,8 @@ exportClip
 exportMedia
 isMoving
 openVideo
+planSoundtrack
+soundtrackFor
 supportedRecordingType
 taintedCanvasError
 trackLayout

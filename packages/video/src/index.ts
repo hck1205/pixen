@@ -11,6 +11,7 @@
  * and writes WebM, both measured, and neither is a footnote.
  */
 export * from "./source.js";
+export * from "./audio.js";
 export * from "./encode.js";
 export * from "./export.js";
 export * from "./media.js";
