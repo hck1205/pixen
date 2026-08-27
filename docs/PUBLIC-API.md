@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-480 names.
+482 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -29,6 +29,7 @@ AnyCanvas
 BYTES_PER_PIXEL
 BatchOptions
 BatchOutcome
+BlankSheet
 Blocker
 BudgetOptions
 BuildOptions
@@ -243,6 +244,7 @@ applyToPoint
 area
 assertDrawableSize
 begin
+blankPicture
 bottom
 boundsOf
 buildSceneOps

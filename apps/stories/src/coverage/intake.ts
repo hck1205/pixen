@@ -20,6 +20,15 @@ export const INTAKE_COVERAGE: CoverageGroup[] = [
     summary: "Every way a picture reaches the editor, and what is read off it on the way.",
     entries: [
       {
+        capability: "Starting without a picture",
+        layer: "Engine",
+        detail:
+          "`createBlank` makes the sheet and registers it like any other picture, so every tool, the " +
+          "export and a saved document work on it without knowing it started empty. Transparent " +
+          "unless a colour is asked for",
+        evidence: [browser("editor.spec.ts"), unit("lifecycle.test.ts"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
         capability: "Input types",
         layer: "Engine",
         detail:

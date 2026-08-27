@@ -485,6 +485,20 @@ behind.
 | Astro | Use a `client:*` directive on the island that renders the editor |
 | Angular Universal | Import normally; the element's own registration is a no-op on the server |
 
+## Starting without a picture
+
+A poster, a diagram, a caption card, a screenshot annotated onto nothing:
+
+```js
+editor.createBlank({ width: 1080, height: 1080, background: "#ffffff" });
+```
+
+Transparent unless a colour is asked for, which is what blank means in a format
+that can carry it. The sheet is registered like any other picture, so every
+tool, the export and a saved document work on it without knowing it started
+empty — and a sheet larger than the platform can draw is refused when it is
+asked for rather than at the first export.
+
 ## Languages
 
 English is in the bundle. The other eight are imported when they are wanted:

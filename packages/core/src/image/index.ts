@@ -1,4 +1,5 @@
 export * from "./canvas.js";
+export * from "./blank.js";
 export * from "./auto-orient.js";
 export * from "./exif.js";
 export * from "./jpeg.js";

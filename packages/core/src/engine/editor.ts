@@ -1,4 +1,5 @@
-import { PixenError,  } from "../errors/index.js";
+import { PixenError } from "../errors/index.js";
+import { blankPicture, type BlankSheet } from "../image/index.js";
 import * as commands from "./commands/index.js";
 import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
@@ -67,6 +68,9 @@ export interface MutateOptions {
 }
 
 /** However an export is asked for, it fails as the same thing. */
+/** What a sheet started from nothing is called, until a host renames it. */
+const BLANK_NAME = "blank.png";
+
 const EXPORT_FAILURE = { code: "EXPORT_FAILED", message: "The image could not be exported" } as const;
 
 /**
@@ -251,6 +255,33 @@ export class Editor {
         return this.open(resource);
       },
     );
+  }
+
+  /**
+   * Starts a document on an empty sheet.
+   *
+   * A poster, a diagram, a caption card, a screenshot annotated onto nothing —
+   * all of them begin without a photograph, and every document points at a
+   * registered bitmap. So the sheet is made and registered like any other
+   * picture, which means every tool, the export and a saved document all work
+   * on it without knowing it started empty.
+   *
+   * Transparent unless a colour is given, which is what "blank" means in a
+   * format that can carry it.
+   */
+  createBlank(sheet: BlankSheet): EditorDocument {
+    this.#assertAlive();
+    // Adopted rather than loaded: the sheet is already pixels, so there is
+    // nothing to decode and no reason to make the caller wait for a promise.
+    const surface = blankPicture(sheet, sheet);
+    const resource = this.resources.adopt({
+      source: surface.canvas,
+      width: surface.canvas.width,
+      height: surface.canvas.height,
+      mimeType: "image/png",
+      name: sheet.name ?? BLANK_NAME,
+    });
+    return this.open(resource);
   }
 
   /** Calls off a load in flight. True when there was one. */

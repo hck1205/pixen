@@ -80,7 +80,13 @@ export const EXEMPT = {
   // Raised from 785 for `setCropWithinImage`: one more delegation, and the
   // paragraph saying that turning the rule back on brings an overhanging crop
   // home rather than leaving the document in a state its own rule forbids.
-  "packages/core/src/engine/editor.ts": 795,
+  //
+  // Raised from 795 for `createBlank`. Not a delegation: it is the second way a
+  // document begins, beside `load`, and it makes the picture rather than
+  // reading one. It belongs with the other way in because "how does a document
+  // start" is one question, and the alternative was a module holding one
+  // function and four ports into this class.
+  "packages/core/src/engine/editor.ts": 826,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's

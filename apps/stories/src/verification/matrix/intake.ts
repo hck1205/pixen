@@ -142,6 +142,16 @@ export const INTAKE_CLAIMS: ClaimGroup[] = [
         verdict: "unmeasured",
         evidence: [unit("worker.test.ts"), story("SupportReport"), doc("docs/BROWSER-SUPPORT.md")],
       },
+      {
+        capability: "Starting without a picture",
+        pixen:
+          "The sheet is made and registered like any other picture, so the model keeps one kind of " +
+          "source and no special case for emptiness — and everything that works on a photograph " +
+          "works on a blank one",
+        verdict: "met",
+        market: required("examples", "An empty canvas to start from"),
+        evidence: [browser("editor.spec.ts"), doc("docs/FRAMEWORKS.md")],
+      },
     ],
   },
 ];

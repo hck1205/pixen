@@ -3178,3 +3178,65 @@ test("retouching grows the surroundings over a blemish", async ({ page }) => {
   // adding an annotation, and the step name is where the difference shows.
   expect(outcome.step).toBe("retouch");
 });
+
+/**
+ * A poster, a diagram, a caption card, a screenshot annotated onto nothing —
+ * all of them begin without a photograph, and every document points at a
+ * registered bitmap. So the sheet is made and registered like any other
+ * picture, which means every tool, the export and a saved document work on it
+ * without knowing it started empty.
+ */
+test("a document can start on an empty sheet", async ({ page }) => {
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const editor = element.editor;
+
+    const corner = async () => {
+      const data = await editor.renderToImageData();
+      return [data.data[0]!, data.data[1]!, data.data[2]!, data.data[3]!];
+    };
+
+    editor.createBlank({ width: 400, height: 300 });
+    const blank = { size: editor.outputSize, name: editor.document.source.name, pixel: await corner() };
+
+    editor.createBlank({ width: 120, height: 90, background: "#ff0000", name: "poster.png" });
+    const painted = { size: editor.outputSize, name: editor.document.source.name, pixel: await corner() };
+
+    // It is a document like any other: annotate it, export it, undo it.
+    editor.addLayer({
+      id: "on_blank",
+      type: "rect",
+      visible: true,
+      locked: false,
+      opacity: 1,
+      rotation: 0,
+      space: "image",
+      frame: { x: 10, y: 10, width: 60, height: 40 },
+      color: "#0000ff",
+      fill: "#0000ff",
+      strokeWidth: 0,
+      dash: null,
+      cornerRadius: 0,
+    } as never);
+    const written = await editor.export({ format: "image/png" });
+    const layers = editor.document.layers.length;
+    editor.undo();
+
+    return { blank, painted, written: { bytes: written.bytes, size: `${written.width}x${written.height}` }, layers, afterUndo: editor.document.layers.length };
+  });
+
+  // Transparent unless a colour is asked for, which is what blank means.
+  expect(outcome.blank.size).toEqual({ width: 400, height: 300 });
+  expect(outcome.blank.pixel[3]).toBe(0);
+  expect(outcome.blank.name).toBe("blank.png");
+
+  expect(outcome.painted.size).toEqual({ width: 120, height: 90 });
+  expect(outcome.painted.pixel).toEqual([255, 0, 0, 255]);
+  expect(outcome.painted.name).toBe("poster.png");
+
+  // And everything else works on it.
+  expect(outcome.written.size).toBe("120x90");
+  expect(outcome.written.bytes).toBeGreaterThan(0);
+  expect(outcome.layers).toBe(1);
+  expect(outcome.afterUndo).toBe(0);
+});

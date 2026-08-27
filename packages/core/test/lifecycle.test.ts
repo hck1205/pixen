@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createEditor } from "../src/engine/editor.js";
 import * as commands from "../src/engine/commands/index.js";
 import { replaceSource } from "../src/engine/commands/index.js";
 import { createDocument, cropBounds, CROP_OUTSIDE_ROOM, stageRect } from "../src/model/document.js";
@@ -219,5 +220,22 @@ describe("a crop that may hang off the picture", () => {
 
   it("is the picture itself while the rule holds", () => {
     expect(cropBounds(document())).toEqual(stageRect(document()));
+  });
+});
+
+/**
+ * A poster, a diagram, a caption card: all of them begin without a photograph.
+ *
+ * Making the sheet needs a canvas, so what it *becomes* is asserted in the
+ * browser suite. What can be said here is what happens before any canvas is
+ * asked for.
+ */
+describe("starting from an empty sheet", () => {
+  it("refuses a sheet larger than the platform can draw", () => {
+    // Checked before a surface is allocated, so the refusal is the same in node
+    // as in a browser — and arrives when the sheet is asked for rather than at
+    // the first export.
+    const editor = createEditor();
+    expect(() => editor.createBlank({ width: 100_000, height: 100_000 })).toThrow(PixenError);
   });
 });
