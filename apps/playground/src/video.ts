@@ -14,6 +14,7 @@ import {
   openVideo,
   supportedRecordingType,
   clipExportCost,
+  ClipPlayer,
   createTrimPlugin,
   type VideoSource,
 } from "@pixen/video";
@@ -55,6 +56,8 @@ async function openSample(): Promise<void> {
     // `open` starts a new document without releasing the outgoing source.
     if (opened) element.editor.resources.dispose(opened.resource.id);
     opened = await openVideo(element.editor as never, blob, { name: "sample.webm" });
+    player?.destroy();
+    player = new ClipPlayer(opened.element, element.editor as never);
     // Trim to the middle second, so the demo opens on something already trimmed.
     element.editor.dispatch({ kind: "set-clip", range: SAMPLE_MIDDLE_BAND });
     say(clipStatus, `Open: ${opened.duration.toFixed(2)}s, trimmed to the middle second.`);
@@ -119,7 +122,10 @@ function boundsFromUrl(): ClipBounds {
 // The trim strip ships with the extension rather than with the editor, so the
 // demo installs it the way a customer would.
 const clipBounds = boundsFromUrl();
-element?.use(createTrimPlugin(clipBounds));
+// The player arrives with the picture, so the plugin is handed a way to ask
+// for it rather than the thing itself.
+let player: ClipPlayer | null = null;
+element?.use(createTrimPlugin(clipBounds, () => player));
 
 openButton?.addEventListener("click", () => void openSample());
 exportButton?.addEventListener("click", () => void exportOpened());
@@ -132,5 +138,15 @@ if (supportedRecordingType() === null) {
 // The browser suite drives this page rather than reaching into the bundle, so
 // the three module functions it cannot get at from the DOM are put where it can.
 Object.assign(window as unknown as Record<string, unknown>, {
-  pixenVideoDemo: { recordSampleClip, exportClip, exportMedia, openVideo, clipBounds, uploadExport, clipExportCost },
+  pixenVideoDemo: {
+    recordSampleClip,
+    exportClip,
+    exportMedia,
+    openVideo,
+    clipBounds,
+    uploadExport,
+    clipExportCost,
+    player: () => player,
+    sourceElement: () => opened?.element ?? null,
+  },
 });

@@ -171,6 +171,41 @@ audio track at all.
 A source with no sound of its own is silent whatever is asked for, and so is one
 the page may not read — the same cross-origin wall the frames hit, below.
 
+## Playing it
+
+The editor could trim a video it could not play, which is trimming blind.
+`ClipPlayer` plays the *clip* rather than the file:
+
+```js
+const { element } = await openVideo(editor, file);
+const player = new ClipPlayer(element, editor);
+
+editor.use(createTrimPlugin({}, () => player));   // a play button on the strip
+
+player.play();          // and pause(), toggle(), paused
+player.mute();          // and unmute(), toggleMute(), muted
+player.currentTime;     // seconds in the source; setting it lands on kept film
+player.duration;        // the source's own
+player.clipDuration;    // what the kept parts add up to — what an export writes
+player.on("time", ({ source, clip }) => …);   // and "play", "pause", "mute"
+```
+
+Playing a clip runs each kept part and skips what is between, which is the thing
+no media element does. Measured across a cut: fifteen position reports and not
+one of them from inside the removed stretch. Setting `currentTime` into a cut
+lands on the start of the next kept part, because that is where playing from
+there would have gone anyway.
+
+**What it reports is what it was asked for, not what the element is doing.** An
+export borrows the same element and plays it — measured, a host listening to the
+element hears a `play` and a `pause` it never asked for — so a player that
+echoed the element would announce that the picture started every time somebody
+saved. Pause before exporting; what comes back is still paused.
+
+The element arrives muted, because a browser will not play an unmuted video
+nobody clicked on and the export needs it that way. The sound button is how it
+comes back.
+
 ## Keeping more than one part
 
 A clip is a list of kept parts, in order and never overlapping:

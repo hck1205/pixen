@@ -12,12 +12,18 @@
  * ```
  */
 import type { ClipBounds } from "@pixen/core";
+import type { ClipPlayer } from "../player.js";
 import type { PixenPlugin } from "@pixen/web";
 import { TRIM_STRINGS } from "./strings.js";
 import { buildTrimStrip, trimStyleElement, trimmableDuration, type TrimMark } from "./strip.js";
 
 /**
- * The strip, with a length the host requires of a clip.
+ * The strip, with a length the host requires of a clip, and something to play.
+ *
+ * `player` is asked for on every build rather than held, because the picture
+ * arrives after the plugin does: a host installs the strip once and opens
+ * videos into it for as long as the editor lives. Without one the strip trims,
+ * which is what it always did; with one it can be watched.
  *
  * A bound is on the *kept* length, not on what may be loaded: a source longer
  * than `max` opens as it always did, and the handles stop rather than the file
@@ -27,7 +33,7 @@ import { buildTrimStrip, trimStyleElement, trimmableDuration, type TrimMark } fr
  * editor.use(createTrimPlugin({ max: 30 }));
  * ```
  */
-export function createTrimPlugin(bounds: ClipBounds = {}): PixenPlugin {
+export function createTrimPlugin(bounds: ClipBounds = {}, player?: () => ClipPlayer | null): PixenPlugin {
   return (context) => {
     const text = context.addStrings(TRIM_STRINGS);
     // Where the handles are, which outlives a rebuild: the section is rebuilt
@@ -43,10 +49,11 @@ export function createTrimPlugin(bounds: ClipBounds = {}): PixenPlugin {
       // A still picture has no clip, and a strip over one would be a control
       // that does nothing rather than one that is merely disabled.
       when: () => trimmableDuration(context.editor) !== null,
-      build: () => buildTrimStrip(context.editor, text, bounds, mark),
+      build: () => buildTrimStrip(context.editor, text, bounds, mark, player?.() ?? null),
     });
 
     return () => {
+      mark.release?.();
       remove();
       style.remove();
     };

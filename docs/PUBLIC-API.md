@@ -756,10 +756,12 @@ pixen
 
 ## @pixen/video
 
-39 names.
+43 names.
 
 ```
 ClipExportCost
+ClipPlayer
+ClipPlayerEvents
 ClipRecorder
 Handle
 LONG_EXPORT_SECONDS
@@ -782,12 +784,14 @@ buildTrimStrip
 canvasRecorder
 clipExportCost
 clipFilename
+clipTimeOf
 createTrimPlugin
 dragHandle
 exportClip
 exportMedia
 extensionForContainer
 isMoving
+nextKeptSecond
 openVideo
 planSoundtrack
 soundtrackFor

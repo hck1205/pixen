@@ -39,6 +39,18 @@ type Demo = {
   }>;
   uploadExport(result: unknown, target: { url: string }): Promise<{ status: number; body: string }>;
   clipExportCost(document: unknown): { seconds: number; estimatedSeconds: number; parts: number; long: boolean };
+  player(): {
+    play(): void;
+    pause(): void;
+    toggle(): void;
+    readonly paused: boolean;
+    readonly muted: boolean;
+    readonly duration: number;
+    readonly clipDuration: number;
+    currentTime: number;
+    on(event: string, listener: (payload: never) => void): () => void;
+  } | null;
+  sourceElement(): HTMLVideoElement | null;
   exportMedia(
     document: unknown,
     resources: unknown,
@@ -1065,4 +1077,120 @@ test("an exported clip is named, and goes down the same wire as a picture", asyn
   // And the cost of that export was knowable before it started.
   expect(outcome.cost.seconds).toBeGreaterThan(0.5);
   expect(outcome.cost.long).toBe(false);
+});
+
+/**
+ * The editor could trim a video it could not play, which is trimming blind.
+ *
+ * A clip is not a file: playing one means running each kept part and skipping
+ * what is between, which is the thing no media element does. The state the
+ * player reports is what it was *asked* for rather than what the element is
+ * doing, because an export borrows the same element and plays it — measured, a
+ * host listening to the element sees a `play` and a `pause` it never asked for.
+ */
+test("the clip plays, skipping what was cut out of it", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+  await page.locator("#open-sample").click();
+  await page.waitForFunction(() => Boolean(window.pixenVideoDemo.player()), null, { timeout: 25_000 });
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const player = window.pixenVideoDemo.player()!;
+    const duration = element.editor.document.source.duration as number;
+
+    // A gap in the middle, which is what the playhead must never sit inside.
+    const gap = { from: duration * 0.25, to: duration * 0.7 };
+    element.editor.dispatch({
+      kind: "set-clip",
+      range: [
+        { start: 0, end: gap.from },
+        { start: gap.to, end: duration },
+      ],
+    });
+
+    const events: string[] = [];
+    const seenAt: number[] = [];
+    player.on("play", () => events.push("play"));
+    player.on("pause", (detail) => events.push(detail.ended ? "ended" : "pause"));
+    player.on("time", (at) => seenAt.push(at.source));
+
+    player.play();
+    const playing = player.paused;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    player.pause();
+
+    return {
+      duration,
+      clipDuration: player.clipDuration,
+      pausedWhilePlaying: playing,
+      pausedAfter: player.paused,
+      events: events.join(" "),
+      samples: seenAt.length,
+      insideGap: seenAt.filter((at) => at > gap.from + 0.1 && at < gap.to - 0.1).length,
+    };
+  });
+
+  // The kept film is shorter than the source, and that is what plays.
+  expect(outcome.clipDuration).toBeLessThan(outcome.duration);
+  expect(outcome.pausedWhilePlaying).toBe(false);
+  expect(outcome.pausedAfter).toBe(true);
+  expect(outcome.events).toBe("play pause");
+
+  // The playhead was reported often, and never once from inside the cut.
+  expect(outcome.samples).toBeGreaterThan(5);
+  expect(outcome.insideGap).toBe(0);
+});
+
+/**
+ * An export borrows the element and plays it. A player that echoed the
+ * element's own events would tell a host the picture started and stopped every
+ * time somebody saved.
+ */
+test("an export does not tell the player the picture started playing", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+  await page.locator("#open-sample").click();
+  await page.waitForFunction(() => Boolean(window.pixenVideoDemo.player()), null, { timeout: 25_000 });
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const player = window.pixenVideoDemo.player()!;
+    const media = window.pixenVideoDemo.sourceElement()!;
+
+    const fromPlayer: string[] = [];
+    player.on("play", () => fromPlayer.push("play"));
+    player.on("pause", () => fromPlayer.push("pause"));
+
+    // What a host listening to the element would have heard instead.
+    const fromElement: string[] = [];
+    media.addEventListener("play", () => fromElement.push("play"));
+    media.addEventListener("pause", () => fromElement.push("pause"));
+
+    element.editor.dispatch({ kind: "set-clip", range: [{ start: 0, end: 0.6 }] });
+    // Sampled while the export is running the element, which is the moment the
+    // element and the player disagree — and the moment the player has to be
+    // reporting what it was asked for.
+    const duringExport: boolean[] = [];
+    await window.pixenVideoDemo.exportClip(element.editor.document, media, element.editor.resources, {
+      onProgress: () => duringExport.push(player.paused),
+    });
+
+    return {
+      fromPlayer: fromPlayer.join(" "),
+      fromElement: fromElement.join(" "),
+      paused: player.paused,
+      pausedThroughout: duringExport.length > 0 && duringExport.every(Boolean),
+      elementPlayedDuringExport: duringExport.length > 0,
+    };
+  });
+
+  // The element really did start and stop, which is why echoing it is a lie.
+  expect(outcome.fromElement).toContain("play");
+  // And the player said nothing, because nobody asked it for anything.
+  expect(outcome.fromPlayer).toBe("");
+  expect(outcome.paused).toBe(true);
+  // Including all the way through, while the element was running.
+  expect(outcome.elementPlayedDuringExport).toBe(true);
+  expect(outcome.pausedThroughout).toBe(true);
 });

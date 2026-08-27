@@ -71,6 +71,16 @@ export const VIDEO_COVERAGE: CoverageGroup[] = [
         evidence: [browser("video.spec.ts"), doc("docs/VIDEO.md")],
       },
       {
+        capability: "Playing the clip",
+        layer: "Engine",
+        detail:
+          "Playing a clip runs each kept part and skips what is between, which no media element " +
+          "does — measured across a cut, fifteen position reports and none from inside it. What the " +
+          "player reports is what it was asked for, so an export borrowing the element cannot make " +
+          "it announce that the picture started",
+        evidence: [unit("player.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+      },
+      {
         capability: "Knowing the wait before taking it",
         layer: "Engine",
         detail:
