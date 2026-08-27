@@ -3025,3 +3025,72 @@ test("the undo button names its step in the editor's own language", async ({ pag
   expect(after).toContain("자르기");
   expect(after).not.toContain("Crop");
 });
+
+/**
+ * A crop usually means "take a piece out of this photograph". It is the wrong
+ * meaning for a square cut from a panorama, or for a rotated picture whose
+ * corners would otherwise have to be zoomed away — and what lies outside is
+ * whatever the background colour and the backdrop put there.
+ */
+test("a crop can hang off the picture, onto the background behind it", async ({ page }) => {
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const editor = element.editor;
+
+    const read = async () => {
+      const data = await editor.renderToImageData();
+      const at = (x: number, y: number): string => {
+        const i = (y * data.width + x) * 4;
+        return `${data.data[i]},${data.data[i + 1]},${data.data[i + 2]}`;
+      };
+      return {
+        size: `${data.width}x${data.height}`,
+        corner: at(15, 15),
+        middle: at(Math.round(data.width / 2), Math.round(data.height / 2)),
+      };
+    };
+
+    // Refused while the rule holds.
+    editor.setCropRect({ x: -300, y: -200, width: 1200, height: 900 });
+    const clamped = editor.document.crop;
+
+    editor.setCropWithinImage(false);
+    editor.setCropRect({ x: -300, y: -200, width: 1200, height: 900 });
+    editor.setOutput({ background: "#ff00ff" });
+    const overhanging = editor.document.crop;
+    const colourOnly = await read();
+
+    // A backdrop of a deliberately different shape, so `cover` has something to
+    // overflow on.
+    const canvas = window.document.createElement("canvas");
+    canvas.width = 40;
+    canvas.height = 200;
+    const paint = canvas.getContext("2d")!;
+    paint.fillStyle = "#00ffff";
+    paint.fillRect(0, 0, 40, 200);
+    const registered = await editor.resources.load(await createImageBitmap(canvas));
+    editor.setOutput({ backgroundImage: registered.id });
+    const withBackdrop = await read();
+
+    // And back home again when the rule is restored.
+    editor.setCropWithinImage(true);
+    const broughtHome = editor.document.crop;
+
+    return { clamped, overhanging, colourOnly, withBackdrop, broughtHome };
+  });
+
+  // The rule held first time.
+  expect(outcome.clamped!.x).toBeGreaterThanOrEqual(0);
+  // Then it did not.
+  expect(outcome.overhanging!.x).toBe(-300);
+  expect(outcome.colourOnly.size).toBe("1200x900");
+  // The corner is outside the photograph, so it is whatever is behind it.
+  expect(outcome.colourOnly.corner).toBe("255,0,255");
+  expect(outcome.withBackdrop.corner).toBe("0,255,255");
+  // And the middle is the photograph either way.
+  expect(outcome.colourOnly.middle).toBe(outcome.withBackdrop.middle);
+  expect(outcome.withBackdrop.middle).not.toBe("0,255,255");
+  // Restoring the rule brings the crop home rather than leaving the document
+  // in a state its own rule forbids.
+  expect(outcome.broughtHome!.x).toBeGreaterThanOrEqual(0);
+});

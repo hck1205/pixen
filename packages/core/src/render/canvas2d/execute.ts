@@ -105,6 +105,14 @@ export function executeOps(context: Canvas2D, ops: readonly DrawOp[]): void {
       case "image":
         context.drawImage(op.source, 0, 0, op.width, op.height);
         break;
+      case "backdrop":
+        context.save();
+        context.beginPath();
+        context.rect(op.clip.x, op.clip.y, op.clip.width, op.clip.height);
+        context.clip();
+        context.drawImage(op.source, op.rect.x, op.rect.y, op.rect.width, op.rect.height);
+        context.restore();
+        break;
       case "layer-image":
         drawLayerImage(context, op);
         break;

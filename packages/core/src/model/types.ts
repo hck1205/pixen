@@ -6,7 +6,7 @@ import type { LineEnd } from "./line.js";
 export type { LineEnd };
 export { LINE_ENDS } from "./line.js";
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -143,6 +143,25 @@ export interface OutputSettings {
   /** Painted under the image; needed when exporting transparency to JPEG. */
   background: string | null;
   /**
+   * A registered bitmap painted under the picture, over `background`.
+   *
+   * Scaled to cover the exported frame and centred, the way a backdrop behaves
+   * — a picture that showed letterboxing would be a picture with a border, and
+   * a border is what `frame` is for.
+   *
+   * A resource id rather than a source, like an image layer's, because a
+   * document is JSON: bitmaps belong to the `ResourceManager`, keyed by id.
+   */
+  backgroundImage: string | null;
+  /**
+   * Whether the adjustments reach the backdrop as well as the picture.
+   *
+   * Off, because the backdrop is usually the host's own furniture — a studio
+   * sweep, a brand panel — and desaturating the photograph is not a reason to
+   * desaturate the wall behind it. On, it is treated as part of the picture.
+   */
+  backgroundFilter: boolean;
+  /**
    * Whether a target larger than the source may enlarge the picture.
    *
    * Off, because enlarging is a thing to ask for rather than a thing to be
@@ -164,6 +183,20 @@ export interface EditorDocument {
   transform: DocumentTransform;
   /** Stage-space crop region. Absent means "the whole stage". */
   crop: Rect | null;
+  /**
+   * Whether the crop has to stay inside the picture.
+   *
+   * True, which is what a crop usually means: take a piece out of this
+   * photograph. False lets the crop hang off the edges, so a square can be cut
+   * from a panorama without losing its ends and a rotated picture keeps its
+   * corners instead of being zoomed in to hide them. What lies outside is
+   * whatever `output.background` and `output.backgroundImage` put there.
+   *
+   * The bound is the stage rect — the picture's own rectangle after its
+   * rotation and flips — because that is the rectangle a crop is measured
+   * against everywhere else.
+   */
+  cropWithinImage: boolean;
   /**
    * The kept parts of a moving source, in seconds — in order and never
    * overlapping. Absent means all of it, and is what a still picture always
@@ -191,5 +224,10 @@ export const DEFAULT_OUTPUT: Readonly<OutputSettings> = Object.freeze({
   format: null,
   quality: null,
   background: null,
+  backgroundImage: null,
+  backgroundFilter: false,
   upscale: false,
 });
+
+/** A crop is a piece of the picture unless a host says otherwise. */
+export const DEFAULT_CROP_WITHIN_IMAGE = true;

@@ -9,7 +9,9 @@
 import { PixenError } from "../../errors/index.js";
 import { scaling } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
+import { cropBounds } from "../../model/document.js";
 import { clampAdjustments } from "../../model/adjustments.js";
+import { constrainRect } from "../../geometry/rect.js";
 import { clampSelection, clipLimits, type ClipBounds, type ClipRange, type ClipSelection } from "../../model/clip.js";
 import { DEFAULT_FRAME, MAX_FRAME_WIDTH, MIN_FRAME_WIDTH } from "../../model/defaults.js";
 import { clamp } from "../../fp/function.js";
@@ -53,6 +55,19 @@ export function setFrame(document: EditorDocument, frame: Partial<FrameSettings>
 
 export function setOutput(document: EditorDocument, output: Partial<OutputSettings>): EditorDocument {
   return { ...document, output: { ...document.output, ...output } };
+}
+
+/**
+ * Whether the crop has to stay inside the picture.
+ *
+ * Turning it back on brings an overhanging crop home rather than leaving the
+ * document in a state its own rule forbids — the same reason clearing a trim
+ * under a ceiling leaves the longest clip the rule allows.
+ */
+export function setCropWithinImage(document: EditorDocument, within: boolean): EditorDocument {
+  const next = { ...document, cropWithinImage: within };
+  if (!within || !next.crop) return next;
+  return { ...next, crop: constrainRect(next.crop, cropBounds(next), { aspectRatio: next.aspectRatio }) };
 }
 
 /**

@@ -539,6 +539,16 @@ export class Editor {
     return this.dispatch({ kind: "set-crop", rect });
   }
 
+  /**
+   * Whether the crop has to stay inside the picture. See `cropWithinImage`.
+   *
+   * Turning it back on brings an overhanging crop home, so the document is
+   * never left in a state its own rule forbids.
+   */
+  setCropWithinImage(within: boolean): this {
+    return this.dispatch({ kind: "set-crop-within-image", within });
+  }
+
   setAspectRatio(aspectRatio: number | null): this {
     return this.dispatch({ kind: "set-aspect-ratio", ratio: aspectRatio });
   }

@@ -27,7 +27,7 @@ import {
 } from "../../geometry/straighten.js";
 import { imageToStage, stageToImage } from "../../geometry/spaces.js";
 import type { Point, Rect } from "../../geometry/types.js";
-import { effectiveCrop, stageRect } from "../../model/document.js";
+import { cropBounds, effectiveCrop, stageRect } from "../../model/document.js";
 import type { DocumentTransform, EditorDocument } from "../../model/types.js";
 
 /**
@@ -41,8 +41,6 @@ export function remapCrop(
   document: EditorDocument,
   nextTransform: DocumentTransform,
 ): { crop: Rect | null; aspectRatio: number | null } {
-  const nextStage = stageRect({ ...document, transform: nextTransform });
-
   if (!document.crop) {
     const aspectRatio = rotateAspectRatio(document, nextTransform);
     return { crop: null, aspectRatio };
@@ -53,7 +51,7 @@ export function remapCrop(
   const mapped = transformBounds(compose(imageToNext, previousToImage), document.crop);
 
   const aspectRatio = rotateAspectRatio(document, nextTransform);
-  const crop = constrainRect(mapped, nextStage, { aspectRatio });
+  const crop = constrainRect(mapped, cropBounds({ ...document, transform: nextTransform }), { aspectRatio });
   return { crop, aspectRatio };
 }
 
@@ -127,7 +125,7 @@ export function flip(document: EditorDocument, axis: "x" | "y"): EditorDocument 
 
 export function setCrop(document: EditorDocument, crop: Rect | null): EditorDocument {
   if (crop === null) return { ...document, crop: null };
-  return { ...document, crop: constrainRect(crop, stageRect(document), { aspectRatio: document.aspectRatio }) };
+  return { ...document, crop: constrainRect(crop, cropBounds(document), { aspectRatio: document.aspectRatio }) };
 }
 
 export function dragCropHandle(
@@ -136,7 +134,7 @@ export function dragCropHandle(
   pointer: Point,
   minSize = DEFAULT_MIN_CROP_SIZE,
 ): EditorDocument {
-  const bounds = stageRect(document);
+  const bounds = cropBounds(document);
   const crop = resizeCrop(effectiveCrop(document), handle, pointer, {
     bounds,
     aspectRatio: document.aspectRatio,
@@ -146,7 +144,7 @@ export function dragCropHandle(
 }
 
 export function panCrop(document: EditorDocument, delta: Point): EditorDocument {
-  return { ...document, crop: moveCrop(effectiveCrop(document), delta, stageRect(document)) };
+  return { ...document, crop: moveCrop(effectiveCrop(document), delta, cropBounds(document)) };
 }
 
 export function setAspectRatio(document: EditorDocument, aspectRatio: number | null): EditorDocument {

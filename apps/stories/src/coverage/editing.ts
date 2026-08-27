@@ -22,6 +22,25 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
     summary: "Everything that changes where the pixels are rather than what colour they are.",
     entries: [
       {
+        capability: "A crop that may hang off the picture",
+        layer: "Engine",
+        detail:
+          "A square cut from a panorama keeps its ends, and a rotated picture keeps its corners " +
+          "instead of being zoomed in to hide them. What lies outside is the background colour and " +
+          "the backdrop; restoring the rule brings an overhanging crop home rather than leaving the " +
+          "document in a state its own rule forbids",
+        evidence: [unit("lifecycle.test.ts"), browser("editor.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+      },
+      {
+        capability: "A bitmap behind the picture",
+        layer: "Engine",
+        detail:
+          "Scaled to cover the exported frame and centred, over the background colour and under the " +
+          "photograph — a backdrop that letterboxed would be a border, and a border is what the frame " +
+          "is for. The adjustments reach it only when the document says so",
+        evidence: [browser("editor.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+      },
+      {
         capability: "A layer belongs to the picture or to the frame",
         layer: "Engine",
         detail:

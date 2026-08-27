@@ -34,6 +34,13 @@ export interface Scene {
   /** Pixel size of the render target. */
   target: Size;
   background: string | null;
+  /**
+   * The bitmap painted under the picture, already placed.
+   *
+   * Covering the region and centred, which is why the rect can hang outside it:
+   * a backdrop that letterboxed would be a border, and a border is `frame`.
+   */
+  backdrop: { source: CanvasImageSource; rect: Rect; filtered: boolean } | null;
   /** CSS filter string, empty when nothing in the chain is active. */
   filter: string;
   /** The values behind that string, for the renderer's pixel fallback. */
@@ -127,6 +134,7 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     sourceRect,
     target,
     background: document.output.background,
+    backdrop: backdropFor(document, input, transformBounds(compose(view, regionMatrix), sourceRect)),
     filter: cssFilter(document.adjustments),
     adjustments: document.adjustments,
     frame: document.frame,
@@ -167,6 +175,49 @@ export function createScene(document: EditorDocument, input: SceneInput, options
       }),
     scale,
   };
+}
+
+/**
+ * Where the backdrop lands, or null when there is not one.
+ *
+ * `cover` rather than `contain`: a backdrop exists to leave no gap, so the axis
+ * that would have left one is the axis that overflows.
+ */
+function backdropFor(
+  document: EditorDocument,
+  input: SceneInput,
+  region: Rect,
+): Scene["backdrop"] {
+  const id = document.output.backgroundImage;
+  if (!id) return null;
+  const source = input.resolveResource?.(id);
+  // A document can outlive the backdrop it referenced, and a missing bitmap
+  // renders as nothing rather than as an error — the same rule as an image
+  // layer's.
+  if (!source) return null;
+
+  const natural = naturalSize(source);
+  const scale = Math.max(region.width / natural.width, region.height / natural.height);
+  const width = natural.width * scale;
+  const height = natural.height * scale;
+  return {
+    source,
+    rect: {
+      x: region.x + (region.width - width) / 2,
+      y: region.y + (region.height - height) / 2,
+      width,
+      height,
+    },
+    filtered: document.output.backgroundFilter,
+  };
+}
+
+/** What a drawable is, in its own pixels, whichever kind of drawable it is. */
+function naturalSize(source: CanvasImageSource): Size {
+  const measured = source as { width?: number; height?: number; videoWidth?: number; videoHeight?: number };
+  const width = measured.videoWidth || measured.width || 1;
+  const height = measured.videoHeight || measured.height || 1;
+  return { width, height };
 }
 
 function sizeOf(rect: Rect): Size {

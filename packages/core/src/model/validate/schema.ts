@@ -1,6 +1,6 @@
 import { PixenError } from "../../errors/index.js";
 import { ok, type Result } from "../../fp/result.js";
-import { IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../types.js";
+import { DEFAULT_CROP_WITHIN_IMAGE, DEFAULT_OUTPUT, IMAGE_FORMATS, type EditorDocument, type ImageFormat } from "../types.js";
 import {
   arrayOf,
   boolean,
@@ -46,6 +46,7 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
       flipY: field("flipY", withDefault(boolean, false)),
     }),
     crop: field("crop", nullable(rect)),
+    cropWithinImage: field("cropWithinImage", withDefault(boolean, DEFAULT_CROP_WITHIN_IMAGE)),
     clip: field("clip", withDefault(nullable(clipSelection), null)),
     aspectRatio: field("aspectRatio", nullable(finiteNumber)),
     adjustments: group("adjustments", adjustmentFields),
@@ -57,6 +58,8 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
       format: field("format", nullable(imageFormat)),
       quality: field("quality", withDefault(nullable(finiteNumber), null)),
       background: field("background", nullable(text)),
+      backgroundImage: field("backgroundImage", withDefault(nullable(text), DEFAULT_OUTPUT.backgroundImage)),
+      backgroundFilter: field("backgroundFilter", withDefault(boolean, DEFAULT_OUTPUT.backgroundFilter)),
       upscale: field("upscale", withDefault(boolean, false)),
     }),
     // Host-owned, so it is carried rather than checked.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import * as commands from "../src/engine/commands/index.js";
 import { replaceSource } from "../src/engine/commands/index.js";
-import { createDocument } from "../src/model/document.js";
+import { createDocument, cropBounds, CROP_OUTSIDE_ROOM, stageRect } from "../src/model/document.js";
 import { createStickerLayer } from "../src/export/placement.js";
 import { center } from "../src/geometry/rect.js";
 import { layerBounds } from "../src/model/layers.js";
@@ -162,5 +163,61 @@ describe("createStickerLayer", () => {
       size: { width: 10, height: 10 },
     });
     expect(layer.name).toBe("sticker");
+  });
+});
+
+/**
+ * A crop usually means "take a piece out of this photograph", and staying
+ * inside it is right. It is wrong for a square cut from a panorama, and for a
+ * rotated picture whose corners would otherwise have to be zoomed away.
+ */
+describe("a crop that may hang off the picture", () => {
+  const source = { resourceId: "res_1", width: 400, height: 200 };
+  const document = () => createDocument(source);
+
+  it("keeps the crop inside the picture by default", () => {
+    const cropped = commands.setCrop(document(), { x: -100, y: -100, width: 200, height: 100 });
+    expect(cropped.crop!.x).toBeGreaterThanOrEqual(0);
+    expect(cropped.crop!.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it("lets it hang off once the rule is lifted", () => {
+    const open = commands.setCropWithinImage(document(), false);
+    const cropped = commands.setCrop(open, { x: -100, y: -60, width: 200, height: 100 });
+    expect(cropped.crop!.x).toBeLessThan(0);
+    expect(cropped.crop!.y).toBeLessThan(0);
+  });
+
+  it("still keeps it somewhere rather than nowhere", () => {
+    // Room to hang off is not room to run to the horizon: a handle dragged far
+    // enough would otherwise ask the export to allocate it.
+    const open = commands.setCropWithinImage(document(), false);
+    const cropped = commands.setCrop(open, { x: -99999, y: -99999, width: 100, height: 50 });
+    const bounds = cropBounds(open);
+    expect(cropped.crop!.x).toBeGreaterThanOrEqual(bounds.x);
+    expect(cropped.crop!.y).toBeGreaterThanOrEqual(bounds.y);
+  });
+
+  it("brings an overhanging crop home when the rule is turned back on", () => {
+    // Otherwise the document would be left in a state its own rule forbids.
+    const open = commands.setCropWithinImage(document(), false);
+    const hanging = commands.setCrop(open, { x: -100, y: -60, width: 200, height: 100 });
+    expect(hanging.crop!.x).toBeLessThan(0);
+
+    const closed = commands.setCropWithinImage(hanging, true);
+    expect(closed.crop!.x).toBeGreaterThanOrEqual(0);
+    expect(closed.crop!.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it("gives the same room on every side", () => {
+    const open = commands.setCropWithinImage(document(), false);
+    const bounds = cropBounds(open);
+    const stage = stageRect(open);
+    expect(stage.x - bounds.x).toBeCloseTo(stage.width * CROP_OUTSIDE_ROOM, 6);
+    expect(bounds.width - stage.width).toBeCloseTo(stage.width * CROP_OUTSIDE_ROOM * 2, 6);
+  });
+
+  it("is the picture itself while the rule holds", () => {
+    expect(cropBounds(document())).toEqual(stageRect(document()));
   });
 });

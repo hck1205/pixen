@@ -31,6 +31,12 @@ migratable from v1.
   `await editor.restore(saved, file)`. Restoring with an unknown id and no image
   throws `RESOURCE_MISSING` rather than guessing.
 - **`meta` is yours.** Pixen never reads it and always round-trips it.
+- **A crop need not stay inside the picture.** `cropWithinImage` is true by
+  default, which is what a crop usually means. False lets it hang off the
+  edges — a square cut from a panorama keeps its ends, a rotated picture keeps
+  its corners — with room of one picture on each side, so a handle cannot be
+  dragged to the horizon. What lies outside is `output.background` and
+  `output.backgroundImage`.
 - **A layer names the frame it belongs to.** `space: "image"` is the picture's
   own pixels: the layer rides the rotation and the flips, so a caption written
   across someone's face stays across their face when the photograph is turned.
@@ -146,6 +152,7 @@ Shipped so far:
 | v6 → v7 | Replaced a line's two booleans with a named decoration at each end. `arrowStart: true` drew a *filled* head, so it migrates to `arrow-solid` rather than `arrow`: the open one is a new drawing, and quietly restyling every arrow in an archive would be a worse bug than the one it fixed |
 | v7 → v8 | Gave the frame the three measurements its new treatments read — spacing, line count and arm length. A v7 document has one of the three rectangles, which read none of them |
 | v8 → v9 | Added gamma and the two white-balance axes. Their neutral is zero like everything else's, so a v8 document looks exactly as it did |
+| v11 → v12 | Let a crop hang off the picture, and put a bitmap behind it. A v11 crop was always inside the picture and there was never a backdrop, so the defaults leave it looking exactly as it did. The version moves because a v11 build would clamp a crop meant to overhang — cutting the export down to the picture — and would drop the backdrop without saying so |
 | v10 → v11 | Gave every layer a frame of reference. Every layer a v10 document holds is in the picture's own pixels — that was the only kind there was — so `image` is filled in and it looks exactly as it did. The version moves because a v10 build reading a v11 document would draw an `output` layer as though it belonged to the picture: turned with a rotation it should have ignored, and in the wrong place |
 | v9 → v10 | Let a document keep more than one part of a moving source. A v9 `clip` is one range, which means one kept part, so it becomes a list of one and looks exactly as it did. The version moves because a v9 build reading a v10 document would find a list where it expects a range, and export the wrong film — or nothing |
 

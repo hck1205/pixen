@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-472 names.
+475 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -33,6 +33,7 @@ Blocker
 BudgetOptions
 BuildOptions
 CROP_HANDLES
+CROP_OUTSIDE_ROOM
 Canvas2D
 CanvasSurface
 ClipBounds
@@ -42,6 +43,7 @@ CropHandle
 DEFAULT_ADJUSTMENTS
 DEFAULT_ANNOTATION_COLOUR
 DEFAULT_CORNER_RADIUS
+DEFAULT_CROP_WITHIN_IMAGE
 DEFAULT_FONT_FAMILY
 DEFAULT_FONT_RATIO
 DEFAULT_FONT_SIZE
@@ -284,6 +286,7 @@ createSurface
 createTextLayer
 createTextWatermarkLayer
 createWatermarkLayer
+cropBounds
 cssFilter
 decodeImage
 decoderAppliesOrientation

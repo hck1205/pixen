@@ -39,6 +39,19 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
     ops.push({ op: "fill-under", color: scene.background, rect: scene.regionInTarget });
   }
 
+  if (scene.backdrop) {
+    // Over the flat colour and under the picture. Filtered only when the
+    // document says so: the backdrop is usually the host's own furniture, and
+    // desaturating the photograph is not a reason to desaturate the wall.
+    if (useFilter && scene.backdrop.filtered) ops.push({ op: "filter", value: plan.filter });
+    ops.push(
+      { op: "alpha", value: 1 },
+      { op: "transform", matrix: IDENTITY },
+      { op: "backdrop", source: scene.backdrop.source, rect: scene.backdrop.rect, clip: scene.regionInTarget },
+    );
+    if (useFilter && scene.backdrop.filtered) ops.push({ op: "filter", value: "none" });
+  }
+
   if (useFilter) ops.push({ op: "filter", value: plan.filter });
   ops.push(
     { op: "alpha", value: 1 },

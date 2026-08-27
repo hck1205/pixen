@@ -1,7 +1,7 @@
 import { PixenError } from "../errors/index.js";
 import { DEFAULT_FRAME } from "./defaults.js";
 import { DEFAULT_LAYER_SPACE } from "./defaults.js";
-import { DEFAULT_ADJUSTMENTS, SCHEMA_VERSION } from "./types.js";
+import { DEFAULT_ADJUSTMENTS, DEFAULT_CROP_WITHIN_IMAGE, DEFAULT_OUTPUT, SCHEMA_VERSION } from "./types.js";
 
 export type DocumentMigration = (document: Record<string, unknown>) => Record<string, unknown>;
 
@@ -169,6 +169,7 @@ migrations.set(7, migrateV7ToV8);
 migrations.set(8, migrateV8ToV9);
 migrations.set(9, migrateV9ToV10);
 migrations.set(10, migrateV10ToV11);
+migrations.set(11, migrateV11ToV12);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -243,5 +244,28 @@ function migrateV10ToV11(document: Record<string, unknown>): Record<string, unkn
       const layer = raw as Record<string, unknown>;
       return { space: DEFAULT_LAYER_SPACE, ...layer };
     }),
+  };
+}
+
+/**
+ * v11 -> v12 let a crop hang off the picture, and put a bitmap behind it.
+ *
+ * A v11 document's crop was always inside the picture and there was never a
+ * backdrop, so filling those in leaves it looking exactly as it did. The
+ * version moves because a v11 build reading a v12 document would clamp a crop
+ * that was meant to overhang — cutting the export down to the picture — and
+ * would drop the backdrop without saying so.
+ */
+function migrateV11ToV12(document: Record<string, unknown>): Record<string, unknown> {
+  const stored = document.output;
+  const output = typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {};
+  return {
+    cropWithinImage: DEFAULT_CROP_WITHIN_IMAGE,
+    ...document,
+    output: {
+      backgroundImage: DEFAULT_OUTPUT.backgroundImage,
+      backgroundFilter: DEFAULT_OUTPUT.backgroundFilter,
+      ...output,
+    },
   };
 }

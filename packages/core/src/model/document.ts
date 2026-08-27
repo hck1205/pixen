@@ -6,6 +6,7 @@ import {
   ADJUSTMENT_KEYS,
   DEFAULT_ADJUSTMENTS,
   DEFAULT_OUTPUT,
+  DEFAULT_CROP_WITHIN_IMAGE,
   SCHEMA_VERSION,
   type EditorDocument,
   type SourceDescriptor,
@@ -17,6 +18,7 @@ export function createDocument(source: SourceDescriptor): EditorDocument {
     source: { ...source },
     transform: { rotation: 0, flipX: false, flipY: false },
     crop: null,
+    cropWithinImage: DEFAULT_CROP_WITHIN_IMAGE,
     clip: null,
     aspectRatio: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
@@ -43,6 +45,36 @@ export function stageRect(document: EditorDocument): Rect {
 /** The crop actually in effect — the explicit rect, or the whole stage. */
 export function effectiveCrop(document: EditorDocument): Rect {
   return document.crop ?? stageRect(document);
+}
+
+/**
+ * How much room there is beyond the picture, as a multiple of its own size.
+ *
+ * A crop allowed outside the image still needs an outside to be inside of:
+ * without a limit a handle could be dragged to the horizon, and the export
+ * would try to allocate it. One picture's worth of room on every side is enough
+ * for the cases this exists for — squaring a panorama, keeping the corners of a
+ * rotated photograph — and small enough that the result is still a picture.
+ */
+export const CROP_OUTSIDE_ROOM = 1;
+
+/**
+ * The rectangle a crop may occupy.
+ *
+ * The picture itself, or the picture with room around it when the document
+ * says the crop need not stay inside. One function because four callers used to
+ * write `stageRect(document)` and would each have had to learn the new rule.
+ */
+export function cropBounds(document: EditorDocument): Rect {
+  const stage = stageRect(document);
+  if (document.cropWithinImage) return stage;
+  const room = { x: stage.width * CROP_OUTSIDE_ROOM, y: stage.height * CROP_OUTSIDE_ROOM };
+  return {
+    x: stage.x - room.x,
+    y: stage.y - room.y,
+    width: stage.width + room.x * 2,
+    height: stage.height + room.y * 2,
+  };
 }
 
 /**

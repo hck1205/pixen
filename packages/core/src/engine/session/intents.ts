@@ -62,6 +62,7 @@ export type Intent =
       aspectRatio?: number | null;
       snap?: number;
     }
+  | { kind: "set-crop-within-image"; within: boolean }
   | { kind: "reorder-layer"; id: string; index: number }
   | { kind: "remove-layer"; id: string }
   | { kind: "select"; id: string | null }
@@ -149,6 +150,12 @@ export function documentChangeFor(intent: Intent, measure?: TextMeasurer): Docum
         reason: "clip",
         step: intent.range ? "trim" : "resetTrim",
         transform: (d) => commands.setClip(d, intent.range, intent.bounds),
+      };
+    case "set-crop-within-image":
+      return {
+        reason: "crop-area",
+        step: "cropArea",
+        transform: (d) => commands.setCropWithinImage(d, intent.within),
       };
     case "set-aspect-ratio":
       return {

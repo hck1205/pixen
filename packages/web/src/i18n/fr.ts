@@ -128,6 +128,7 @@ export const fr: PixenStrings = {
   stepMoveCrop: "Déplacer le recadrage",
   stepTrim: "Rogner",
   stepResetTrim: "Réinitialiser le rognage",
+  stepCropArea: "Zone de recadrage",
   stepAspectRatio: "Format",
   stepAdjust: "Ajuster",
   stepOutput: "Paramètres de sortie",

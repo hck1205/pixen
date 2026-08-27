@@ -76,7 +76,11 @@ export const EXEMPT = {
   // fractions of the frame it belongs to, and a mark on the exported frame has
   // to be measured against that rather than against the picture — otherwise a
   // corner mark on a heavily cropped photograph lands outside it.
-  "packages/core/src/engine/editor.ts": 785,
+  //
+  // Raised from 785 for `setCropWithinImage`: one more delegation, and the
+  // paragraph saying that turning the rule back on brings an overhanging crop
+  // home rather than leaving the document in a state its own rule forbids.
+  "packages/core/src/engine/editor.ts": 795,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's

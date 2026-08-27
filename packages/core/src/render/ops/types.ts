@@ -89,6 +89,15 @@ export type DrawOp =
   | { op: "transform"; matrix: Matrix }
   | { op: "alpha"; value: number }
   | { op: "image"; source: CanvasImageSource; width: number; height: number }
+  /**
+   * The backdrop, in target pixels, clipped to the region it belongs to.
+   *
+   * Its own operation rather than a `layer-image`, because it is placed in
+   * target space and clipped: a `cover` fit means the bitmap overflows on one
+   * axis, and without the clip it would paint over the workspace around the
+   * picture in the editor.
+   */
+  | { op: "backdrop"; source: CanvasImageSource; rect: Rect; clip: Rect }
   | {
       op: "path";
       commands: PathCommand[];

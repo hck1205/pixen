@@ -128,6 +128,7 @@ export const ja: PixenStrings = {
   stepMoveCrop: "切り抜きを移動",
   stepTrim: "トリミング",
   stepResetTrim: "トリミングをリセット",
+  stepCropArea: "切り抜き範囲",
   stepAspectRatio: "アスペクト比",
   stepAdjust: "調整",
   stepOutput: "出力設定",

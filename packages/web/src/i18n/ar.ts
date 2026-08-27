@@ -130,6 +130,7 @@ export const ar: PixenStrings = {
   stepMoveCrop: "تحريك الاقتصاص",
   stepTrim: "اقتطاع",
   stepResetTrim: "إعادة تعيين الاقتطاع",
+  stepCropArea: "منطقة الاقتصاص",
   stepAspectRatio: "نسبة العرض إلى الارتفاع",
   stepAdjust: "ضبط",
   stepOutput: "إعدادات الإخراج",

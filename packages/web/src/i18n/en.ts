@@ -126,6 +126,7 @@ export const en: PixenStrings = {
   stepMoveCrop: "Move crop",
   stepTrim: "Trim",
   stepResetTrim: "Reset trim",
+  stepCropArea: "Crop area",
   stepAspectRatio: "Aspect ratio",
   stepAdjust: "Adjust",
   stepOutput: "Output settings",
