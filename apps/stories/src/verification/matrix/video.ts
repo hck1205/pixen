@@ -169,15 +169,17 @@ export const VIDEO_CLAIMS: ClaimGroup[] = [
       {
         capability: "An encoder chain with fallbacks",
         pixen:
-          "One recorder seam, and one recorder behind it. A host wanting WebCodecs, a WASM encoder or " +
-          "a server writes the seam; Pixen does not ship a chain that tries several and falls back",
-        verdict: "open",
+          "`recorderChain` tries each encoder in turn and records with the first that builds. The last " +
+          "is the fallback, and its failure is the chain's — it is the one that was supposed to work " +
+          "anywhere, so its reason is the one worth reading. The picture and the sound have their own " +
+          "bitrates, because a talk and a screen recording want opposite things",
+        verdict: "met",
         market: required("video exports", "Several encoders, chained, with a media-stream fallback"),
-        evidence: [doc("docs/VIDEO.md")],
+        evidence: [unit("chain.test.ts"), doc("docs/VIDEO.md")],
         note:
-          "The seam is the whole extension point and it is tested, but assembling more than one " +
-          "encoder behind it is left to the host today. Audio bitrate is the same gap: `bitrate` is " +
-          "the picture's",
+          "Pixen ships one encoder to put in a chain. The others named in the supplied material are " +
+          "third-party libraries — a WASM build of a transcoder, a muxer — which a published package " +
+          "here cannot depend on, so the seam is where they go",
       },
     ],
   },

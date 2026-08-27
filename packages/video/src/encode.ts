@@ -17,7 +17,7 @@
  * the flags on. So it is not what Pixen depends on, and `VideoEncoder` is
  * exactly what a host would reach for through this seam.
  */
-import { PixenError } from "@pixen/core";
+import { PixenError, type Size } from "@pixen/core";
 
 /**
  * Somewhere for drawn frames to go.
@@ -43,6 +43,14 @@ export interface RecorderOptions {
   frameRate?: number;
   /** Bits per second for the video track. Omitted lets the browser choose. */
   bitrate?: number;
+  /**
+   * Bits per second for the sound, when there is any.
+   *
+   * Its own number because the two are not one budget: a talk wants the words
+   * intelligible and the picture small, and a silent screen recording wants the
+   * opposite. Omitted lets the browser choose, as `bitrate` does.
+   */
+  audioBitrate?: number;
   /** Overrides the container and codec. Must be one `MediaRecorder` supports. */
   mimeType?: string;
 }
@@ -141,6 +149,7 @@ export function canvasRecorder(
   const recorder = new MediaRecorder(stream, {
     mimeType,
     ...(options.bitrate === undefined ? {} : { videoBitsPerSecond: options.bitrate }),
+    ...(options.audioBitrate === undefined || !withSound ? {} : { audioBitsPerSecond: options.audioBitrate }),
   });
 
   const chunks: Blob[] = [];
@@ -209,5 +218,45 @@ export function canvasRecorder(
       stopTracks();
       chunks.length = 0;
     },
+  };
+}
+
+/**
+ * The first encoder that can be built, of several.
+ *
+ * A browser that has `VideoEncoder` should use it and one that has not should
+ * still export something, and picking between them is a decision a host should
+ * not have to write twice. Each factory is tried in turn; the first that
+ * returns without throwing is the one that records.
+ *
+ * ```js
+ * exportClip(document, element, resources, {
+ *   recorder: recorderChain(myWebCodecsEncoder, canvasRecorder),
+ * });
+ * ```
+ *
+ * The last factory is the fallback and its failure is the chain's: if nothing
+ * can record, the reason a host sees is the reason the *last* one gave, which
+ * is the one that was meant to work everywhere.
+ */
+export function recorderChain(
+  ...factories: ReadonlyArray<(canvas: HTMLCanvasElement, size: Size, sound: RecordedSound) => ClipRecorder>
+): (canvas: HTMLCanvasElement, size: Size, sound: RecordedSound) => ClipRecorder {
+  if (factories.length === 0) {
+    throw new PixenError("INVALID_STATE", "A recorder chain needs at least one encoder to try");
+  }
+  return (canvas, size, sound) => {
+    for (const [index, build] of factories.entries()) {
+      const last = index === factories.length - 1;
+      if (last) return build(canvas, size, sound);
+      try {
+        return build(canvas, size, sound);
+      } catch {
+        // Try the next one. The last one's failure is the one that is reported,
+        // because it is the one that was supposed to work anywhere.
+      }
+    }
+    // Unreachable: the loop returns or throws on its final pass.
+    throw new PixenError("EXPORT_FAILED", "No encoder in the chain could record");
   };
 }

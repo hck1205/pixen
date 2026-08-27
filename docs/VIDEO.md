@@ -107,6 +107,20 @@ today and absent in another Chromium on the same machine. That is why the story
 browser asks the browser in front of you rather than repeating a number measured
 somewhere else.
 
+Several can be chained, so the browser picks:
+
+```js
+await exportClip(document, element, resources, {
+  recorder: recorderChain(myWebCodecsEncoder, canvasRecorder),
+  bitrate: 2_500_000,        // the picture
+  audioBitrate: 128_000,     // and the sound, which is its own budget
+});
+```
+
+Each is tried in turn and the first that builds is the one that records. The
+last is the fallback, and its failure is the chain's — because it is the one
+that was supposed to work anywhere, so its reason is the one worth reading.
+
 A recorder is also where a server goes. `frame(seconds)` is called with each
 painted frame still on the canvas, so an implementation that reads the canvas
 and posts it — or opens a socket and streams it — moves the encoding off the

@@ -770,7 +770,7 @@ pixen
 
 ## @pixen/video
 
-43 names.
+44 names.
 
 ```
 ClipExportCost
@@ -808,6 +808,7 @@ isMoving
 nextKeptSecond
 openVideo
 planSoundtrack
+recorderChain
 soundtrackFor
 supportedRecordingType
 taintedCanvasError
