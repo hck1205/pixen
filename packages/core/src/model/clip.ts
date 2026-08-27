@@ -36,25 +36,61 @@ export function wholeClip(duration: number): ClipRange {
 }
 
 /**
+ * How long a clip is allowed to be, as a host requires it.
+ *
+ * A floor and a ceiling on the *kept* length, not on what may be loaded: a
+ * source longer than `max` opens as it always did, and it is the clip that is
+ * held inside the limit. Somewhere to upload a thirty-second advert to is the
+ * case this exists for.
+ */
+export interface ClipBounds {
+  /** Shortest clip the host will accept, in seconds. */
+  min?: number;
+  /** Longest clip the host will accept, in seconds. */
+  max?: number;
+}
+
+/**
+ * The floor and ceiling that actually apply, once the source has had its say.
+ *
+ * A ten-second minimum against a three-second source cannot be met, and the
+ * honest answer is the whole source rather than a range that runs off the end —
+ * so the floor is brought inside the duration before anything is measured
+ * against it, and the ceiling is never below the floor.
+ */
+export function clipLimits(duration: number, bounds: ClipBounds = {}): { limit: number; floor: number; ceiling: number } {
+  const limit = Math.max(MIN_CLIP_SECONDS, duration);
+  const floor = clamp(Math.max(MIN_CLIP_SECONDS, bounds.min ?? 0), MIN_CLIP_SECONDS, limit);
+  const ceiling = clamp(bounds.max ?? Number.POSITIVE_INFINITY, floor, limit);
+  return { limit, floor, ceiling };
+}
+
+/**
  * A range brought inside a source, in a fixed order: both ends into the source,
  * then swapped if they arrived the wrong way round, then pushed apart if they
- * are too close together.
+ * are too close together, then pulled in if they are too far apart.
  *
  * Dragging the left handle past the right one is a gesture people make, and the
  * result they mean is an inverted selection rather than an error — so it is
  * sorted rather than refused.
+ *
+ * The start is what a ceiling holds: a clip that is too long loses time off its
+ * end, because the end is the part a length limit is about. A drag knows better
+ * than that and says so — see `dragHandle`, which stops the handle that moved.
  */
-export function clampClip(range: ClipRange, duration: number): ClipRange {
-  const limit = Math.max(MIN_CLIP_SECONDS, duration);
+export function clampClip(range: ClipRange, duration: number, bounds: ClipBounds = {}): ClipRange {
+  const { limit, floor, ceiling } = clipLimits(duration, bounds);
   const first = clamp(Math.min(range.start, range.end), 0, limit);
   const second = clamp(Math.max(range.start, range.end), 0, limit);
+  const length = second - first;
 
-  if (second - first >= MIN_CLIP_SECONDS) return { start: first, end: second };
+  if (length > ceiling) return { start: first, end: first + ceiling };
+  if (length >= floor) return { start: first, end: second };
 
-  // Too short to be a clip. Grow towards the end, and only backwards from the
-  // start when there is no room left ahead — which is the end of the source.
-  if (first + MIN_CLIP_SECONDS <= limit) return { start: first, end: first + MIN_CLIP_SECONDS };
-  return { start: limit - MIN_CLIP_SECONDS, end: limit };
+  // Too short. Grow towards the end, and only backwards from the start when
+  // there is no room left ahead — which is the end of the source.
+  if (first + floor <= limit) return { start: first, end: first + floor };
+  return { start: limit - floor, end: limit };
 }
 
 /** How long the kept part runs for. */
@@ -84,7 +120,7 @@ export function clipFractions(range: ClipRange, duration: number): { start: numb
 }
 
 /** A range read back off a timeline, in fractions of the whole source. */
-export function clipFromFractions(start: number, end: number, duration: number): ClipRange {
+export function clipFromFractions(start: number, end: number, duration: number, bounds: ClipBounds = {}): ClipRange {
   const limit = Math.max(MIN_CLIP_SECONDS, duration);
-  return clampClip({ start: start * limit, end: end * limit }, limit);
+  return clampClip({ start: start * limit, end: end * limit }, limit, bounds);
 }

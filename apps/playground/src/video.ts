@@ -7,13 +7,13 @@
  * thing that exercises both.
  */
 import "@pixen/web";
-import type { EditorDocument } from "@pixen/core";
+import type { ClipBounds, EditorDocument } from "@pixen/core";
 import {
   exportClip,
   exportMedia,
   openVideo,
   supportedRecordingType,
-  trimPlugin,
+  createTrimPlugin,
   type VideoSource,
 } from "@pixen/video";
 import { recordSampleClip, SAMPLE_MIDDLE_BAND, SAMPLE_SECONDS } from "./sample-clip.js";
@@ -98,9 +98,27 @@ async function exportOpened(): Promise<void> {
   }
 }
 
+/**
+ * A length rule, so the demo shows what one does.
+ *
+ * `?clip=1..2` on the URL sets a floor and a ceiling in seconds. Without it
+ * there is no rule and the handles move freely, which is what most hosts want —
+ * so the default path is still the plain plugin.
+ */
+function boundsFromUrl(): ClipBounds {
+  const asked = new URLSearchParams(location.search).get("clip");
+  if (!asked) return {};
+  const [min, max] = asked.split("..").map((part) => Number.parseFloat(part));
+  return {
+    ...(Number.isFinite(min) ? { min: min as number } : {}),
+    ...(Number.isFinite(max) ? { max: max as number } : {}),
+  };
+}
+
 // The trim strip ships with the extension rather than with the editor, so the
 // demo installs it the way a customer would.
-element?.use(trimPlugin);
+const clipBounds = boundsFromUrl();
+element?.use(createTrimPlugin(clipBounds));
 
 openButton?.addEventListener("click", () => void openSample());
 exportButton?.addEventListener("click", () => void exportOpened());
@@ -113,5 +131,5 @@ if (supportedRecordingType() === null) {
 // The browser suite drives this page rather than reaching into the bundle, so
 // the three module functions it cannot get at from the DOM are put where it can.
 Object.assign(window as unknown as Record<string, unknown>, {
-  pixenVideoDemo: { recordSampleClip, exportClip, exportMedia, openVideo },
+  pixenVideoDemo: { recordSampleClip, exportClip, exportMedia, openVideo, clipBounds },
 });

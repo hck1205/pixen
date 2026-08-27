@@ -125,6 +125,33 @@ audio track at all.
 A source with no sound of its own is silent whatever is asked for, and so is one
 the page may not read — the same cross-origin wall the frames hit, below.
 
+## How long a clip may be
+
+A host that accepts clips usually has a rule about the length — an advert slot,
+an upload limit, a format that wants at least a few seconds. The rule is on the
+*kept* length, not on what may be loaded: a long source opens as it always did,
+and it is the clip that is held inside the bound.
+
+```js
+editor.use(createTrimPlugin({ min: 3, max: 30 }));
+```
+
+The handles stop rather than the file being refused, and the one that stops is
+the one being dragged — a start handle that quietly pulled the far end along
+with it would be moving a part of the clip nobody had hold of. A document with
+no trim shows the longest clip the rule allows rather than the whole source, so
+the interface does not disagree with itself before anyone has touched it, and
+clearing a trim under a ceiling leaves that same clip rather than none at all.
+
+A floor longer than the source cannot be met, and the honest answer is the whole
+source rather than a range running off the end.
+
+The same bounds ride on the intent, for a host driving the engine directly:
+
+```js
+editor.dispatch({ kind: "set-clip", range: { start: 5, end: 40 }, bounds: { max: 30 } });
+```
+
 ## Exporting the right kind of thing
 
 `exportMedia` decides from the document, because a document with a duration came
@@ -168,8 +195,15 @@ await openVideo(editor, "https://cdn.example/clip.webm", { crossOrigin: "anonymo
 ## What is not here
 
 No frame-accurate scrubbing beyond what the browser's own seeking gives, no
-audio editing, no concatenation, no transitions, no speed changes. The package
-is trimming and export; each of those is a product of its own.
+audio editing beyond the output level, no concatenation, no transitions, no
+speed changes. The package is trimming and export; each of those is a product of
+its own.
+
+The playhead is the element's own: `openVideo` hands back the
+`HTMLVideoElement`, so `element.currentTime` is the platform's property, clamped
+by the browser and needing nothing from us. `clipTimeToSource` converts a moment
+inside the clip to one in the source, which is the part the platform cannot
+know.
 
 ## Where to read more
 

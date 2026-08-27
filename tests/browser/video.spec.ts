@@ -619,3 +619,91 @@ test("the clip keeps its sound, at the level the export was asked for", async ({
   expect(measured.off.tracks).toBe(0);
   expect(measured.off.type).not.toContain("opus");
 });
+
+/**
+ * A host that accepts clips usually has a rule about how long one may be — an
+ * advert slot, an upload limit. The rule is on the *kept* length rather than on
+ * what may be loaded: the source opens as it always did, and the handles stop.
+ */
+test("a length rule stops the handle that is being dragged", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  // A one-second ceiling against the three-second sample.
+  await page.goto("/video.html?clip=..1");
+  await page.waitForFunction(() => Boolean(window.pixenVideoDemo));
+  await page.waitForFunction(() => Boolean((document.querySelector("#editor") as { editor?: unknown })?.editor));
+
+  await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 3 });
+    await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "sample.webm" });
+  });
+
+  const editor = page.locator("#editor");
+  const before = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const readout = element.shadowRoot?.querySelector(".pixen-trim-readout")?.textContent ?? "";
+    return {
+      clip: element.editor.document.clip as { start: number; end: number } | null,
+      duration: element.editor.document.source.duration as number,
+      readout,
+    };
+  });
+
+  // Drag the end handle as far right as it goes. It starts a third of the way
+  // across, because the rule has already held the clip to one of three seconds.
+  const box = (await editor.locator('input[data-handle="end"]').boundingBox())!;
+  const middle = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width / 3, middle);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 2, middle, { steps: 10 });
+  await page.mouse.up();
+
+  const after = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    return element.editor.document.clip as { start: number; end: number };
+  });
+
+  // Nothing is trimmed yet, and the source is three seconds — but the rule says
+  // one, so the strip shows one rather than disagreeing with itself before
+  // anyone has touched it.
+  expect(before.duration).toBeGreaterThan(2);
+  expect(before.clip).toBeNull();
+  expect(before.readout).toContain("0.0s – 1.0s");
+
+  // And dragging the end handle to the far right does not lengthen it.
+  expect(after.end - after.start).toBeLessThanOrEqual(1.001);
+  expect(after.start).toBeCloseTo(0, 3);
+
+  // The start handle is where a ceiling could go wrong quietly. `clampClip`
+  // takes time off the *end* when a clip is too long, so a start dragged
+  // leftwards would haul the far end back with it — a part of the clip nobody
+  // had hold of. Put the clip at the end of the source and drag the start out.
+  await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const duration = element.editor.document.source.duration as number;
+    element.editor.dispatch({
+      kind: "set-clip",
+      range: { start: duration - 1, end: duration },
+      bounds: { max: 1 },
+    });
+  });
+
+  // Driven through the control's own event rather than the pointer: the mouse
+  // path is covered by the trim-strip test next door, and what is under test
+  // here is what the handle *means*, at a value a drag cannot land on exactly.
+  const dragged = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const handle = element.shadowRoot!.querySelector('input[data-handle="start"]') as HTMLInputElement;
+    handle.value = "0";
+    handle.dispatchEvent(new Event("input", { bubbles: true }));
+    handle.dispatchEvent(new Event("change", { bubbles: true }));
+    return {
+      clip: element.editor.document.clip as { start: number; end: number },
+      duration: element.editor.document.source.duration as number,
+    };
+  });
+
+  // The end stayed where it was, and the clip is still within the rule.
+  expect(dragged.clip.end).toBeCloseTo(dragged.duration, 2);
+  expect(dragged.clip.end - dragged.clip.start).toBeLessThanOrEqual(1.001);
+});

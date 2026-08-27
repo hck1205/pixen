@@ -4,6 +4,7 @@ import {
   clipDuration,
   clipFractions,
   clipFromFractions,
+  clipLimits,
   clipTimeToSource,
   commands,
   createDocument,
@@ -146,5 +147,75 @@ describe("the clip in the document", () => {
     const migrated = migrateDocument(v4);
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
     expect(migrated).toMatchObject({ clip: null });
+  });
+});
+
+/**
+ * A host that accepts clips has rules about how long one may be — an advert
+ * slot, an upload limit, a format that wants at least a few seconds. The limit
+ * is on the *kept* length rather than on what may be loaded: a long source
+ * opens as it always did, and it is the clip that is held inside the bound.
+ */
+describe("how long a clip is allowed to be", () => {
+  const minute = 60;
+
+  it("pulls a clip that is too long in from its end", () => {
+    // The end is the part a length limit is about; a drag knows better and says
+    // so separately, by stopping the handle that moved.
+    expect(clampClip({ start: 10, end: 50 }, minute, { max: 12 })).toEqual({ start: 10, end: 22 });
+  });
+
+  it("grows a clip that is too short towards its end", () => {
+    expect(clampClip({ start: 10, end: 11 }, minute, { min: 5 })).toEqual({ start: 10, end: 15 });
+  });
+
+  it("grows it backwards instead when there is no room ahead", () => {
+    expect(clampClip({ start: 58, end: 59 }, minute, { min: 5 })).toEqual({ start: 55, end: 60 });
+  });
+
+  it("leaves a clip already inside both bounds exactly as it was", () => {
+    const inside = { start: 10, end: 20 };
+    expect(clampClip(inside, minute, { min: 5, max: 30 })).toEqual(inside);
+  });
+
+  it("cannot honour a floor longer than the source, and says so by keeping all of it", () => {
+    // A ten-second minimum against a three-second source is a rule that cannot
+    // be met. The whole source is the honest answer; a range running off the
+    // end is not.
+    expect(clampClip({ start: 1, end: 2 }, 3, { min: 10 })).toEqual({ start: 0, end: 3 });
+  });
+
+  it("never lets a ceiling sit below the floor", () => {
+    const { floor, ceiling } = clipLimits(minute, { min: 20, max: 5 });
+    expect(ceiling).toBe(floor);
+    expect(clipDuration(clampClip({ start: 0, end: 60 }, minute, { min: 20, max: 5 }))).toBe(20);
+  });
+
+  it("keeps the floor it has always had when no bound is given", () => {
+    expect(clipDuration(clampClip({ start: 5, end: 5 }, minute))).toBeCloseTo(MIN_CLIP_SECONDS, 10);
+  });
+
+  it("cannot clear a trim back to a whole source the ceiling has refused", () => {
+    // `null` means the whole source, and a ceiling says the whole source is not
+    // something this host will take. Leaving no clip would let the document
+    // hold a state the host had already ruled out, and the export would write
+    // it — so clearing leaves the longest clip the rule allows.
+    const moving = { ...createDocument({ resourceId: "res_1", width: 8, height: 8 }), source: { resourceId: "res_1", width: 8, height: 8, duration: 60 } };
+    expect(commands.setClip({ ...moving, clip: { start: 10, end: 20 } }, null, { max: 10 }).clip).toEqual({
+      start: 0,
+      end: 10,
+    });
+  });
+
+  it("clears it outright when no ceiling stands in the way", () => {
+    const moving = { ...createDocument({ resourceId: "res_1", width: 8, height: 8 }), source: { resourceId: "res_1", width: 8, height: 8, duration: 60 } };
+    expect(commands.setClip({ ...moving, clip: { start: 10, end: 20 } }, null, { max: 999 }).clip).toBeNull();
+    expect(commands.setClip({ ...moving, clip: { start: 10, end: 20 } }, null).clip).toBeNull();
+  });
+
+  it("applies the bounds to a range read off a timeline too", () => {
+    // The strip hands over fractions; the rule cannot live in only one of the
+    // two doors into the same value.
+    expect(clipFromFractions(0, 1, minute, { max: 10 })).toEqual({ start: 0, end: 10 });
   });
 });

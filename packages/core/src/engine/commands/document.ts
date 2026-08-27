@@ -10,7 +10,7 @@ import { PixenError } from "../../errors/index.js";
 import { scaling } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
 import { clampAdjustments } from "../../model/adjustments.js";
-import { clampClip, type ClipRange } from "../../model/clip.js";
+import { clampClip, clipLimits, type ClipBounds, type ClipRange } from "../../model/clip.js";
 import { DEFAULT_FRAME, MAX_FRAME_WIDTH, MIN_FRAME_WIDTH } from "../../model/defaults.js";
 import { clamp } from "../../fp/function.js";
 import { layerBounds } from "../../model/layers.js";
@@ -104,11 +104,21 @@ export function replaceSource(document: EditorDocument, source: SourceDescriptor
  * range usually arrives from a dragged handle, and a handle can be dragged past
  * the end of the picture. A source with no duration is a still one, where the
  * only honest answer is that it has no clip at all.
+ *
+ * Clearing it is where a length rule earns its keep. `null` means the whole
+ * source, and a host with a ceiling has said the whole source is not something
+ * it will take — so clearing a trim under a ceiling leaves the longest clip the
+ * rule allows rather than no clip at all. Otherwise the document could hold a
+ * state the host had already refused, and the export would write it out.
  */
-export function setClip(document: EditorDocument, range: ClipRange | null): EditorDocument {
+export function setClip(document: EditorDocument, range: ClipRange | null, bounds?: ClipBounds): EditorDocument {
   const duration = document.source.duration;
-  if (range === null || duration === undefined) return { ...document, clip: null };
-  return { ...document, clip: clampClip(range, duration) };
+  if (duration === undefined) return { ...document, clip: null };
+  if (range !== null) return { ...document, clip: clampClip(range, duration, bounds) };
+
+  const { ceiling } = clipLimits(duration, bounds);
+  if (ceiling >= duration) return { ...document, clip: null };
+  return { ...document, clip: clampClip({ start: 0, end: ceiling }, duration, bounds) };
 }
 
 export function resetEdits(document: EditorDocument): EditorDocument {

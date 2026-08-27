@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-461 names.
+463 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -35,6 +35,7 @@ BuildOptions
 CROP_HANDLES
 Canvas2D
 CanvasSurface
+ClipBounds
 ClipRange
 CropHandle
 DEFAULT_ADJUSTMENTS
@@ -248,6 +249,7 @@ clampStraighten
 clipDuration
 clipFractions
 clipFromFractions
+clipLimits
 clipTimeToSource
 cloneDocument
 collect
@@ -749,7 +751,7 @@ pixen
 
 ## @pixen/video
 
-32 names.
+33 names.
 
 ```
 ClipRecorder
@@ -770,6 +772,7 @@ VideoSource
 VideoSourceOptions
 buildTrimStrip
 canvasRecorder
+createTrimPlugin
 dragHandle
 exportClip
 exportMedia

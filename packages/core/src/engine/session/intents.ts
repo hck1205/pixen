@@ -4,7 +4,7 @@ import type { ResizeIntent } from "../../image/resize.js";
 import { resolveSize } from "../../image/resize.js";
 import type { TextMeasurer } from "../../model/text-layout.js";
 import type { StepName } from "./steps.js";
-import type { ClipRange } from "../../model/clip.js";
+import type { ClipBounds, ClipRange } from "../../model/clip.js";
 import { cloneDocument, effectiveCrop } from "../../model/document.js";
 import type { LayerHandle } from "../../model/transform.js";
 import type {
@@ -40,7 +40,12 @@ export type Intent =
   | { kind: "drag-crop-handle"; handle: CropHandle; pointer: Point; minSize?: number }
   | { kind: "pan-crop"; delta: Point }
   | { kind: "set-aspect-ratio"; ratio: number | null }
-  | { kind: "set-clip"; range: ClipRange | null }
+  | {
+      kind: "set-clip";
+      range: ClipRange | null;
+      /** How long the host will let a clip be. See `ClipBounds`. */
+      bounds?: ClipBounds;
+    }
   | { kind: "set-adjustments"; adjustments: Partial<Adjustments> }
   | { kind: "set-output"; output: Partial<OutputSettings> }
   | { kind: "set-frame"; frame: Partial<FrameSettings> | null }
@@ -143,7 +148,7 @@ export function documentChangeFor(intent: Intent, measure?: TextMeasurer): Docum
       return {
         reason: "clip",
         step: intent.range ? "trim" : "resetTrim",
-        transform: (d) => commands.setClip(d, intent.range),
+        transform: (d) => commands.setClip(d, intent.range, intent.bounds),
       };
     case "set-aspect-ratio":
       return {

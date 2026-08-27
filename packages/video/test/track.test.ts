@@ -60,3 +60,42 @@ describe("trackReadout", () => {
     expect(trackReadout({ start: 1, end: 2.5 }, 3)).toBe("1.0s – 2.5s / 3.0s");
   });
 });
+
+/**
+ * `clampClip` takes time off the end when a clip is too long, because it does
+ * not know which end anyone touched. A drag does, so the handle being dragged
+ * is the one that stops — a start handle that quietly pulled the far end along
+ * would be moving a part of the clip nobody had hold of.
+ */
+describe("a handle against a length bound", () => {
+  const minute = 60;
+
+  it("stops the start handle rather than dragging the end along with it", () => {
+    const clip = { start: 20, end: 30 };
+    const dragged = dragHandle(clip, minute, "start", 0, { max: 10 });
+    expect(dragged.end).toBe(30);
+    expect(dragged.start).toBe(20);
+  });
+
+  it("stops the end handle at the ceiling, wherever the pointer went", () => {
+    const dragged = dragHandle({ start: 20, end: 30 }, minute, "end", 1, { max: 10 });
+    expect(dragged).toEqual({ start: 20, end: 30 });
+  });
+
+  it("stops a handle closing in past the floor, holding the other", () => {
+    const dragged = dragHandle({ start: 20, end: 40 }, minute, "end", 20 / minute, { min: 5 });
+    expect(dragged).toEqual({ start: 20, end: 25 });
+  });
+
+  it("lets a handle move freely while the clip stays inside its bounds", () => {
+    const dragged = dragHandle({ start: 20, end: 40 }, minute, "start", 25 / minute, { min: 5, max: 30 });
+    expect(dragged.start).toBeCloseTo(25, 6);
+    expect(dragged.end).toBe(40);
+  });
+
+  it("behaves as it always did when no bound is given", () => {
+    const dragged = dragHandle({ start: 20, end: 40 }, minute, "start", 0);
+    expect(dragged.start).toBe(0);
+    expect(dragged.end).toBe(40);
+  });
+});

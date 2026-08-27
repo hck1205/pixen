@@ -6,7 +6,7 @@
  * three questions that were one file until the file had to be read twice to
  * answer any of them.
  */
-import { clipFractions, wholeClip, type ClipRange, type Editor } from "@pixen/core";
+import { clampClip, clipFractions, wholeClip, type ClipBounds, type ClipRange, type Editor } from "@pixen/core";
 import type { PluginText } from "@pixen/web";
 import { isMoving } from "../media.js";
 import { dragHandle, trackLayout, trackReadout, type Handle } from "./track.js";
@@ -31,11 +31,26 @@ const STYLE = `
 .pixen-trim-readout { font: 400 12px/1.4 system-ui, sans-serif; opacity: 0.75; }
 `;
 
-function currentClip(editor: Editor, duration: number): ClipRange {
-  return editor.document.clip ?? wholeClip(duration);
+/**
+ * The range the strip is showing.
+ *
+ * A document with no clip means the whole source — but under a ceiling the
+ * whole source is not something the host will take, so what the handles show is
+ * the longest clip the rule allows. Showing three seconds selected under a
+ * one-second rule would be an interface disagreeing with itself before anyone
+ * had touched it.
+ */
+function currentClip(editor: Editor, duration: number, bounds: ClipBounds): ClipRange {
+  return clampClip(editor.document.clip ?? wholeClip(duration), duration, bounds);
 }
 
-function handleInput(editor: Editor, text: PluginText, handle: Handle, duration: number): HTMLInputElement {
+function handleInput(
+  editor: Editor,
+  text: PluginText,
+  handle: Handle,
+  duration: number,
+  bounds: ClipBounds,
+): HTMLInputElement {
   const input = document.createElement("input");
   input.type = "range";
   input.min = "0";
@@ -66,7 +81,8 @@ function handleInput(editor: Editor, text: PluginText, handle: Handle, duration:
     // data, and a plugin has the same way in as the element does.
     editor.dispatch({
       kind: "set-clip",
-      range: dragHandle(currentClip(editor, duration), duration, handle, Number(input.value)),
+      range: dragHandle(currentClip(editor, duration, bounds), duration, handle, Number(input.value), bounds),
+      bounds,
     });
   });
   input.addEventListener("change", end);
@@ -87,11 +103,11 @@ export function trimmableDuration(editor: Editor): number | null {
 }
 
 /** The strip, or nothing at all when this document is a still picture. */
-export function buildTrimStrip(editor: Editor, text: PluginText): Node[] {
+export function buildTrimStrip(editor: Editor, text: PluginText, bounds: ClipBounds = {}): Node[] {
   const duration = trimmableDuration(editor);
   if (duration === null) return [];
 
-  const clip = currentClip(editor, duration);
+  const clip = currentClip(editor, duration, bounds);
   const fractions = clipFractions(clip, duration);
 
   const root = document.createElement("div");
@@ -108,9 +124,9 @@ export function buildTrimStrip(editor: Editor, text: PluginText): Node[] {
   kept.style.width = `${layout.width}%`;
   track.append(kept);
 
-  const start = handleInput(editor, text, "start", duration);
+  const start = handleInput(editor, text, "start", duration, bounds);
   start.value = String(fractions.start);
-  const end = handleInput(editor, text, "end", duration);
+  const end = handleInput(editor, text, "end", duration, bounds);
   end.value = String(fractions.end);
   track.append(start, end);
 
@@ -122,8 +138,11 @@ export function buildTrimStrip(editor: Editor, text: PluginText): Node[] {
   whole.type = "button";
   whole.className = "text";
   whole.textContent = text("whole");
+  // `null` is the whole source, and `setClip` is what knows that a ceiling may
+  // not allow the whole source — so the button says what it means and the
+  // engine decides what that turns out to be.
   whole.disabled = editor.document.clip === null;
-  whole.addEventListener("click", () => editor.dispatch({ kind: "set-clip", range: null }));
+  whole.addEventListener("click", () => editor.dispatch({ kind: "set-clip", range: null, bounds }));
 
   root.append(track, readout, whole);
   return [root];
