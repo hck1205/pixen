@@ -23,6 +23,12 @@ import type { PixenStrings } from "./types.js";
  * host that wants all of them, and asking for a language nobody registered says
  * so rather than quietly rendering English.
  *
+ * Six of the fourteen — Hindi, Italian, Norwegian, Dutch, Russian, Swedish —
+ * are machine-authored from the English reference and have not been read by a
+ * native speaker. They are marked as such in their own files and in
+ * `docs/FRAMEWORKS.md`, and `registerLocale` merges per key, so correcting one
+ * of them is a line rather than a fork.
+ *
  * Locales are data, so a host can ship its own without waiting for a release,
  * and every locale is completed from `en` — a partial translation renders
  * English for the strings it does not cover rather than blank chrome.

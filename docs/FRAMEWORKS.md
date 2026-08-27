@@ -516,6 +516,21 @@ and 63,485 gzipped before, 161,893 and 53,441 after — **10 KB of every
 download, about a sixth of it**, for eight languages a host that ships one will
 never show.
 
+Fourteen languages ship: Arabic, Chinese, Dutch, English, French, German,
+Hindi, Italian, Japanese, Korean, Norwegian, Portuguese, Russian, Spanish,
+Swedish.
+
+**Six of them have not been read by a native speaker.** Hindi, Italian,
+Norwegian, Dutch, Russian and Swedish were written from the English reference by
+a machine, and are marked as such at the top of their own files. They are better
+than English-for-everyone and they are not a substitute for review before a
+release that promises them. Correcting one is a line, not a fork, because
+`registerLocale` merges per key:
+
+```js
+registerLocale("nl", { crop: "Uitsnijden" });   // everything else stays
+```
+
 `registerBundledLocales()` is the one line back to having all of them, and
 costs what it always did:
 

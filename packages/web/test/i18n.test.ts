@@ -114,7 +114,8 @@ describe("which languages are in the bundle", () => {
   });
 
   it("renders English for a language nobody registered, rather than nothing", () => {
-    expect(resolveStrings("nl").crop).toBe(en.crop);
+    // Welsh, because Pixen does not ship it and so cannot accidentally start.
+    expect(resolveStrings("cy").crop).toBe(en.crop);
   });
 
   it("says what to import, once per language", () => {
@@ -122,16 +123,16 @@ describe("which languages are in the bundle", () => {
     const warn = console.warn;
     console.warn = (message: string) => said.push(message);
     try {
-      resolveStrings("sv");
-      resolveStrings("sv-SE");
-      resolveStrings("sv");
+      resolveStrings("is");
+      resolveStrings("is-IS");
+      resolveStrings("is");
     } finally {
       console.warn = warn;
     }
     // Once, not once per render — this is called on every frame.
     expect(said).toHaveLength(1);
     // And it names the import, which is a thing nobody can guess.
-    expect(said[0]).toContain("@pixen/web/locale/sv");
+    expect(said[0]).toContain("@pixen/web/locale/is");
     expect(said[0]).toContain("registerBundledLocales");
   });
 
@@ -150,7 +151,7 @@ describe("which languages are in the bundle", () => {
 
   it("takes all nine in one line, for a host that would rather not choose", () => {
     registerBundledLocales();
-    for (const tag of ["ar", "de", "es", "fr", "ja", "ko", "pt", "zh"]) {
+    for (const tag of ["ar", "de", "es", "fr", "hi", "it", "ja", "ko", "nb", "nl", "pt", "ru", "sv", "zh"]) {
       expect(availableLocales(), tag).toContain(tag);
     }
   });

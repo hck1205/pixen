@@ -131,14 +131,17 @@ export const SURFACE_CLAIMS: ClaimGroup[] = [
       },
       {
         capability: "How many languages",
-        pixen: "Nine: Arabic, Chinese, English, French, German, Japanese, Korean, Portuguese, Spanish",
-        verdict: "open",
+        pixen:
+          "Fourteen: Arabic, Chinese, Dutch, English, French, German, Hindi, Italian, Japanese, " +
+          "Korean, Norwegian, Portuguese, Russian, Spanish, Swedish",
+        verdict: "met",
         market: required("package", "Fourteen languages in the package"),
-        evidence: [unit("i18n.test.ts")],
+        evidence: [unit("i18n.test.ts"), unit("labels.test.ts"), doc("docs/FRAMEWORKS.md")],
         note:
-          "A locale is data and a host can register its own, so this is a question of how many are " +
-          "written rather than of whether the mechanism reaches them. Hindi, Italian, Dutch, " +
-          "Norwegian, Swedish and Russian are the six that would close it",
+          "Six of them — Hindi, Italian, Norwegian, Dutch, Russian, Swedish — are machine-authored " +
+          "from the English reference and have not been read by a native speaker. Marked as such in " +
+          "their own files and in the documentation: better than English-for-everyone, and not a " +
+          "substitute for review before a release that promises them",
       },
       {
         capability: "Angular",

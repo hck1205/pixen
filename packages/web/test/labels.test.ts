@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { STEP_LABELS, STEP_NAMES, type HistorySummary } from "@pixen/core";
 import { ar } from "../src/i18n/ar.js";
 import { de } from "../src/i18n/de.js";
+import { hi } from "../src/i18n/hi.js";
+// `it` is vitest's here, so Italian arrives under a name of its own.
+import { it as italian } from "../src/i18n/it.js";
+import { nb } from "../src/i18n/nb.js";
+import { nl } from "../src/i18n/nl.js";
+import { ru } from "../src/i18n/ru.js";
+import { sv } from "../src/i18n/sv.js";
 import { en } from "../src/i18n/en.js";
 import { es } from "../src/i18n/es.js";
 import { fr } from "../src/i18n/fr.js";
@@ -184,15 +191,25 @@ describe("a step in the reader's language", () => {
   it("covers every step the engine can name, in every locale it ships", () => {
     // A missing key would fall back to English silently, which is the bug this
     // whole change is about — so the coverage is the test.
-    for (const [name, strings] of Object.entries({ en, ar, de, es, fr, ja, ko, pt, zh })) {
+    for (const [name, strings] of Object.entries({ en, ar, de, es, fr, hi, it: italian, ja, ko, nb, nl, pt, ru, sv, zh })) {
       for (const step of STEP_NAMES) {
         const worded = stepLabel(strings, step, "fallback");
         expect(worded, `${name}.${step}`).toBeTruthy();
         expect(worded, `${name}.${step}`).not.toBe("fallback");
-        if (name !== "en") {
-          expect(worded, `${name}.${step} is still English`).not.toBe(STEP_LABELS[step]);
-        }
       }
+    }
+  });
+
+  it("is a translation rather than a copy of the English file", () => {
+    // Most steps, not every step: a language may honestly share a word with
+    // English — Norwegian calls trimming "Trim" — and demanding that every one
+    // differ turns a correct translation into a failing test. What this
+    // catches is a file copied and not translated, which is the real mistake.
+    const SHARED_AT_MOST = 0.1;
+    for (const [name, strings] of Object.entries({ ar, de, es, fr, hi, it: italian, ja, ko, nb, nl, pt, ru, sv, zh })) {
+      const shared = STEP_NAMES.filter((step) => stepLabel(strings, step, "") === STEP_LABELS[step]).length;
+      expect(shared / STEP_NAMES.length, `${name} shares ${shared} of ${STEP_NAMES.length} steps with English`)
+        .toBeLessThanOrEqual(SHARED_AT_MOST);
     }
   });
 });
