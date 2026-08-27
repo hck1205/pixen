@@ -106,6 +106,55 @@ export const SURFACE_CLAIMS: ClaimGroup[] = [
         verdict: "unmeasured",
         evidence: [unit("bindings.test.ts"), unit("ssr.test.ts"), story("ExportFlow"), doc("docs/FRAMEWORKS.md")],
       },
+      {
+        capability: "A page with no bundler",
+        pixen:
+          "One self-contained module file, built from the module output so it is the same code. " +
+          "Everything is inlined, so there is nothing to resolve and no import map to write",
+        verdict: "met",
+        market: required("package", "Builds for pages without a module bundler"),
+        evidence: [browser("standalone.spec.ts"), doc("docs/FRAMEWORKS.md")],
+        note:
+          "One artefact rather than three. The older shapes buy compatibility with browsers below " +
+          "the floor in docs/BROWSER-SUPPORT.md anyway, and a build nobody can run the rest of the " +
+          "editor in would be a kindness that lies",
+      },
+      {
+        capability: "Paying for the languages you ship",
+        pixen:
+          "English is in the bundle and the rest are subpath imports — measured, 10 KB of every " +
+          "download, about a sixth of it. Asking for a language nobody registered renders English and " +
+          "says so once, naming the import",
+        verdict: "met",
+        market: required("package", "Locale files importable one at a time"),
+        evidence: [unit("i18n.test.ts"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
+        capability: "How many languages",
+        pixen: "Nine: Arabic, Chinese, English, French, German, Japanese, Korean, Portuguese, Spanish",
+        verdict: "open",
+        market: required("package", "Fourteen languages in the package"),
+        evidence: [unit("i18n.test.ts")],
+        note:
+          "A locale is data and a host can register its own, so this is a question of how many are " +
+          "written rather than of whether the mechanism reaches them. Hindi, Italian, Dutch, " +
+          "Norwegian, Swedish and Russian are the six that would close it",
+      },
+      {
+        capability: "Angular",
+        pixen:
+          "No wrapper package, because none is needed: `CUSTOM_ELEMENTS_SCHEMA` plus property and " +
+          "event bindings is standard Angular, and the documentation carries the teardown the other " +
+          "three wrappers exist for",
+        verdict: "declined",
+        market: required("package and installation", "An Angular component package"),
+        evidence: [doc("docs/FRAMEWORKS.md")],
+        note:
+          "Shipping one would mean an Angular dependency and an Angular build in a repository that " +
+          "has neither, for twenty lines that Angular already does. Not measured in a real Angular " +
+          "application — this repository runs no Angular in CI, and the claim is about what the " +
+          "framework does rather than about what we tested",
+      },
     ],
   },
 ];

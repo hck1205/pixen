@@ -172,14 +172,27 @@ import "@pixen/web";
       (pixen-export)="onExport($event)"></pixen-image-editor>
   `,
 })
-export class AvatarEditor {
+export class AvatarEditor implements OnDestroy {
+  @ViewChild("editor") editor!: ElementRef<PixenImageEditorElement>;
+
   tools = ["crop", "redact"];
   onExport(event: CustomEvent) { this.upload(event.detail.blob); }
+
+  // The one thing Angular will not do for you. Removing the element from the
+  // DOM does not release the decoded bitmaps — the editor holds them until it
+  // is told to let go — so without this a route change leaks the
+  // full-resolution image and every sticker with it. It is the whole reason
+  // `@pixen/react`, `@pixen/vue` and `@pixen/svelte` exist as packages at all.
+  ngOnDestroy() {
+    this.editor.nativeElement.destroy();
+  }
 }
 ```
 
 `[tools]` sets the property and `(pixen-export)` listens for the DOM event —
-both are standard Angular bindings, so no wrapper is required.
+both are standard Angular bindings, so there is no wrapper package and none is
+needed. What the other three wrappers add over this is the teardown above and
+nothing else, which is why they are twenty lines each.
 
 ## Solid, Preact, Lit, Qwik, Astro
 

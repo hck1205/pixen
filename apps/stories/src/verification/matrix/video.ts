@@ -105,6 +105,80 @@ export const VIDEO_CLAIMS: ClaimGroup[] = [
         verdict: "beyond",
         evidence: [browser("video.spec.ts")],
       },
+      {
+        capability: "The soundtrack",
+        pixen:
+          "The clip keeps its sound at the level asked for. `0` leaves the track out of the file " +
+          "rather than writing silence into it, and the container then stops claiming an Opus track " +
+          "it has nothing to put in",
+        verdict: "met",
+        market: required("video properties", "The output volume is controllable, and zero removes the audio track"),
+        evidence: [unit("audio.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+        note:
+          "Found by measuring rather than by reading: recording a canvas records a canvas, so every " +
+          "exported clip came back silent whatever the source had — one audio track in, none out",
+      },
+      {
+        capability: "Several kept parts",
+        pixen:
+          "A clip is a list of kept parts, in order and never overlapping. They export as one file in " +
+          "one recording pass, and the exported length is their total rather than the span from the " +
+          "first start to the last end",
+        verdict: "met",
+        market: required("video properties", "Trimming describes more than one kept range"),
+        evidence: [unit("clip.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+        note:
+          "Stored in absolute seconds rather than as fractions, for the reason the single range " +
+          "already was: half of a source whose length you have not got is not a range",
+      },
+      {
+        capability: "A length a host requires",
+        pixen:
+          "A floor and a ceiling on the kept length. On what is kept rather than on what may be " +
+          "loaded: a long source opens as it always did, and the handle being dragged is the one that " +
+          "stops",
+        verdict: "met",
+        market: required("video properties", "A minimum and a maximum duration, enforced by the trim UI"),
+        evidence: [unit("clip.test.ts"), unit("track.test.ts"), browser("video.spec.ts")],
+      },
+      {
+        capability: "Playing the clip",
+        pixen:
+          "Playing a clip runs each kept part and skips what is between — measured across a cut, " +
+          "fifteen position reports and none from inside it. What the player reports is what it was " +
+          "asked for, so an export borrowing the element cannot make it announce that the picture " +
+          "started",
+        verdict: "met",
+        market: required("video methods and events", "play, pause, mute, current time, duration, and events for them"),
+        evidence: [unit("player.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+        note:
+          "The editor could trim a video it could not play. The requirement was for six one-line calls " +
+          "over a media element; what is here plays the clip rather than the file, which is the part " +
+          "the platform cannot do",
+      },
+      {
+        capability: "Knowing the wait before taking it",
+        pixen:
+          "`clipExportCost` says how much film comes out, roughly how long making it will take, and " +
+          "whether that is past the line this host draws — not a refusal, but the moment to offer a " +
+          "server instead of starting a four-minute wait nobody agreed to",
+        verdict: "met",
+        market: required("video server", "Encoding longer content belongs on a server rather than in the browser"),
+        evidence: [unit("cost.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+      },
+      {
+        capability: "An encoder chain with fallbacks",
+        pixen:
+          "One recorder seam, and one recorder behind it. A host wanting WebCodecs, a WASM encoder or " +
+          "a server writes the seam; Pixen does not ship a chain that tries several and falls back",
+        verdict: "open",
+        market: required("video exports", "Several encoders, chained, with a media-stream fallback"),
+        evidence: [doc("docs/VIDEO.md")],
+        note:
+          "The seam is the whole extension point and it is tested, but assembling more than one " +
+          "encoder behind it is left to the host today. Audio bitrate is the same gap: `bitrate` is " +
+          "the picture's",
+      },
     ],
   },
 ];

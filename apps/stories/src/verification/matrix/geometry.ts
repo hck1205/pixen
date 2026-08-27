@@ -89,6 +89,52 @@ export const GEOMETRY_CLAIMS: ClaimGroup[] = [
         evidence: [unit("geometry.test.ts"), doc("docs/ARCHITECTURE.md")],
         note: "An architectural property rather than a feature: nothing in the supplied material asked for it",
       },
+      {
+        capability: "A crop beyond the picture",
+        pixen:
+          "`cropWithinImage` is true by default, which is what a crop usually means. False lets it " +
+          "hang off the edges — a square cut from a panorama keeps its ends, a rotated picture keeps " +
+          "its corners — with room of one picture on each side, so a handle cannot be dragged to the " +
+          "horizon",
+        verdict: "met",
+        market: required("image properties", "The crop may be taken outside the image edges, with the background showing through"),
+        evidence: [unit("lifecycle.test.ts"), browser("editor.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+        note:
+          "Restoring the rule brings an overhanging crop home rather than leaving the document in a " +
+          "state its own rule forbids",
+      },
+      {
+        capability: "A bitmap behind the picture",
+        pixen:
+          "Scaled to cover the exported frame and centred, over the background colour and under the " +
+          "photograph. The adjustments reach it only when the document says so",
+        verdict: "met",
+        market: required("image properties", "A background image behind the output, and whether filters apply to it"),
+        evidence: [browser("editor.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+      },
+      {
+        capability: "A layer belongs to the picture or to the frame",
+        pixen:
+          "`space: \"image\"` rides the rotation and the flips; `space: \"output\"` is the exported " +
+          "file's own pixels and does not turn with the picture or move when the crop does",
+        verdict: "met",
+        market: required("image properties", "Shapes drawn in the crop context stay put when the image is rotated"),
+        evidence: [unit("scene.test.ts"), unit("decoration.test.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+        note:
+          "Two of the four coordinate spaces this project already documents, rather than a parallel " +
+          "vocabulary of shape lists",
+      },
+      {
+        capability: "A largest crop",
+        pixen: "There is a floor on the crop and no ceiling",
+        verdict: "open",
+        market: required("image properties", "A maximum crop size as well as a minimum"),
+        evidence: [doc("docs/DOCUMENT-SCHEMA.md")],
+        note:
+          "The floor exists because a crop can be dragged to nothing. A ceiling has no equivalent " +
+          "gesture behind it — nothing drags a crop larger than its own bounds — so it would be a " +
+          "setting rather than a guard, and nothing here needs one yet",
+      },
     ],
   },
 ];
