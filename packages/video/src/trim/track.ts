@@ -72,10 +72,24 @@ export function dragHandle(
  * Several kept parts read as their ranges and then the total, because the total
  * is the length of the file that comes out and is the number a host's own limit
  * is about — and it is not the last range's end minus the first one's start.
+ *
+ * The marked stretch is named separately when it is not simply what is kept,
+ * because the buttons act on the mark and a reader has to be able to see which
+ * stretch they are about to keep or cut.
  */
-export function trackReadout(selection: ClipSelection, duration: number): string {
-  const parts = selection.map((part) => `${part.start.toFixed(1)}s – ${part.end.toFixed(1)}s`).join(", ");
+export function trackReadout(selection: ClipSelection, duration: number, mark?: ClipRange): string {
+  const parts = selection.map(sayRange).join(", ");
   const kept = selectionDuration(selection);
   const total = selection.length > 1 ? ` (${kept.toFixed(1)}s)` : "";
-  return `${parts}${total} / ${duration.toFixed(1)}s`;
+  const marked = mark && !isOnly(selection, mark) ? ` · ${sayRange(mark)}` : "";
+  return `${parts}${total} / ${duration.toFixed(1)}s${marked}`;
+}
+
+function sayRange(range: ClipRange): string {
+  return `${range.start.toFixed(1)}s – ${range.end.toFixed(1)}s`;
+}
+
+function isOnly(selection: ClipSelection, mark: ClipRange): boolean {
+  const first = selection[0];
+  return selection.length === 1 && first !== undefined && first.start === mark.start && first.end === mark.end;
 }

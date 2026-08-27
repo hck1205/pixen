@@ -14,7 +14,7 @@
 import type { ClipBounds } from "@pixen/core";
 import type { PixenPlugin } from "@pixen/web";
 import { TRIM_STRINGS } from "./strings.js";
-import { buildTrimStrip, trimStyleElement, trimmableDuration } from "./strip.js";
+import { buildTrimStrip, trimStyleElement, trimmableDuration, type TrimMark } from "./strip.js";
 
 /**
  * The strip, with a length the host requires of a clip.
@@ -30,6 +30,11 @@ import { buildTrimStrip, trimStyleElement, trimmableDuration } from "./strip.js"
 export function createTrimPlugin(bounds: ClipBounds = {}): PixenPlugin {
   return (context) => {
     const text = context.addStrings(TRIM_STRINGS);
+    // Where the handles are, which outlives a rebuild: the section is rebuilt
+    // on every document change, so the mark cannot live in the DOM it is drawn
+    // into. It belongs to the installed plugin, whose lifetime is how long the
+    // strip is on screen.
+    const mark: TrimMark = { range: null };
     const style = trimStyleElement();
     context.element.shadowRoot?.append(style);
 
@@ -38,7 +43,7 @@ export function createTrimPlugin(bounds: ClipBounds = {}): PixenPlugin {
       // A still picture has no clip, and a strip over one would be a control
       // that does nothing rather than one that is merely disabled.
       when: () => trimmableDuration(context.editor) !== null,
-      build: () => buildTrimStrip(context.editor, text, bounds),
+      build: () => buildTrimStrip(context.editor, text, bounds, mark),
     });
 
     return () => {

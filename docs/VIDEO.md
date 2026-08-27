@@ -151,7 +151,19 @@ start to the last end, and that total is what a length rule is measured against.
 
 Parts that touch or overlap are merged rather than refused, because two
 overlapping ranges describe one kept stretch and that is what the export would
-write anyway.
+write anyway. Cutting away everything leaves the selection alone: a clip has to
+be *something*, and an empty selection is not a shorter film but no film.
+
+### In the strip
+
+The two handles mark a stretch of the source and three buttons say what to do
+with it — **Keep**, **Cut out**, **Whole clip**. That is what makes several kept
+parts reachable with the control already there: mark the pause and cut it out,
+and what is left is the two halves either side of it.
+
+Marking is not an edit. Dragging a handle changes nothing about the document and
+costs no undo step — the mark is where you are pointing, not what you have
+decided — so a whole gesture of marking and pressing a button is one step.
 
 ## How long a clip may be
 

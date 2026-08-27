@@ -29,10 +29,46 @@ export const VIDEO_COVERAGE: CoverageGroup[] = [
         capability: "Trim",
         layer: "Engine",
         detail:
-          "A clip range in the document, undoable and serialisable like a crop. Stored in absolute " +
+          "Kept parts in the document, undoable and serialisable like a crop. Stored in absolute " +
           "seconds rather than fractions, because half of a source whose length you have not got is " +
           "not a range — and replacing the picture underneath would silently move it",
         evidence: [unit("clip.test.ts"), browser("video.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+      },
+      {
+        capability: "Several kept parts",
+        layer: "Engine",
+        detail:
+          "A clip is a list: the pause taken out of an interview, two answers out of a talk. They " +
+          "export as one file in one recording pass, and the exported length is their total rather " +
+          "than the span from the first start to the last end",
+        evidence: [unit("clip.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+      },
+      {
+        capability: "Mark, then keep or cut",
+        layer: "Element",
+        detail:
+          "The handles mark a stretch and the buttons say what to do with it, which is what makes " +
+          "several kept parts reachable with the control already there. Marking is not an edit and " +
+          "costs no undo step — the mark is where you are pointing, the button is where you decide",
+        evidence: [browser("video.spec.ts")],
+      },
+      {
+        capability: "The soundtrack",
+        layer: "Engine",
+        detail:
+          "The clip keeps its sound at the level asked for. Recording a canvas records a canvas, so " +
+          "every export used to come back silent whatever the source had; 0 leaves the track out of " +
+          "the file rather than writing silence into it",
+        evidence: [unit("audio.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+      },
+      {
+        capability: "A length a host requires",
+        layer: "Engine",
+        detail:
+          "A floor and a ceiling on the kept length — an advert slot, an upload limit. On what is " +
+          "kept rather than on what may be loaded: a long source opens as it always did, and the " +
+          "handle being dragged is the one that stops",
+        evidence: [unit("clip.test.ts"), unit("track.test.ts"), browser("video.spec.ts")],
       },
       {
         capability: "A video is never proxied",

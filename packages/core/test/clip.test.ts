@@ -7,6 +7,7 @@ import {
   clipLimits,
   clampSelection,
   selectionDuration,
+  subtractRange,
   clipTimeToSource,
   commands,
   createDocument,
@@ -322,5 +323,56 @@ describe("keeping more than one part", () => {
   it("refuses a stored selection with nothing in it", () => {
     const empty = { ...stored(commands.setClip(movingDocument(), { start: 1, end: 2 })), clip: [] };
     expect(validateDocument(empty).ok).toBe(false);
+  });
+});
+
+/**
+ * The gesture that makes several kept parts out of one: mark the pause, the
+ * stumble, the dead air, and take it out.
+ */
+describe("cutting a stretch out of what is kept", () => {
+  const minute = 60;
+  const whole = [{ start: 0, end: minute }];
+
+  it("turns one part into two when the cut falls inside it", () => {
+    expect(subtractRange(whole, { start: 20, end: 30 }, minute)).toEqual([
+      { start: 0, end: 20 },
+      { start: 30, end: 60 },
+    ]);
+  });
+
+  it("shortens a part the cut only reaches into", () => {
+    expect(subtractRange(whole, { start: 50, end: 99 }, minute)).toEqual([{ start: 0, end: 50 }]);
+  });
+
+  it("drops a part the cut covers entirely", () => {
+    const two = [
+      { start: 0, end: 10 },
+      { start: 20, end: 30 },
+    ];
+    expect(subtractRange(two, { start: 18, end: 32 }, minute)).toEqual([{ start: 0, end: 10 }]);
+  });
+
+  it("leaves a part the cut misses exactly as it was", () => {
+    expect(subtractRange([{ start: 0, end: 10 }], { start: 20, end: 30 }, minute)).toEqual([{ start: 0, end: 10 }]);
+  });
+
+  it("sorts a cut that arrived backwards, the way a drag can produce one", () => {
+    expect(subtractRange(whole, { start: 30, end: 20 }, minute)).toEqual([
+      { start: 0, end: 20 },
+      { start: 30, end: 60 },
+    ]);
+  });
+
+  it("hands back what it was given rather than nothing when the cut takes everything", () => {
+    // A clip has to be something. An empty selection is not a shorter film, it
+    // is no film — and the caller can see nothing happened because what came
+    // back is what went in.
+    expect(subtractRange(whole, { start: 0, end: minute }, minute)).toEqual(whole);
+  });
+
+  it("leaves no sliver too short to be a clip", () => {
+    const cut = subtractRange(whole, { start: MIN_CLIP_SECONDS / 2, end: 30 }, minute);
+    expect(cut).toEqual([{ start: 30, end: 60 }]);
   });
 });

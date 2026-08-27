@@ -456,12 +456,22 @@ test("the trim strip sets the clip, in the language the editor is in", async ({ 
     };
   });
 
-  // Drag the start handle to the middle of the strip.
+  // Mark from the middle of the strip to its end, then keep what is marked.
+  // Marking is not an edit: the mark is where you are pointing, and the button
+  // is where you decide.
   const box = (await editor.locator('input[data-handle="start"]').boundingBox())!;
   await page.mouse.move(box.x + 4, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
   await page.mouse.up();
+
+  const marked = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    return element.editor.document.clip;
+  });
+  expect(marked).toBeNull();
+
+  await editor.locator("button", { hasText: "이 부분만" }).first().click();
 
   const after = await page.evaluate(() => {
     const element = document.querySelector("#editor") as VideoEditor;
@@ -477,7 +487,7 @@ test("the trim strip sets the clip, in the language the editor is in", async ({ 
   // Somewhere near the middle, and still inside the source.
   expect(after.clip!.start).toBeGreaterThan(after.duration * 0.2);
   expect(after.clip!.start).toBeLessThan(after.clip!.end);
-  // However many times the value changed on the way, the drag is one step.
+  // However many times the mark moved on the way, keeping it is one step.
   expect(after.depth - before.depth).toBe(1);
 });
 
@@ -649,14 +659,16 @@ test("a length rule stops the handle that is being dragged", async ({ page }) =>
     };
   });
 
-  // Drag the end handle as far right as it goes. It starts a third of the way
-  // across, because the rule has already held the clip to one of three seconds.
+  // Mark as far right as the end handle goes, then keep it. The handle starts a
+  // third of the way across, because the rule already holds the mark to one of
+  // three seconds.
   const box = (await editor.locator('input[data-handle="end"]').boundingBox())!;
   const middle = box.y + box.height / 2;
   await page.mouse.move(box.x + box.width / 3, middle);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width - 2, middle, { steps: 10 });
   await page.mouse.up();
+  await editor.locator("button", { hasText: "Keep" }).first().click();
 
   const after = await page.evaluate(() => {
     const element = document.querySelector("#editor") as VideoEditor;
@@ -675,30 +687,36 @@ test("a length rule stops the handle that is being dragged", async ({ page }) =>
   expect(after.start).toBeCloseTo(0, 3);
 
   // The start handle is where a ceiling could go wrong quietly. `clampClip`
-  // takes time off the *end* when a clip is too long, so a start dragged
-  // leftwards would haul the far end back with it — a part of the clip nobody
-  // had hold of. Put the clip at the end of the source and drag the start out.
+  // takes time off the *end* when a stretch is too long, so a start dragged
+  // leftwards would haul the far end back with it — a part of the mark nobody
+  // had hold of. Push the mark to the end of the source, then drag its start
+  // out and see whether the end holds.
+  //
+  // Driven through the controls' own events rather than the pointer: the mouse
+  // path is covered by the trim-strip test next door, and what is under test
+  // here is what a handle *means*, at values a drag cannot land on exactly.
   await page.evaluate(() => {
     const element = document.querySelector("#editor") as VideoEditor;
-    const duration = element.editor.document.source.duration as number;
-    element.editor.dispatch({
-      kind: "set-clip",
-      range: { start: duration - 1, end: duration },
-      bounds: { max: 1 },
-    });
+    const move = (handle: string, value: string): void => {
+      const input = element.shadowRoot!.querySelector(`input[data-handle="${handle}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    // Walked to the end rather than jumped: a ceiling means each move can only
+    // add its own length, which is the rule working.
+    for (let i = 0; i < 4; i += 1) {
+      move("start", "1");
+      move("end", "1");
+    }
+    move("start", "0");
   });
+  await editor.locator("button", { hasText: "Keep" }).first().click();
 
-  // Driven through the control's own event rather than the pointer: the mouse
-  // path is covered by the trim-strip test next door, and what is under test
-  // here is what the handle *means*, at a value a drag cannot land on exactly.
   const dragged = await page.evaluate(() => {
     const element = document.querySelector("#editor") as VideoEditor;
-    const handle = element.shadowRoot!.querySelector('input[data-handle="start"]') as HTMLInputElement;
-    handle.value = "0";
-    handle.dispatchEvent(new Event("input", { bubbles: true }));
-    handle.dispatchEvent(new Event("change", { bubbles: true }));
+    const parts = element.editor.document.clip as { start: number; end: number }[];
     return {
-      clip: (element.editor.document.clip as { start: number; end: number }[])[0]!,
+      clip: parts[parts.length - 1]!,
       duration: element.editor.document.source.duration as number,
     };
   });
@@ -792,4 +810,73 @@ test("two kept parts export as one file with the part between them missing", asy
   expect(outcome.late.b).toBeGreaterThan(outcome.late.r);
   expect(outcome.early.g).toBeLessThan(outcome.early.r);
   expect(outcome.late.g).toBeLessThan(outcome.late.b);
+});
+
+/**
+ * The gesture that makes several kept parts out of one, with the control that
+ * was already there: mark the pause and take it out. Marking is not an edit —
+ * the mark is where you are pointing, and the button is where you decide — so
+ * the whole thing is one undo step.
+ */
+test("cutting the marked stretch out leaves the two parts either side of it", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+
+  await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 3 });
+    await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "sample.webm" });
+  });
+
+  const editor = page.locator("#editor");
+  await expect(editor.locator('input[data-handle="start"]')).toHaveCount(1);
+
+  const before = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    return {
+      clip: element.editor.document.clip,
+      depth: (element.editor as unknown as { historyState: { depth: number } }).historyState.depth,
+    };
+  });
+
+  // Mark the middle third — the green second — and cut it out.
+  await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const move = (handle: string, value: string): void => {
+      const input = element.shadowRoot!.querySelector(`input[data-handle="${handle}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    move("start", "0.35");
+    move("end", "0.65");
+  });
+
+  const stillWhole = await page.evaluate(
+    () => (document.querySelector("#editor") as VideoEditor).editor.document.clip,
+  );
+  expect(stillWhole).toBeNull();
+
+  await editor.locator("button", { hasText: "Cut out" }).first().click();
+
+  const after = await page.evaluate(() => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    return {
+      parts: element.editor.document.clip as { start: number; end: number }[],
+      duration: element.editor.document.source.duration as number,
+      depth: (element.editor as unknown as { historyState: { depth: number } }).historyState.depth,
+    };
+  });
+
+  expect(before.clip).toBeNull();
+  expect(after.parts).toHaveLength(2);
+  // The head runs from the beginning, the tail to the end, and the marked
+  // stretch is in neither.
+  expect(after.parts[0]!.start).toBeCloseTo(0, 3);
+  expect(after.parts[1]!.end).toBeCloseTo(after.duration, 2);
+  // And it is in neither at the place the handles were put, rather than at some
+  // other place that also happens to leave two parts.
+  expect(after.parts[0]!.end / after.duration).toBeCloseTo(0.35, 2);
+  expect(after.parts[1]!.start / after.duration).toBeCloseTo(0.65, 2);
+  // However many times the mark moved on the way, the cut is one step.
+  expect(after.depth - before.depth).toBe(1);
 });

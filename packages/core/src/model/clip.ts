@@ -187,3 +187,39 @@ export function clipFromFractions(start: number, end: number, duration: number, 
   const limit = Math.max(MIN_CLIP_SECONDS, duration);
   return clampClip({ start: start * limit, end: end * limit }, limit, bounds);
 }
+
+/**
+ * What is left of a selection once a stretch of it is taken out.
+ *
+ * The gesture that makes several kept parts out of one: mark the pause, the
+ * stumble, the dead air, and remove it. A part the cut falls inside becomes two
+ * parts; a part it covers entirely goes; a part it clips loses an end.
+ *
+ * Removing everything leaves the selection alone rather than nothing. A clip
+ * has to be *something* — an empty selection is not a shorter film, it is no
+ * film — and the honest answer to "cut all of it" is that there is nothing left
+ * to cut, which the caller can see because what came back is what went in.
+ */
+export function subtractRange(
+  selection: ClipSelection,
+  cut: ClipRange,
+  duration: number,
+  bounds: ClipBounds = {},
+): ClipSelection {
+  const { limit } = clipLimits(duration, bounds);
+  const from = clamp(Math.min(cut.start, cut.end), 0, limit);
+  const to = clamp(Math.max(cut.start, cut.end), 0, limit);
+
+  const kept: ClipRange[] = [];
+  for (const part of clampSelection(selection, duration, bounds)) {
+    if (to <= part.start || from >= part.end) {
+      kept.push({ ...part });
+      continue;
+    }
+    if (from - part.start >= MIN_CLIP_SECONDS) kept.push({ start: part.start, end: from });
+    if (part.end - to >= MIN_CLIP_SECONDS) kept.push({ start: to, end: part.end });
+  }
+
+  if (kept.length === 0) return clampSelection(selection, duration, bounds);
+  return clampSelection(kept, duration, bounds);
+}

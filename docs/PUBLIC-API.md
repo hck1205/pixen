@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-466 names.
+467 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -445,6 +445,7 @@ standInSize
 stepDownPasses
 stickerFrame
 straightenAngleOf
+subtractRange
 summarise
 summariseSupport
 supportsContextFilter
@@ -754,7 +755,7 @@ pixen
 
 ## @pixen/video
 
-33 names.
+34 names.
 
 ```
 ClipRecorder
@@ -768,6 +769,7 @@ Soundtrack
 SoundtrackPlan
 TRIM_STRINGS
 TrackLayout
+TrimMark
 VideoExportOptions
 VideoExportResult
 VideoExportStage
