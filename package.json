@@ -12,7 +12,7 @@
     "typecheck": "tsc -b packages/core packages/web packages/video packages/react packages/vue packages/svelte && tsc --noEmit -p tsconfig.tests.json && pnpm --filter @pixen/stories exec tsc --noEmit -p tsconfig.json && pnpm --filter @pixen/playground exec tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:browser": "pnpm build && pnpm playground:build && playwright test",
+    "test:browser": "pnpm build && pnpm build:standalone && pnpm playground:build && playwright test",
     "test:visual": "pnpm build && pnpm stories:build && PIXEN_VISUAL=1 playwright test visual.spec.ts",
     "test:visual:update": "pnpm build && pnpm stories:build && PIXEN_VISUAL=1 playwright test visual.spec.ts --update-snapshots",
     "playground": "pnpm --filter @pixen/playground dev",
@@ -24,11 +24,13 @@
     "check:exports": "node scripts/unused-exports.mjs",
     "check:duplication": "node scripts/duplicate-blocks.mjs",
     "check:size": "node scripts/module-budget.mjs",
-    "check:surface": "node scripts/public-surface.mjs"
+    "check:surface": "node scripts/public-surface.mjs",
+    "build:standalone": "node scripts/build-standalone.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.2",
+    "esbuild": "^0.24.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },

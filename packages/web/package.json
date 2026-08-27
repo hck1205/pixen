@@ -24,6 +24,9 @@
     "./locale/*": {
       "types": "./dist/i18n/*.d.ts",
       "default": "./dist/i18n/*.js"
+    },
+    "./standalone": {
+      "default": "./dist/standalone/pixen.js"
     }
   },
   "files": [

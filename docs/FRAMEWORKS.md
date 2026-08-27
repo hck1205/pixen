@@ -510,3 +510,28 @@ registerLocale("nl", { crop: "Bijsnijden", undo: "Ongedaan maken" });
 
 Writing direction does not depend on any of this: `directionFor("he")` is
 `"rtl"` whether or not Hebrew strings were ever imported.
+
+## A page with no bundler
+
+`@pixen/web` publishes ES modules with bare specifiers, which a browser cannot
+resolve on its own. That is right for an application with a build step and
+useless to everyone else — a Rails template, a Django page, a WordPress plugin,
+a Cordova shell. For those there is one self-contained file:
+
+```html
+<pixen-image-editor id="editor"></pixen-image-editor>
+<script type="module">
+  import { registerLocale } from "https://unpkg.com/@pixen/web/dist/standalone/pixen.js";
+  document.querySelector("#editor").editor.load("photo.jpg");
+</script>
+```
+
+Everything is inlined, so there is nothing to resolve and no import map to
+write. One artefact rather than three: a modern browser has had modules since
+2017, and the older shapes buy compatibility with browsers that fall below the
+floor in `docs/BROWSER-SUPPORT.md` anyway — a build nobody can run the rest of
+the editor in would be a kindness that lies.
+
+It is built from the module output, so it is the same code, and there is a
+browser test that loads it on a page with none of this repository's machinery
+and exports a real file from it.
