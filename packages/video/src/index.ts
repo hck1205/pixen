@@ -12,6 +12,8 @@
  */
 export * from "./source.js";
 export * from "./audio.js";
+export * from "./naming.js";
+export * from "./cost.js";
 export * from "./encode.js";
 export * from "./export.js";
 export * from "./media.js";

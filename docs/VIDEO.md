@@ -9,6 +9,12 @@ like any other picture, and every existing feature reaches every frame through
 the scene that was already there. What the package adds is the two things that
 are genuinely about time — which part is kept, and how it is written out.
 
+## Installing it
+
+```bash
+pnpm add @pixen/video
+```
+
 ```js
 import { openVideo, exportClip, trimPlugin } from "@pixen/video";
 
@@ -16,6 +22,12 @@ editor.use(trimPlugin);                       // the trim strip in the inspector
 const { element, duration } = await openVideo(editor, file);
 const clip = await exportClip(editor.document, element, editor.resources);
 ```
+
+That is the whole installation. There is no second stylesheet to import and no
+locale object to spread into the editor's own: a plugin brings its own styles
+and its own strings, in all nine languages, through the seams in
+`docs/PLUGINS.md`. A host that forgets a CSS import gets a control with no
+styling and no error, so there is nothing here to forget.
 
 ## The two costs
 
@@ -62,6 +74,22 @@ every profile of its codec is a yes worth nothing. Pixen's own candidates are
 WebM only, and `supportedRecordingType()` will tell you what this browser would
 write before you start.
 
+### Knowing before you pay
+
+The wait is knowable in advance, which is the point of knowing it:
+
+```js
+const cost = clipExportCost(editor.document);   // or (document, 60) for your own line
+cost.seconds;            // how much film comes out
+cost.estimatedSeconds;   // roughly how long making it will take
+cost.long;               // past the threshold — offer a server instead
+```
+
+`long` is not a refusal. It is the moment to say "this will take four minutes"
+and offer the alternative, rather than starting a four-minute wait a person did
+not agree to. Past a couple of minutes, encoding on a server is the honest
+answer, and the seam below is how the frames get there.
+
 ### The way out of both
 
 `ClipRecorder` is the seam. Hand `exportClip` a `recorder` and the frames go
@@ -78,6 +106,24 @@ Pixen can depend on: it is present in the Chromium this repository tests against
 today and absent in another Chromium on the same machine. That is why the story
 browser asks the browser in front of you rather than repeating a number measured
 somewhere else.
+
+A recorder is also where a server goes. `frame(seconds)` is called with each
+painted frame still on the canvas, so an implementation that reads the canvas
+and posts it — or opens a socket and streams it — moves the encoding off the
+machine without the editor knowing anything about it. The document travels as
+JSON, so the other honest shape is to send that instead and re-render from the
+original file; which of the two is right depends on whether the server has the
+source.
+
+### Delivering the file
+
+An exported clip is named, and goes down the same wire a still picture does:
+
+```js
+const written = await exportClip(document, element, resources);
+written.filename;                                   // "interview-edited.webm"
+await uploadExport(written, { url: "/clips" });     // from @pixen/core
+```
 
 ## What applies to a moving picture
 

@@ -35,7 +35,10 @@ type Demo = {
     bytes: number;
     type: string;
     hasSound: boolean;
+    filename: string;
   }>;
+  uploadExport(result: unknown, target: { url: string }): Promise<{ status: number; body: string }>;
+  clipExportCost(document: unknown): { seconds: number; estimatedSeconds: number; parts: number; long: boolean };
   exportMedia(
     document: unknown,
     resources: unknown,
@@ -879,4 +882,187 @@ test("cutting the marked stretch out leaves the two parts either side of it", as
   expect(after.parts[1]!.start / after.duration).toBeCloseTo(0.65, 2);
   // However many times the mark moved on the way, the cut is one step.
   expect(after.depth - before.depth).toBe(1);
+});
+
+/**
+ * A redaction on a moving picture is a security claim, and `docs/VIDEO.md`
+ * makes it in a table: every annotation reaches every frame. Asserted here
+ * rather than assumed, because the three modes that hide a region by reading it
+ * back could each fail silently on a video and leave the picture showing.
+ *
+ * The fixture is a fine checkerboard, so "is it still legible" is the spread of
+ * the pixels rather than a judgement: full contrast unredacted, and much less
+ * of it once something has been done to the region.
+ */
+test("every redaction mode reaches a moving picture, not just the solid one", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+
+  const measured = await page.evaluate(async () => {
+    // Structure to destroy, plus a pixel that changes every frame so the
+    // capture stream keeps emitting — see the note in `sample-clip.ts`.
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 240;
+    const paint = canvas.getContext("2d")!;
+    const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: "video/webm;codecs=vp8" });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    recorder.start();
+    const startedAt = performance.now();
+    let painted = 0;
+    await new Promise<void>((done) => {
+      const tick = (): void => {
+        for (let y = 0; y < 240; y += 6) {
+          for (let x = 0; x < 320; x += 6) {
+            paint.fillStyle = (x / 6 + y / 6) % 2 === 0 ? "#ffffff" : "#101010";
+            paint.fillRect(x, y, 6, 6);
+          }
+        }
+        paint.fillStyle = `rgb(${painted % 256}, 0, 0)`;
+        paint.fillRect(0, 0, 1, 1);
+        painted += 1;
+        if (performance.now() - startedAt < 1800) requestAnimationFrame(tick);
+        else done();
+      };
+      tick();
+    });
+    await new Promise((resolve) => {
+      recorder.onstop = resolve;
+      recorder.stop();
+    });
+    const clip = new Blob(chunks, { type: "video/webm" });
+
+    const element = document.querySelector("#editor") as VideoEditor;
+    const spreads: Record<string, { inside: number; outside: number }> = {};
+
+    for (const mode of ["none", "solid", "blur", "pixelate", "scramble"]) {
+      const source = await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "check.webm" });
+      const { width, height } = element.editor.document.source;
+      element.editor.dispatch({ kind: "reset" });
+      if (mode !== "none") {
+        element.editor.dispatch({
+          kind: "add-layer",
+          layer: {
+            id: `redact_${mode}`,
+            type: "redact",
+            visible: true,
+            locked: false,
+            opacity: 1,
+            rotation: 0,
+            frame: { x: 0, y: 0, width: width / 2, height },
+            mode,
+            strength: 0.12,
+            colour: "#00ff00",
+          },
+        });
+      }
+
+      const written = await window.pixenVideoDemo.exportClip(
+        element.editor.document,
+        source.element,
+        element.editor.resources,
+      );
+      const played = document.createElement("video");
+      played.muted = true;
+      played.playsInline = true;
+      played.src = URL.createObjectURL(written.blob);
+      await new Promise((resolve, reject) => {
+        played.onloadeddata = resolve;
+        played.onerror = reject;
+        setTimeout(reject, 8000);
+      });
+      played.currentTime = (played.duration || 1) / 2;
+      await new Promise((resolve) => {
+        played.onseeked = resolve;
+        setTimeout(resolve, 1500);
+      });
+
+      const read = document.createElement("canvas");
+      read.width = written.width;
+      read.height = written.height;
+      const context = read.getContext("2d")!;
+      context.drawImage(played, 0, 0, written.width, written.height);
+      const spreadOf = (fromFraction: number, toFraction: number): number => {
+        const x = Math.round(written.width * fromFraction);
+        const wide = Math.round(written.width * (toFraction - fromFraction));
+        const data = context.getImageData(x, Math.round(written.height * 0.3), wide, Math.round(written.height * 0.4)).data;
+        let sum = 0;
+        let squares = 0;
+        let count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          sum += data[i]!;
+          squares += data[i]! * data[i]!;
+          count += 1;
+        }
+        return Math.sqrt(squares / count - (sum / count) ** 2);
+      };
+      spreads[mode] = { inside: spreadOf(0.05, 0.45), outside: spreadOf(0.55, 0.95) };
+    }
+    return spreads;
+  });
+
+  // Untouched, the checkerboard is at full contrast on both halves.
+  expect(measured.none!.inside).toBeGreaterThan(80);
+  expect(measured.none!.outside).toBeGreaterThan(80);
+
+  // And every mode leaves the half outside it exactly as it was.
+  for (const [mode, spread] of Object.entries(measured)) {
+    expect(spread.outside, `${mode} outside`).toBeGreaterThan(80);
+  }
+
+  // A solid fill has no structure left at all.
+  expect(measured.solid!.inside).toBeLessThan(5);
+  // A blur smooths most of it away; scrambling moves it around, which lowers
+  // the spread without flattening it. Pixelating keeps block edges — it hides
+  // *what* the picture was, not that it had contrast — so it is asserted
+  // against the untouched half rather than against a low number.
+  expect(measured.blur!.inside).toBeLessThan(40);
+  expect(measured.scramble!.inside).toBeLessThan(measured.none!.inside * 0.75);
+  expect(measured.pixelate!.inside).toBeLessThan(measured.none!.inside);
+});
+
+/**
+ * A clip used to come back as a blob with a size and a type and no name, so a
+ * host saving one or putting it on a wire had to invent one — and could not
+ * hand it to the delivery path the still pictures already had, because that
+ * asked for a whole `ExportResult` when it only ever read two fields off one.
+ */
+test("an exported clip is named, and goes down the same wire as a picture", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+
+  const sent: Array<Record<string, string>> = [];
+  await page.route("http://pixen.test/clips", async (route) => {
+    const post = route.request().postDataBuffer()?.toString("latin1") ?? "";
+    // The filename is in the multipart headers, which is the whole point.
+    const names = [...post.matchAll(/filename="([^"]+)"/g)].map((match) => match[1]!);
+    sent.push({ names: names.join(","), length: String(post.length) });
+    await route.fulfill({ status: 201, body: "ok" });
+  });
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 1 });
+    const source = await window.pixenVideoDemo.openVideo(element.editor, clip, { name: "interview.mp4" });
+    const written = await window.pixenVideoDemo.exportClip(
+      element.editor.document,
+      source.element,
+      element.editor.resources,
+    );
+    const response = await window.pixenVideoDemo.uploadExport(written, { url: "http://pixen.test/clips" });
+    return { filename: written.filename, status: response.status, cost: window.pixenVideoDemo.clipExportCost(element.editor.document) };
+  });
+
+  // Named from the source's own, with the container that was actually written.
+  expect(outcome.filename).toBe("interview-edited.webm");
+  expect(outcome.status).toBe(201);
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.names).toBe("interview-edited.webm");
+
+  // And the cost of that export was knowable before it started.
+  expect(outcome.cost.seconds).toBeGreaterThan(0.5);
+  expect(outcome.cost.long).toBe(false);
 });

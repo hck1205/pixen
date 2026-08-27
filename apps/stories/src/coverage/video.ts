@@ -62,6 +62,33 @@ export const VIDEO_COVERAGE: CoverageGroup[] = [
         evidence: [unit("audio.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
       },
       {
+        capability: "Redaction on a moving picture",
+        layer: "Engine",
+        detail:
+          "All four modes reach every frame, measured rather than assumed: a fine checkerboard at " +
+          "full contrast comes back flat under a solid fill, smoothed under a blur, and moved around " +
+          "under a scramble — while the half outside the region is untouched",
+        evidence: [browser("video.spec.ts"), doc("docs/VIDEO.md")],
+      },
+      {
+        capability: "Knowing the wait before taking it",
+        layer: "Engine",
+        detail:
+          "`clipExportCost` says how much film comes out, roughly how long making it will take, and " +
+          "whether that is past the line this host draws. Not a refusal — the moment to offer a " +
+          "server instead of starting a four-minute wait nobody agreed to",
+        evidence: [unit("cost.test.ts"), browser("video.spec.ts"), doc("docs/VIDEO.md")],
+      },
+      {
+        capability: "A clip has a name, and a wire",
+        layer: "Engine",
+        detail:
+          "An exported clip is named from the source's own with the container actually written, and " +
+          "goes to a server through the same `uploadExport` a still picture does — which asked for a " +
+          "whole ExportResult when it only ever read the bytes and the name",
+        evidence: [unit("cost.test.ts"), browser("video.spec.ts")],
+      },
+      {
         capability: "A length a host requires",
         layer: "Engine",
         detail:

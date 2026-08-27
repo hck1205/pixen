@@ -7,12 +7,13 @@
  * thing that exercises both.
  */
 import "@pixen/web";
-import type { ClipBounds, EditorDocument } from "@pixen/core";
+import { uploadExport, type ClipBounds, type EditorDocument } from "@pixen/core";
 import {
   exportClip,
   exportMedia,
   openVideo,
   supportedRecordingType,
+  clipExportCost,
   createTrimPlugin,
   type VideoSource,
 } from "@pixen/video";
@@ -131,5 +132,5 @@ if (supportedRecordingType() === null) {
 // The browser suite drives this page rather than reaching into the bundle, so
 // the three module functions it cannot get at from the DOM are put where it can.
 Object.assign(window as unknown as Record<string, unknown>, {
-  pixenVideoDemo: { recordSampleClip, exportClip, exportMedia, openVideo, clipBounds },
+  pixenVideoDemo: { recordSampleClip, exportClip, exportMedia, openVideo, clipBounds, uploadExport, clipExportCost },
 });

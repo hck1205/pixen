@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-467 names.
+468 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -69,6 +69,7 @@ DecodeOptions
 DecodeStage
 DecodedImage
 Degradation
+DeliverableFile
 DocumentChange
 DocumentMigration
 DocumentTransform
@@ -755,11 +756,13 @@ pixen
 
 ## @pixen/video
 
-34 names.
+39 names.
 
 ```
+ClipExportCost
 ClipRecorder
 Handle
+LONG_EXPORT_SECONDS
 MediaExportOptions
 MediaExportResult
 RecordedSound
@@ -777,10 +780,13 @@ VideoSource
 VideoSourceOptions
 buildTrimStrip
 canvasRecorder
+clipExportCost
+clipFilename
 createTrimPlugin
 dragHandle
 exportClip
 exportMedia
+extensionForContainer
 isMoving
 openVideo
 planSoundtrack

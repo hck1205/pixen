@@ -14,7 +14,20 @@ import type { ExportResult, ExportStage } from "./options.js";
  */
 export type UploadField = [name: string, value: string | Blob, filename?: string];
 
-export interface UploadTarget {
+/**
+ * The least an upload needs to know about what it is sending.
+ *
+ * An upload only ever reads two things off a result: the bytes and the name to
+ * send them under. Asking for a whole `ExportResult` said otherwise, and the
+ * cost of the fiction was that a clip — which has both — could not be handed to
+ * the delivery path the still pictures already had.
+ */
+export interface DeliverableFile {
+  blob: Blob;
+  filename: string;
+}
+
+export interface UploadTarget<T extends DeliverableFile = ExportResult> {
   url: string;
   /** Defaults to POST. */
   method?: string;
@@ -22,7 +35,7 @@ export interface UploadTarget {
   /** `include` sends cookies cross-origin; anything else does not. */
   credentials?: RequestCredentials;
   /** The multipart fields. Defaults to the file alone, under `file`. */
-  fields?(result: ExportResult): UploadField[];
+  fields?(result: T): UploadField[];
 }
 
 export interface UploadOptions {
@@ -49,7 +62,7 @@ const HTTP_ERROR = 400;
  * decision rather than a network call, and because "did my extra field arrive
  * under the right name" is a question worth answering without a server.
  */
-export function uploadFields(result: ExportResult, target: UploadTarget): UploadField[] {
+export function uploadFields<T extends DeliverableFile>(result: T, target: UploadTarget<T>): UploadField[] {
   if (!target.fields) return [[FILE_FIELD, result.blob, result.filename]];
   // The file keeps its name unless the target gave one: a multipart part with
   // no filename is a text field to most servers, and the upload silently loses
@@ -59,7 +72,7 @@ export function uploadFields(result: ExportResult, target: UploadTarget): Upload
   );
 }
 
-function formDataFor(result: ExportResult, target: UploadTarget): FormData {
+function formDataFor<T extends DeliverableFile>(result: T, target: UploadTarget<T>): FormData {
   const body = new FormData();
   for (const [name, value, filename] of uploadFields(result, target)) {
     if (typeof value === "string") body.append(name, value);
@@ -68,9 +81,9 @@ function formDataFor(result: ExportResult, target: UploadTarget): FormData {
   return body;
 }
 
-export function uploadExport(
-  result: ExportResult,
-  target: UploadTarget,
+export function uploadExport<T extends DeliverableFile>(
+  result: T,
+  target: UploadTarget<T>,
   options: UploadOptions = {},
 ): Promise<UploadResponse> {
   return new Promise((resolve, reject) => {

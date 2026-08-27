@@ -24,6 +24,7 @@ import {
   type StepReporter,
 } from "@pixen/core";
 import { soundtrackFor } from "./audio.js";
+import { clipFilename } from "./naming.js";
 import {
   canvasRecorder,
   taintedCanvasError,
@@ -51,6 +52,8 @@ export interface VideoExportOptions extends RecorderOptions {
    */
   volume?: number;
   signal?: AbortSignal;
+  /** Overrides the name the file is offered under. */
+  filename?: string;
   /** Reports the clip's own seconds against its length. See `VideoExportStage`. */
   onProgress?: StepReporter<VideoExportStage>;
   /**
@@ -74,6 +77,8 @@ export interface VideoExportResult {
   type: string;
   /** Whether the file carries the source's sound. See `volume`. */
   hasSound: boolean;
+  /** The name the file is offered under, from the source's own. */
+  filename: string;
 }
 
 /**
@@ -160,6 +165,7 @@ export async function exportClip(
       bytes: blob.size,
       type: blob.type,
       hasSound: sound.plan !== "silent",
+      filename: clipFilename(document, blob.type, options.filename),
     };
   } catch (cause) {
     recorder.cancel();
