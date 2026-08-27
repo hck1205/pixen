@@ -1,11 +1,12 @@
-import type { Point, Rect } from "../geometry/types.js";
+import type { Rect } from "../geometry/types.js";
+import type { EditorLayer } from "./annotations.js";
 import type { ClipSelection } from "./clip.js";
 import type { LineEnd } from "./line.js";
 
 export type { LineEnd };
 export { LINE_ENDS } from "./line.js";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -16,113 +17,22 @@ export const IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type ImageFormat = (typeof IMAGE_FORMATS)[number];
 
-export interface Stroke {
-  color: string;
-  width: number;
-  /** Dash pattern in image-space units; empty means solid. */
-  dash?: number[];
-}
-
-interface LayerBase {
-  id: string;
-  name?: string;
-  visible: boolean;
-  locked: boolean;
-  opacity: number;
-  /** Rotation of the layer itself, radians, around its own centre. */
-  rotation: number;
-}
-
-/** Every layer stores its geometry in image space, so rotate/flip never rewrites it. */
-export interface RectLayer extends LayerBase {
-  type: "rect";
-  frame: Rect;
-  stroke: Stroke | null;
-  fill: string | null;
-  cornerRadius: number;
-}
-
-export interface EllipseLayer extends LayerBase {
-  type: "ellipse";
-  frame: Rect;
-  stroke: Stroke | null;
-  fill: string | null;
-}
-
-export interface LineLayer extends LayerBase {
-  type: "line";
-  from: Point;
-  to: Point;
-  stroke: Stroke;
-  /** The decoration at `from`, and the one at `to`. See `LINE_ENDS`. */
-  startStyle: LineEnd;
-  endStyle: LineEnd;
-}
-
-export interface PathLayer extends LayerBase {
-  type: "path";
-  points: Point[];
-  stroke: Stroke;
-  closed: boolean;
-}
-
-export interface TextLayer extends LayerBase {
-  type: "text";
-  position: Point;
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  color: string;
-  align: "left" | "center" | "right";
-  backgroundColor: string | null;
-  /** Wrapping width in image space; null lets the line run. */
-  maxWidth: number | null;
-}
-
-/**
- * A bitmap placed on the image: a sticker, a logo, a watermark.
- *
- * Like the source image, the pixels live in the `ResourceManager` and the layer
- * carries only an id — so a document with ten stickers is still small JSON, and
- * the same bitmap placed twice is decoded once.
- */
-export interface ImageLayer extends LayerBase {
-  type: "image";
-  resourceId: string;
-  frame: Rect;
-  /** Tiles the bitmap across the frame instead of stretching it once. */
-  repeat: boolean;
-}
-
-/**
- * How a redaction hides what is underneath.
- *
- * `solid` is the only mode that removes information outright, which is why it is
- * the default; `blur` and `pixelate` obscure, and the difference matters when
- * the content is sensitive. See docs/SECURITY.md.
- */
-export const REDACTION_MODES = ["solid", "blur", "pixelate", "scramble"] as const;
-export type RedactionMode = (typeof REDACTION_MODES)[number];
-
-export interface RedactLayer extends LayerBase {
-  type: "redact";
-  frame: Rect;
-  mode: RedactionMode;
-  /** Blur radius, or pixel block size, as a fraction of the image's longest edge. */
-  strength: number;
-  /** Fill used by `solid`, and as the fallback when pixels cannot be read back. */
-  colour: string;
-}
-
-export type EditorLayer =
-  | RectLayer
-  | EllipseLayer
-  | LineLayer
-  | PathLayer
-  | TextLayer
-  | ImageLayer
-  | RedactLayer;
-export type LayerType = EditorLayer["type"];
+export {
+  LAYER_SPACES,
+  REDACTION_MODES,
+  type EditorLayer,
+  type EllipseLayer,
+  type ImageLayer,
+  type LayerSpace,
+  type LayerType,
+  type RedactionMode,
+  type LineLayer,
+  type PathLayer,
+  type RectLayer,
+  type RedactLayer,
+  type Stroke,
+  type TextLayer,
+} from "./annotations.js";
 
 export interface SourceDescriptor {
   resourceId: string;

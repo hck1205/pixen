@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-468 names.
+472 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -50,6 +50,7 @@ DEFAULT_HISTORY_LIMIT
 DEFAULT_LAYER_LOCKED
 DEFAULT_LAYER_OPACITY
 DEFAULT_LAYER_ROTATION
+DEFAULT_LAYER_SPACE
 DEFAULT_LAYER_VISIBLE
 DEFAULT_MIN_CROP_SIZE
 DEFAULT_OUTPUT
@@ -111,9 +112,11 @@ ImageWorkerOptions
 Intent
 IntentKind
 LAYER_HANDLES
+LAYER_SPACES
 LINE_ENDS
 LINE_HEIGHT_RATIO
 LayerHandle
+LayerSpace
 LayerType
 LineEnd
 LineLayer
@@ -375,6 +378,7 @@ ok
 orientationSwapsAxes
 orientationTransform
 outputSize
+outputToStage
 parseDocument
 pathLayerOps
 placeWithin

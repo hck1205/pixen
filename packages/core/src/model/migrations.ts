@@ -1,5 +1,6 @@
 import { PixenError } from "../errors/index.js";
 import { DEFAULT_FRAME } from "./defaults.js";
+import { DEFAULT_LAYER_SPACE } from "./defaults.js";
 import { DEFAULT_ADJUSTMENTS, SCHEMA_VERSION } from "./types.js";
 
 export type DocumentMigration = (document: Record<string, unknown>) => Record<string, unknown>;
@@ -167,6 +168,7 @@ migrations.set(6, migrateV6ToV7);
 migrations.set(7, migrateV7ToV8);
 migrations.set(8, migrateV8ToV9);
 migrations.set(9, migrateV9ToV10);
+migrations.set(10, migrateV10ToV11);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -221,4 +223,25 @@ function migrateV9ToV10(document: Record<string, unknown>): Record<string, unkno
   const stored = document.clip;
   if (stored === null || stored === undefined || Array.isArray(stored)) return document;
   return { ...document, clip: [stored] };
+}
+
+/**
+ * v10 -> v11 gave every layer a frame of reference.
+ *
+ * Every layer a v10 document holds is in the picture's own pixels — that was
+ * the only kind there was — so filling `image` in leaves it looking exactly as
+ * it did. The version still moves, because a v10 build reading a v11 document
+ * would draw an `output` layer as though it belonged to the picture: turned
+ * with a rotation it should have ignored, and in the wrong place.
+ */
+function migrateV10ToV11(document: Record<string, unknown>): Record<string, unknown> {
+  const layers = Array.isArray(document.layers) ? document.layers : [];
+  return {
+    ...document,
+    layers: layers.map((raw) => {
+      if (typeof raw !== "object" || raw === null) return raw;
+      const layer = raw as Record<string, unknown>;
+      return { space: DEFAULT_LAYER_SPACE, ...layer };
+    }),
+  };
 }

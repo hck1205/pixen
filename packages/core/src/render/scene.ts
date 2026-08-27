@@ -1,7 +1,7 @@
 import { clamp } from "../fp/function.js";
 import { compose, IDENTITY, meanScale, translation } from "../geometry/matrix.js";
 import { roundedSize, transformBounds } from "../geometry/rect.js";
-import { imageToStage, stageToOutput } from "../geometry/spaces.js";
+import { imageToStage, outputToStage, stageToOutput } from "../geometry/spaces.js";
 import type { Matrix, Rect, Size } from "../geometry/types.js";
 import { effectiveCrop, outputSize, stageRect } from "../model/document.js";
 import type { Adjustments, EditorDocument, EditorLayer, FrameSettings } from "../model/types.js";
@@ -113,6 +113,12 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     fit === "stretch" ? stageToOutput(sourceRect, target) : translation(-sourceRect.x, -sourceRect.y);
   const imageToTarget = compose(view, regionMatrix, stageMatrix);
 
+  // A layer in output space is measured in the exported image's own pixels
+  // from its own top-left, so it stops at the region rather than going on
+  // through the image's rotation and flips. That is the whole difference
+  // between a caption written on the picture and one written on the frame.
+  const outputToTarget = compose(view, regionMatrix, outputToStage(effectiveCrop(document), outputSize(document)));
+
   const scale = fit === "stretch" ? (target.width / sourceRect.width) * meanScale(view) : meanScale(view);
   const layerScale = Math.abs(scale);
 
@@ -147,9 +153,17 @@ export function createScene(document: EditorDocument, input: SceneInput, options
       .filter((layer) => layer.visible && layer.opacity > 0)
       .map((layer) => {
         const resource = layer.type === "image" ? input.resolveResource?.(layer.resourceId) : null;
+        const output = layer.space === "output";
         // An image layer whose bitmap is missing renders as nothing rather than
         // as an error: a document can outlive the sticker it referenced.
-        return { layer, matrix: imageToTarget, scale: layerScale, ...(resource ? { resource } : {}) };
+        return {
+          layer,
+          matrix: output ? outputToTarget : imageToTarget,
+          // Stroke widths and type sizes are in the layer's own space, so the
+          // scale that turns them into target pixels is its own too.
+          scale: output ? Math.abs(meanScale(outputToTarget)) : layerScale,
+          ...(resource ? { resource } : {}),
+        };
       }),
     scale,
   };

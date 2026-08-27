@@ -7,6 +7,7 @@ import {
   DEFAULT_LAYER_LOCKED,
   DEFAULT_LAYER_OPACITY,
   DEFAULT_LAYER_ROTATION,
+  DEFAULT_LAYER_SPACE,
   DEFAULT_LAYER_VISIBLE,
   DEFAULT_REDACTION_MODE,
   DEFAULT_REDACTION_STRENGTH,
@@ -14,7 +15,7 @@ import {
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_COLOUR,
 } from "../defaults.js";
-import { LINE_ENDS, REDACTION_MODES, type EditorLayer, type LayerType } from "../types.js";
+import { LAYER_SPACES, LINE_ENDS, REDACTION_MODES, type EditorLayer, type LayerType } from "../types.js";
 import {
   arrayOf,
   boolean,
@@ -44,6 +45,7 @@ import { point, rect, stroke } from "./values.js";
  */
 /** What every layer carries, whatever kind it is. */
 const layerBase = {
+  space: field("space", withDefault(literalUnion(...LAYER_SPACES), DEFAULT_LAYER_SPACE)),
   id: field("id", text),
   name: field("name", optional(text)),
   visible: field("visible", withDefault(boolean, DEFAULT_LAYER_VISIBLE)),

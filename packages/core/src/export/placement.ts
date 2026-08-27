@@ -5,7 +5,7 @@ import { effectiveCrop } from "../model/document.js";
 import { createImageLayer, createTextLayer, layerBounds, translateLayer } from "../model/layers.js";
 import type { TextMeasurer } from "../model/text-layout.js";
 import { DEFAULT_TEXT_COLOUR } from "../model/defaults.js";
-import type { EditorDocument, ImageLayer, TextLayer } from "../model/types.js";
+import type { EditorDocument, ImageLayer, LayerSpace, TextLayer } from "../model/types.js";
 
 /**
  * Layers placed by arithmetic rather than by a pointer.
@@ -47,6 +47,17 @@ export interface WatermarkOptions {
   /** Distance from the edges, as a fraction of the image's longest edge. */
   margin?: number;
   opacity?: number;
+  /**
+   * Whose frame the mark belongs to. See `LAYER_SPACES`.
+   *
+   * `image` is where a watermark has always gone, and it turns with the
+   * picture: rotate a photograph a quarter turn and the mark is in a different
+   * corner, on its side. `output` puts it on the exported frame instead, which
+   * is what a mark that is *about the file* usually wants. The default is left
+   * as it was, because changing where an existing host's watermarks land is
+   * their decision rather than ours.
+   */
+  space?: LayerSpace;
 }
 
 export const DEFAULT_WATERMARK_POSITION: WatermarkPosition = "bottom-right";
@@ -111,6 +122,7 @@ export function createWatermarkLayer(image: Size, options: WatermarkOptions): Im
     repeat: position === "tile",
     opacity: options.opacity ?? DEFAULT_WATERMARK_OPACITY,
     name: "watermark",
+    ...(options.space ? { space: options.space } : {}),
   });
 }
 
@@ -132,6 +144,17 @@ export interface TextWatermarkOptions {
   fontFamily?: string;
   /** A plate behind the text, for a mark that has to read on any photograph. */
   backgroundColor?: string | null;
+  /**
+   * Whose frame the mark belongs to. See `LAYER_SPACES`.
+   *
+   * `image` is where a watermark has always gone, and it turns with the
+   * picture: rotate a photograph a quarter turn and the mark is in a different
+   * corner, on its side. `output` puts it on the exported frame instead, which
+   * is what a mark that is *about the file* usually wants. The default is left
+   * as it was, because changing where an existing host's watermarks land is
+   * their decision rather than ours.
+   */
+  space?: LayerSpace;
 }
 
 /**
@@ -189,6 +212,7 @@ export function createTextWatermarkLayer(
     color: options.colour ?? DEFAULT_TEXT_COLOUR,
     opacity: options.opacity ?? DEFAULT_WATERMARK_OPACITY,
     name: "watermark",
+    ...(options.space ? { space: options.space } : {}),
     ...(options.fontFamily ? { fontFamily: options.fontFamily } : {}),
     ...(options.backgroundColor === undefined ? {} : { backgroundColor: options.backgroundColor }),
   });

@@ -1,5 +1,5 @@
 import { DEFAULT_ANNOTATION_COLOUR } from "./palette.js";
-import type { FrameSettings, RedactionMode, Stroke } from "./types.js";
+import type { FrameSettings, LayerSpace, RedactionMode, Stroke } from "./types.js";
 
 /**
  * Default values for a new document and its layers.
@@ -50,6 +50,9 @@ export function resolveQuality(format: string, stored: number | null | undefined
 }
 
 export const DEFAULT_LAYER_OPACITY = 1;
+/** Layers are the picture's own unless a caller says otherwise. See `LAYER_SPACES`. */
+export const DEFAULT_LAYER_SPACE: LayerSpace = "image";
+
 export const DEFAULT_LAYER_ROTATION = 0;
 export const DEFAULT_LAYER_VISIBLE = true;
 export const DEFAULT_LAYER_LOCKED = false;

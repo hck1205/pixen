@@ -71,7 +71,12 @@ export const EXEMPT = {
   // `beginTransaction` take a `StepLabel` rather than a bare string, so a step
   // the engine performs can be worded in the reader's own language, and the
   // paragraph on `dispatchAll` says which of the two its argument is.
-  "packages/core/src/engine/editor.ts": 772,
+  //
+  // Raised from 772 for `#markFrame`: a watermark's position and scale are
+  // fractions of the frame it belongs to, and a mark on the exported frame has
+  // to be measured against that rather than against the picture — otherwise a
+  // corner mark on a heavily cropped photograph lands outside it.
+  "packages/core/src/engine/editor.ts": 785,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's

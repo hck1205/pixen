@@ -16,6 +16,7 @@ import type {
   EditorLayer,
   FrameSettings,
   ImageFormat,
+  LayerSpace,
   OutputSettings,
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
@@ -632,7 +633,7 @@ export class Editor {
    * the resource manager — `resources.load()` puts it there.
    */
   addWatermark(options: WatermarkOptions): this {
-    return this.addLayer(createWatermarkLayer(this.document.source, options), { select: false });
+    return this.addLayer(createWatermarkLayer(this.#markFrame(options.space), options), { select: false });
   }
 
   /**
@@ -652,7 +653,19 @@ export class Editor {
 
   /** A text watermark — a credit line — placed by the same arithmetic. */
   addTextWatermark(options: TextWatermarkOptions): this {
-    return this.addLayer(createTextWatermarkLayer(this.document.source, options, this.measureText), { select: false });
+    const frame = this.#markFrame(options.space);
+    return this.addLayer(createTextWatermarkLayer(frame, options, this.measureText), { select: false });
+  }
+
+  /**
+   * The rectangle a mark is placed inside: the picture, or the exported frame.
+   *
+   * A watermark's position and scale are fractions of the frame it belongs to,
+   * so a mark on the output has to be measured against the output — otherwise a
+   * corner mark on a heavily cropped picture lands outside it.
+   */
+  #markFrame(space: LayerSpace | undefined): Size {
+    return space === "output" ? outputSize(this.document) : this.document.source;
   }
 
   select(id: string | null): this {

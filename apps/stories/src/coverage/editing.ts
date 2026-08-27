@@ -22,6 +22,16 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
     summary: "Everything that changes where the pixels are rather than what colour they are.",
     entries: [
       {
+        capability: "A layer belongs to the picture or to the frame",
+        layer: "Engine",
+        detail:
+          "`space: \"image\"` rides the rotation and the flips, so a caption across someone's face " +
+          "stays there when the photograph is turned. `space: \"output\"` is the exported file's own " +
+          "pixels — it does not turn with the picture and does not move when the crop does, which is " +
+          "what a watermark or a caption bar wants",
+        evidence: [unit("scene.test.ts"), unit("decoration.test.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+      },
+      {
         capability: "Crop",
         layer: "Engine",
         detail: `Drag and handles; ratios ${list(DEFAULT_ASPECT_RATIOS.map((ratio) => ratio.label))}`,

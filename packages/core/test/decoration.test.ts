@@ -5,6 +5,7 @@ import {
   createDocument,
   createScene,
   createTextWatermarkLayer,
+  createWatermarkLayer,
   DEFAULT_FRAME,
   DEFAULT_TEXT_WATERMARK_SCALE,
   frameOps,
@@ -154,6 +155,7 @@ describe("frames", () => {
         type: "rect",
         visible: true,
         locked: false,
+        space: "image",
         opacity: 1,
         rotation: 0,
         frame: { x: 0, y: 0, width: 10, height: 10 },
@@ -235,5 +237,33 @@ describe("frame validation and migration", () => {
     });
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
     expect(migrated.frame).toBeNull();
+  });
+});
+
+/**
+ * A watermark that turns away with the picture is a watermark in the wrong
+ * place. `space` lets a mark belong to the exported frame instead — and its
+ * position and scale are then fractions of *that*, because a corner mark on a
+ * heavily cropped photograph would otherwise land outside it.
+ */
+describe("which frame a watermark belongs to", () => {
+  it("stays the picture's own unless asked otherwise", () => {
+    expect(createTextWatermarkLayer(image, { text: "©" }).space).toBe("image");
+    expect(createWatermarkLayer(image, { resourceId: "mark", size: { width: 10, height: 10 } }).space).toBe("image");
+  });
+
+  it("belongs to the exported frame when asked", () => {
+    expect(createTextWatermarkLayer(image, { text: "©", space: "output" }).space).toBe("output");
+    expect(
+      createWatermarkLayer(image, { resourceId: "mark", size: { width: 10, height: 10 }, space: "output" }).space,
+    ).toBe("output");
+  });
+
+  it("is measured against the frame it is placed in", () => {
+    // The same margin against two different frames is two different distances,
+    // which is the reason the frame has to be the right one.
+    const wide = createTextWatermarkLayer({ width: 1000, height: 500 }, { text: "©", position: "bottom-right" });
+    const narrow = createTextWatermarkLayer({ width: 200, height: 100 }, { text: "©", position: "bottom-right" });
+    expect(layerBounds(wide).x).toBeGreaterThan(layerBounds(narrow).x);
   });
 });

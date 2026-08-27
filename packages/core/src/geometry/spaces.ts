@@ -54,6 +54,21 @@ export function stageToOutput(crop: Rect, outputSize: Size): Matrix {
   );
 }
 
+/**
+ * output -> stage, for a layer positioned against the exported frame.
+ *
+ * The inverse of `stageToOutput`, written out rather than inverted: a layer in
+ * output space is measured in the exported image's own pixels from its own
+ * top-left, so this is the scale that turns those into stage units and the
+ * offset that puts them where the crop is.
+ */
+export function outputToStage(crop: Rect, outputSize: Size): Matrix {
+  return compose(
+    translation(crop.x, crop.y),
+    scaling(crop.width / outputSize.width, crop.height / outputSize.height),
+  );
+}
+
 /** image -> output, the matrix the export pipeline draws the source with. */
 export function imageToOutput(
   imageSize: Size,
