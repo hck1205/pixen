@@ -1,6 +1,6 @@
 import { PixenError } from "../errors/index.js";
 import { cloneDocument } from "./document.js";
-import { migrateDocument } from "./migrations.js";
+import { migrateDocument } from "./migrations/index.js";
 import type { EditorDocument } from "./types.js";
 import { parseDocument } from "./validate/index.js";
 

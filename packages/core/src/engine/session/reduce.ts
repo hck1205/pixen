@@ -16,7 +16,8 @@ import {
   type HistoryState,
   type HistorySummary,
 } from "../history.js";
-import { documentChangeFor, type DocumentChange, type Intent, type SessionEvent } from "./intents.js";
+import { documentChangeFor, type DocumentChange } from "./commands-for.js";
+import type { Intent, SessionEvent } from "./intents.js";
 
 /**
  * The session machine: what happens when an intent arrives.

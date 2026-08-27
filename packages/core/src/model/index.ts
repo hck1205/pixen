@@ -8,7 +8,7 @@ export * from "./text-metrics.js";
 export * from "./text-layout.js";
 export * from "./adjustments.js";
 export * from "./clip.js";
-export * from "./migrations.js";
+export * from "./migrations/index.js";
 export * from "./serialize.js";
 export {
   formatIssues,

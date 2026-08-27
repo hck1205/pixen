@@ -1,19 +1,20 @@
-import { PixenError } from "../errors/index.js";
-import { DEFAULT_FRAME } from "./defaults.js";
-import { DEFAULT_LAYER_SPACE } from "./defaults.js";
-import { DEFAULT_ADJUSTMENTS, DEFAULT_CROP_WITHIN_IMAGE, DEFAULT_OUTPUT, SCHEMA_VERSION } from "./types.js";
-
-export type DocumentMigration = (document: Record<string, unknown>) => Record<string, unknown>;
+import { DEFAULT_FRAME, DEFAULT_LAYER_SPACE } from "../defaults.js";
+import { DEFAULT_ADJUSTMENTS, DEFAULT_CROP_WITHIN_IMAGE, DEFAULT_OUTPUT } from "../types.js";
+import type { DocumentMigration } from "./run.js";
 
 /**
- * Migrations from schema version N to N+1, keyed by N.
+ * What changed at each version, in the order it changed.
  *
- * The stored document is a public contract the moment a customer writes it to a
- * database, so version 1 ships with the migration table already in place —
- * adding it later is what makes old documents unreadable.
+ * The schema's own history, one function per step, each answering the same
+ * question: what does a document written for the version before this one have
+ * to gain to be one of these? They live apart from the walk that runs them
+ * because they are a list that only grows, and the walk is a dozen lines that
+ * never change.
+ *
+ * The order here is the version order. It used to be the order they were
+ * written in, with six of them appended after the runner, which told you how
+ * the file had been edited rather than what the schema had done.
  */
-export const migrations = new Map<number, DocumentMigration>();
-
 /**
  * v1 -> v2 added the `image` and `redact` layer types.
  *
@@ -151,67 +152,6 @@ function migrateV8ToV9(document: Record<string, unknown>): Record<string, unknow
   return { ...document, adjustments: { ...DEFAULT_ADJUSTMENTS, ...adjustments } };
 }
 
-export function registerMigration(fromVersion: number, migration: DocumentMigration): void {
-  if (migrations.has(fromVersion)) {
-    throw new PixenError("INVALID_STATE", `A migration from schema version ${fromVersion} is already registered`);
-  }
-  migrations.set(fromVersion, migration);
-}
-
-/** Upgrades a raw document to the current schema version, or explains why it can't. */
-migrations.set(1, migrateV1ToV2);
-migrations.set(2, migrateV2ToV3);
-migrations.set(3, migrateV3ToV4);
-migrations.set(4, migrateV4ToV5);
-migrations.set(5, migrateV5ToV6);
-migrations.set(6, migrateV6ToV7);
-migrations.set(7, migrateV7ToV8);
-migrations.set(8, migrateV8ToV9);
-migrations.set(9, migrateV9ToV10);
-migrations.set(10, migrateV10ToV11);
-migrations.set(11, migrateV11ToV12);
-migrations.set(12, migrateV12ToV13);
-migrations.set(13, migrateV13ToV14);
-
-export function migrateDocument(raw: unknown): Record<string, unknown> {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new PixenError("INVALID_DOCUMENT", "Document must be an object");
-  }
-
-  let current = { ...(raw as Record<string, unknown>) };
-  const version = current.schemaVersion;
-  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
-    throw new PixenError("INVALID_DOCUMENT", "Document is missing a valid schemaVersion", {
-      details: { schemaVersion: version },
-    });
-  }
-
-  if (version > SCHEMA_VERSION) {
-    throw new PixenError(
-      "UNSUPPORTED_SCHEMA_VERSION",
-      `Document schema version ${version} is newer than this build supports (${SCHEMA_VERSION}). Upgrade @pixen/core.`,
-      { details: { documentVersion: version, supportedVersion: SCHEMA_VERSION } },
-    );
-  }
-
-  let at = version;
-  while (at < SCHEMA_VERSION) {
-    const migration = migrations.get(at);
-    if (!migration) {
-      throw new PixenError(
-        "UNSUPPORTED_SCHEMA_VERSION",
-        `No migration registered from schema version ${at} to ${at + 1}`,
-        { details: { from: at, to: at + 1 } },
-      );
-    }
-    current = migration(current);
-    current.schemaVersion = at + 1;
-    at += 1;
-  }
-
-  return current;
-}
-
 /**
  * v9 -> v10 let a document keep more than one part of a moving source.
  *
@@ -295,3 +235,20 @@ function migrateV12ToV13(document: Record<string, unknown>): Record<string, unkn
 function migrateV13ToV14(document: Record<string, unknown>): Record<string, unknown> {
   return { colourMatrix: null, ...document };
 }
+
+/** Every step, by the version it moves a document away from. */
+export const MIGRATION_STEPS: ReadonlyArray<readonly [number, DocumentMigration]> = [
+  [1, migrateV1ToV2],
+  [2, migrateV2ToV3],
+  [3, migrateV3ToV4],
+  [4, migrateV4ToV5],
+  [5, migrateV5ToV6],
+  [6, migrateV6ToV7],
+  [7, migrateV7ToV8],
+  [8, migrateV8ToV9],
+  [9, migrateV9ToV10],
+  [10, migrateV10ToV11],
+  [11, migrateV11ToV12],
+  [12, migrateV12ToV13],
+  [13, migrateV13ToV14],
+];

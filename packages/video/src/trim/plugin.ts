@@ -15,7 +15,9 @@ import type { ClipBounds } from "@pixen/core";
 import type { ClipPlayer } from "../player.js";
 import type { PixenPlugin } from "@pixen/web";
 import { TRIM_STRINGS } from "./strings.js";
-import { buildTrimStrip, trimStyleElement, trimmableDuration, type TrimMark } from "./strip.js";
+import { type TrimMark } from "./mark.js";
+import { buildTrimStrip, trimmableDuration } from "./strip.js";
+import { trimStyleElement } from "./style.js";
 
 /**
  * The strip, with a length the host requires of a clip, and something to play.
