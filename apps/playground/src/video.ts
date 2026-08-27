@@ -7,6 +7,7 @@
  * thing that exercises both.
  */
 import "@pixen/web";
+import { registerBundledLocales } from "@pixen/web";
 import { uploadExport, type ClipBounds, type EditorDocument } from "@pixen/core";
 import {
   exportClip,
@@ -19,6 +20,10 @@ import {
   type VideoSource,
 } from "@pixen/video";
 import { recordSampleClip, SAMPLE_MIDDLE_BAND, SAMPLE_SECONDS } from "./sample-clip.js";
+
+// Every language, because a demo is where you go to see them. A product would
+// import only the ones it ships — see `docs/FRAMEWORKS.md`.
+registerBundledLocales();
 
 type EditorElement = HTMLElement & {
   use(plugin: unknown): unknown;

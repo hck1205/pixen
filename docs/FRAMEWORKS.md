@@ -471,3 +471,42 @@ behind.
 | Remix / React Router | Import normally |
 | Astro | Use a `client:*` directive on the island that renders the editor |
 | Angular Universal | Import normally; the element's own registration is a no-op on the server |
+
+## Languages
+
+English is in the bundle. The other eight are imported when they are wanted:
+
+```js
+import { registerLocale } from "@pixen/web";
+import { ko } from "@pixen/web/locale/ko";
+
+registerLocale("ko", ko);
+```
+
+They used to be imported into the registry, all nine, which put every one of
+them in every host's bundle. Measured on this package: 198,734 bytes minified
+and 63,485 gzipped before, 161,893 and 53,441 after — **10 KB of every
+download, about a sixth of it**, for eight languages a host that ships one will
+never show.
+
+`registerBundledLocales()` is the one line back to having all of them, and
+costs what it always did:
+
+```js
+import { registerBundledLocales } from "@pixen/web";
+registerBundledLocales();
+```
+
+Asking for a language nobody registered renders English and says so once, in
+the console, naming the import — because a missing translation and a missing
+*import* look identical on screen, and only one of them is a one-line fix.
+
+A locale is data, so a host can ship its own without waiting for a release, and
+a partial one is completed from English per key rather than per table:
+
+```js
+registerLocale("nl", { crop: "Bijsnijden", undo: "Ongedaan maken" });
+```
+
+Writing direction does not depend on any of this: `directionFor("he")` is
+`"rtl"` whether or not Hebrew strings were ever imported.

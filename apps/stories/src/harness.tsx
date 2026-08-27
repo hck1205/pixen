@@ -12,8 +12,13 @@ import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Editor } from "@pixen/core";
 import type { PanelId, PixenImageEditorElement, ToolId } from "@pixen/web";
 import "@pixen/web";
+import { registerBundledLocales } from "@pixen/web";
 import { createSampleImage, type SampleOptions } from "./fixtures.js";
 import { note, panelTitle, statRow } from "./styles.js";
+
+// Every language, because a demo is where you go to see them. A product would
+// import only the ones it ships — see `docs/FRAMEWORKS.md`.
+registerBundledLocales();
 
 /** Loads a generated sample once per set of options. */
 export function useSampleImage(options: SampleOptions = {}): Blob | null {

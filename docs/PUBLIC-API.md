@@ -493,7 +493,7 @@ zoomToFit
 
 ## @pixen/web
 
-213 names.
+215 names.
 
 ```
 ARROW_VECTORS
@@ -630,6 +630,7 @@ definePixenImageEditor
 directionFor
 divider
 element
+en
 endGesture
 eventTypeFor
 field
@@ -682,6 +683,7 @@ recolourPatch
 redoLabel
 refreshActions
 refreshRail
+registerBundledLocales
 registerLocale
 relabel
 renderScale

@@ -4,14 +4,35 @@
   "description": "The <pixen-image-editor> custom element: Pixen's framework-agnostic UI.",
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
-  "sideEffects": ["**/define.js", "**/define.ts", "**/index.js", "**/index.ts"],
+  "sideEffects": [
+    "**/define.js",
+    "**/define.ts",
+    "**/index.js",
+    "**/index.ts"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./define": { "types": "./dist/define.d.ts", "default": "./dist/define.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./define": {
+      "types": "./dist/define.d.ts",
+      "default": "./dist/define.js"
+    },
+    "./locale/*": {
+      "types": "./dist/i18n/*.d.ts",
+      "default": "./dist/i18n/*.js"
+    }
   },
-  "files": ["dist"],
-  "scripts": { "build": "tsc -b" },
-  "dependencies": { "@pixen/core": "workspace:*" }
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@pixen/core": "workspace:*"
+  }
 }

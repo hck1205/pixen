@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ProgressReport } from "@pixen/core";
 import { BusyIndicator } from "../src/element/busy.js";
-import { en, ko } from "../src/i18n/index.js";
+import { en } from "../src/i18n/en.js";
+import { ko } from "../src/i18n/ko.js";
 
 function indicator(strings = () => en) {
   const pill = { hidden: false, textContent: "" } as HTMLElement;

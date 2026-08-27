@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { STEP_LABELS, STEP_NAMES, type HistorySummary } from "@pixen/core";
-import { ar, de, en, es, fr, ja, ko, pt, zh } from "../src/i18n/index.js";
+import { ar } from "../src/i18n/ar.js";
+import { de } from "../src/i18n/de.js";
+import { en } from "../src/i18n/en.js";
+import { es } from "../src/i18n/es.js";
+import { fr } from "../src/i18n/fr.js";
+import { ja } from "../src/i18n/ja.js";
+import { ko } from "../src/i18n/ko.js";
+import { pt } from "../src/i18n/pt.js";
+import { zh } from "../src/i18n/zh.js";
 import {
   isAppleShortcutPlatform,
   modifierLabel,

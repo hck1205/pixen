@@ -1,4 +1,5 @@
 import "@pixen/web";
+import { registerBundledLocales } from "@pixen/web";
 import { ImageWorker, createRectLayer, layerHandlePosition } from "@pixen/core";
 import type { ExportResult, ImageFormat, PresetName } from "@pixen/core";
 import type { PixenImageEditorElement } from "@pixen/web";
@@ -6,6 +7,10 @@ import { attachBatch } from "./batch.js";
 import { formatBytes } from "./bytes.js";
 import { configSnippet } from "./config.js";
 import { sampleImage } from "./sample.js";
+
+// Every language, because a demo is where you go to see them. A product would
+// import only the ones it ships — see `docs/FRAMEWORKS.md`.
+registerBundledLocales();
 
 /**
  * A small window hook for the browser suite.

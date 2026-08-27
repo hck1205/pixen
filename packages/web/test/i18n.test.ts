@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ar, availableLocales, directionFor, en, ko, registerLocale, resolveStrings } from "../src/i18n/index.js";
+import { availableLocales, directionFor, registerLocale, resolveStrings } from "../src/i18n/index.js";
+import { registerBundledLocales } from "../src/i18n/bundled.js";
+import { ar } from "../src/i18n/ar.js";
+import { en } from "../src/i18n/en.js";
+import { ko } from "../src/i18n/ko.js";
+import { zh } from "../src/i18n/zh.js";
 import type { PixenStrings } from "../src/i18n/types.js";
 import { FREEFORM_RATIO_LABEL } from "../src/element/constants.js";
 import { ratioButtonLabel } from "../src/element/ratios.js";
@@ -11,7 +16,9 @@ describe("locale resolution", () => {
   });
 
   it("matches a regional tag on its base language", () => {
-    expect(resolveStrings("ko-KR")).toBe(ko);
+    registerLocale("ko", ko);
+    registerLocale("zh", zh);
+    expect(resolveStrings("ko-KR").crop).toBe(ko.crop);
     expect(resolveStrings("zh-Hans-CN").crop).toBe(resolveStrings("zh").crop);
   });
 
@@ -56,6 +63,7 @@ describe("writing direction", () => {
   });
 
   it("ships at least one right-to-left locale, so the mirroring is exercised", () => {
+    registerBundledLocales();
     expect(availableLocales()).toContain("ar");
     expect(ar.crop).not.toBe(en.crop);
   });
@@ -87,5 +95,71 @@ describe("the freeform ratio label", () => {
   it("leaves every other ratio alone, since a ratio is not a word", () => {
     const strings = resolveStrings("ja");
     expect(ratioButtonLabel({ label: "16:9", value: 16 / 9 }, strings)).toBe("16:9");
+  });
+});
+
+/**
+ * The nine languages used to be imported into the registry, all of them, which
+ * put every one in every host's bundle. Measured: the registry is 40,455 bytes
+ * minified against 3,125 for one language — 10.7 KB of the 63.5 KB this package
+ * gzips to, a sixth of the download, of which a host that ships one language
+ * uses a ninth.
+ */
+describe("which languages are in the bundle", () => {
+  it("starts with English and nothing else", () => {
+    // A fresh registry cannot be observed once another test has registered
+    // something, so this asserts the floor rather than the exact list.
+    expect(availableLocales()).toContain("en");
+    expect(resolveStrings(undefined).crop).toBe(en.crop);
+  });
+
+  it("renders English for a language nobody registered, rather than nothing", () => {
+    expect(resolveStrings("nl").crop).toBe(en.crop);
+  });
+
+  it("says what to import, once per language", () => {
+    const said: string[] = [];
+    const warn = console.warn;
+    console.warn = (message: string) => said.push(message);
+    try {
+      resolveStrings("sv");
+      resolveStrings("sv-SE");
+      resolveStrings("sv");
+    } finally {
+      console.warn = warn;
+    }
+    // Once, not once per render — this is called on every frame.
+    expect(said).toHaveLength(1);
+    // And it names the import, which is a thing nobody can guess.
+    expect(said[0]).toContain("@pixen/web/locale/sv");
+    expect(said[0]).toContain("registerBundledLocales");
+  });
+
+  it("says nothing about English, which is always there", () => {
+    const said: string[] = [];
+    const warn = console.warn;
+    console.warn = (message: string) => said.push(message);
+    try {
+      resolveStrings("en-GB");
+      resolveStrings("en");
+    } finally {
+      console.warn = warn;
+    }
+    expect(said).toHaveLength(0);
+  });
+
+  it("takes all nine in one line, for a host that would rather not choose", () => {
+    registerBundledLocales();
+    for (const tag of ["ar", "de", "es", "fr", "ja", "ko", "pt", "zh"]) {
+      expect(availableLocales(), tag).toContain(tag);
+    }
+  });
+
+  it("knows a language reads right to left whether or not it is in the bundle", () => {
+    // The direction of a language does not depend on whether its strings were
+    // imported, so a host registering its own Hebrew still gets a mirrored
+    // layout.
+    expect(directionFor("he")).toBe("rtl");
+    expect(directionFor("fa-IR")).toBe("rtl");
   });
 });
