@@ -131,6 +131,7 @@ export const pt: PixenStrings = {
   stepResetTrim: "Redefinir aparo",
   stepCropArea: "Área de recorte",
   stepAspectRatio: "Proporção",
+  stepColourMatrix: "Transformação de cor",
   stepAdjust: "Ajustar",
   stepOutput: "Configurações de saída",
   stepFrame: "Moldura",

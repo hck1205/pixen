@@ -63,6 +63,7 @@ export type Intent =
       snap?: number;
     }
   | { kind: "set-crop-within-image"; within: boolean }
+  | { kind: "set-colour-matrix"; matrix: readonly number[] | null }
   | { kind: "reorder-layer"; id: string; index: number }
   | { kind: "remove-layer"; id: string }
   | { kind: "select"; id: string | null }
@@ -150,6 +151,12 @@ export function documentChangeFor(intent: Intent, measure?: TextMeasurer): Docum
         reason: "clip",
         step: intent.range ? "trim" : "resetTrim",
         transform: (d) => commands.setClip(d, intent.range, intent.bounds),
+      };
+    case "set-colour-matrix":
+      return {
+        reason: "colour-matrix",
+        step: "colourMatrix",
+        transform: (d) => commands.setColourMatrix(d, intent.matrix),
       };
     case "set-crop-within-image":
       return {

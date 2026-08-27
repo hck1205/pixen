@@ -133,6 +133,7 @@ export const sv: PixenStrings = {
   stepResetTrim: "Återställ trimning",
   stepCropArea: "Beskärningsområde",
   stepAspectRatio: "Bildförhållande",
+  stepColourMatrix: "Färgtransformation",
   stepAdjust: "Justera",
   stepOutput: "Utdatainställningar",
   stepFrame: "Ram",

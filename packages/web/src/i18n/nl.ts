@@ -133,6 +133,7 @@ export const nl: PixenStrings = {
   stepResetTrim: "Inkorten herstellen",
   stepCropArea: "Uitsnedegebied",
   stepAspectRatio: "Beeldverhouding",
+  stepColourMatrix: "Kleurtransformatie",
   stepAdjust: "Aanpassen",
   stepOutput: "Uitvoerinstellingen",
   stepFrame: "Kader",

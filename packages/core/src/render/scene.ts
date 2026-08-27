@@ -45,6 +45,8 @@ export interface Scene {
   filter: string;
   /** The values behind that string, for the renderer's pixel fallback. */
   adjustments: Adjustments;
+  /** The host's own colour transform, applied after the named adjustments. */
+  colourMatrix: readonly number[] | null;
   /** The border drawn over everything, or null for none. */
   frame: FrameSettings | null;
   /**
@@ -137,6 +139,7 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     backdrop: backdropFor(document, input, transformBounds(compose(view, regionMatrix), sourceRect)),
     filter: cssFilter(document.adjustments),
     adjustments: document.adjustments,
+    colourMatrix: document.colourMatrix,
     frame: document.frame,
     regionInTarget: transformBounds(compose(view, regionMatrix), sourceRect),
     image: {

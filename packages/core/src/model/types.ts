@@ -6,7 +6,7 @@ import type { LineEnd } from "./line.js";
 export type { LineEnd };
 export { LINE_ENDS } from "./line.js";
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -207,6 +207,16 @@ export interface EditorDocument {
   /** Locked crop ratio, kept in the document so a resumed session behaves the same. */
   aspectRatio: number | null;
   adjustments: Adjustments;
+  /**
+   * A colour transform the host wrote, applied after the named adjustments.
+   *
+   * The twelve adjustments are a vocabulary — sliders a person understands. A
+   * brand look is not in it, and a product that only offers the words we
+   * thought of is one somebody has to fork. Twenty numbers, four rows of five,
+   * in the order the platform's own colour matrices use. Null for none, which
+   * is what every document has until a host says otherwise.
+   */
+  colourMatrix: readonly number[] | null;
   /** A border drawn over everything, or null for none. */
   frame: FrameSettings | null;
   layers: EditorLayer[];

@@ -27,6 +27,7 @@ export type StepName =
   | "aspectRatio"
   | "cropArea"
   | "adjust"
+  | "colourMatrix"
   | "output"
   | "frame"
   | "resize"
@@ -57,6 +58,7 @@ export const STEP_LABELS: Record<StepName, string> = {
   aspectRatio: "Aspect ratio",
   cropArea: "Crop area",
   adjust: "Adjust",
+  colourMatrix: "Colour transform",
   output: "Output settings",
   frame: "Frame",
   resize: "Resize",

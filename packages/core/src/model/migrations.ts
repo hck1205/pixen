@@ -171,6 +171,7 @@ migrations.set(9, migrateV9ToV10);
 migrations.set(10, migrateV10ToV11);
 migrations.set(11, migrateV11ToV12);
 migrations.set(12, migrateV12ToV13);
+migrations.set(13, migrateV13ToV14);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -281,4 +282,16 @@ function migrateV11ToV12(document: Record<string, unknown>): Record<string, unkn
  */
 function migrateV12ToV13(document: Record<string, unknown>): Record<string, unknown> {
   return document;
+}
+
+/**
+ * v13 -> v14 let a host write a colour transform of its own.
+ *
+ * A v13 document has none, and `null` is exactly that. The version moves
+ * because a v13 build reading a v14 document would ignore the matrix and export
+ * a differently coloured picture without saying anything — which is the worst
+ * shape a schema difference can take, since the file still opens.
+ */
+function migrateV13ToV14(document: Record<string, unknown>): Record<string, unknown> {
+  return { colourMatrix: null, ...document };
 }

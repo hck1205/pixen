@@ -580,6 +580,11 @@ export class Editor {
     return this.dispatch({ kind: "set-crop-within-image", within });
   }
 
+  /** The host's own colour transform, applied after the adjustments. */
+  setColourMatrix(matrix: readonly number[] | null): this {
+    return this.dispatch({ kind: "set-colour-matrix", matrix });
+  }
+
   setAspectRatio(aspectRatio: number | null): this {
     return this.dispatch({ kind: "set-aspect-ratio", ratio: aspectRatio });
   }

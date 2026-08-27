@@ -126,7 +126,9 @@ export type DrawOp =
       color: string;
       background?: TextBackground;
     }
-  | { op: "adjust-pixels"; adjustments: Adjustments; width: number; height: number };
+  | { op: "adjust-pixels"; adjustments: Adjustments; width: number; height: number }
+  /** The host's own colour transform, over the whole target. */
+  | { op: "colour-matrix"; matrix: readonly number[]; width: number; height: number };
 
 export interface BuildOptions {
   /** False when the engine lacks canvas `filter`, which switches to the pixel path. */

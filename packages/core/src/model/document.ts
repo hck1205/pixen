@@ -22,6 +22,7 @@ export function createDocument(source: SourceDescriptor): EditorDocument {
     clip: null,
     aspectRatio: null,
     adjustments: { ...DEFAULT_ADJUSTMENTS },
+    colourMatrix: null,
     frame: null,
     layers: [],
     output: { ...DEFAULT_OUTPUT },

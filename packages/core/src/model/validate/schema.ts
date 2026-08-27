@@ -18,7 +18,7 @@ import {
   type ValidationIssue,
 } from "./combinators.js";
 import { layer } from "./layers.js";
-import { adjustmentFields, clipSelection, frameSettings, rect } from "./values.js";
+import { adjustmentFields, clipSelection, colourMatrix, frameSettings, rect } from "./values.js";
 
 const imageFormat = literalUnion<ImageFormat>(...IMAGE_FORMATS);
 
@@ -47,6 +47,7 @@ export function validateDocument(value: unknown): Result<EditorDocument, Validat
     }),
     crop: field("crop", nullable(rect)),
     cropWithinImage: field("cropWithinImage", withDefault(boolean, DEFAULT_CROP_WITHIN_IMAGE)),
+    colourMatrix: field("colourMatrix", withDefault(nullable(colourMatrix), null)),
     clip: field("clip", withDefault(nullable(clipSelection), null)),
     aspectRatio: field("aspectRatio", nullable(finiteNumber)),
     adjustments: group("adjustments", adjustmentFields),

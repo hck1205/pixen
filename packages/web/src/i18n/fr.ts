@@ -131,6 +131,7 @@ export const fr: PixenStrings = {
   stepResetTrim: "Réinitialiser le rognage",
   stepCropArea: "Zone de recadrage",
   stepAspectRatio: "Format",
+  stepColourMatrix: "Transformation des couleurs",
   stepAdjust: "Ajuster",
   stepOutput: "Paramètres de sortie",
   stepFrame: "Cadre",

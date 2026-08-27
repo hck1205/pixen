@@ -133,6 +133,7 @@ export const hi: PixenStrings = {
   stepResetTrim: "ट्रिम रीसेट करें",
   stepCropArea: "क्रॉप क्षेत्र",
   stepAspectRatio: "पक्षानुपात",
+  stepColourMatrix: "रंग रूपांतरण",
   stepAdjust: "समायोजित करें",
   stepOutput: "आउटपुट सेटिंग्स",
   stepFrame: "फ़्रेम",

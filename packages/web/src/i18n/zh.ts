@@ -131,6 +131,7 @@ export const zh: PixenStrings = {
   stepResetTrim: "重置剪辑",
   stepCropArea: "裁剪范围",
   stepAspectRatio: "宽高比",
+  stepColourMatrix: "颜色变换",
   stepAdjust: "调整",
   stepOutput: "输出设置",
   stepFrame: "边框",

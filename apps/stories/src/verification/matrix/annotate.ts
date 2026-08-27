@@ -227,6 +227,20 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
           "stripes. That is the honest limit of anything that runs in a millisecond, and the reason " +
           "this is a spot remover rather than content-aware fill",
       },
+      {
+        capability: "A colour matrix",
+        pixen:
+          "Twenty numbers, in the order the platform's own colour matrices use, so one copied from a " +
+          "stylesheet or an SVG filter means here what it meant there. Stored in the document, " +
+          "undoable, and refused when it is the wrong shape rather than quietly ignored",
+        verdict: "met",
+        market: required("image properties", "A colour matrix may be set on the image"),
+        evidence: [unit("colour-matrix.test.ts"), browser("editor.spec.ts")],
+        note:
+          "It reaches the alpha channel, which none of the twelve named adjustments can — and it is " +
+          "the only colour operation here that needs a pixel pass on every frame, so it is a thing to " +
+          "reach for rather than a thing to leave on",
+      },
     ],
   },
 ];

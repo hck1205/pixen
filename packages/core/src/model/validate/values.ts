@@ -1,6 +1,7 @@
 import { isErr } from "../../fp/result.js";
 import type { Point, Rect } from "../../geometry/types.js";
 import { ADJUSTMENT_RANGES } from "../adjustments.js";
+import { COLOUR_MATRIX_LENGTH } from "../../render/colour-matrix.js";
 import { MIN_CLIP_SECONDS, type ClipRange, type ClipSelection } from "../clip.js";
 import { DEFAULT_FRAME } from "../defaults.js";
 import { ADJUSTMENT_KEYS, FRAME_STYLES, type AdjustmentKey, type FrameSettings, type Stroke } from "../types.js";
@@ -130,3 +131,19 @@ export const frameSettings: Validator<FrameSettings> = object<FrameSettings>({
 });
 
 // --- layers ----------------------------------------------------------------
+
+/**
+ * A stored colour matrix: twenty finite numbers, and nothing else.
+ *
+ * Checked rather than repaired, like every other stored value. A matrix of
+ * nineteen is not a matrix that is nearly right — it is a file written by
+ * something that did not know the shape, and padding it would hide that.
+ */
+export const colourMatrix: Validator<readonly number[]> = (value, path) => {
+  const parsed = arrayOf(finiteNumber)(value, path);
+  if (isErr(parsed)) return parsed;
+  if (parsed.value.length !== COLOUR_MATRIX_LENGTH) {
+    return err(issue(path, `a colour matrix of ${COLOUR_MATRIX_LENGTH} numbers`, value));
+  }
+  return parsed;
+};

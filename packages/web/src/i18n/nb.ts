@@ -133,6 +133,7 @@ export const nb: PixenStrings = {
   stepResetTrim: "Nullstill trimming",
   stepCropArea: "Beskjæringsområde",
   stepAspectRatio: "Sideforhold",
+  stepColourMatrix: "Fargetransformasjon",
   stepAdjust: "Juster",
   stepOutput: "Utdatainnstillinger",
   stepFrame: "Ramme",

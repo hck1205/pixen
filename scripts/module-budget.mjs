@@ -86,7 +86,9 @@ export const EXEMPT = {
   // reading one. It belongs with the other way in because "how does a document
   // start" is one question, and the alternative was a module holding one
   // function and four ports into this class.
-  "packages/core/src/engine/editor.ts": 826,
+  //
+  // Raised from 826 for `setColourMatrix`, which is a delegation like the rest.
+  "packages/core/src/engine/editor.ts": 831,
   // Pointer plumbing over gesture functions that are pure and tested next
   // door, plus the render loop. The class holds state, effects and subscribers,
   // which is what the working agreement says a class is for; the overlay's

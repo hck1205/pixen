@@ -133,6 +133,7 @@ export const ru: PixenStrings = {
   stepResetTrim: "Сброс обрезки",
   stepCropArea: "Область кадрирования",
   stepAspectRatio: "Соотношение сторон",
+  stepColourMatrix: "Преобразование цвета",
   stepAdjust: "Коррекция",
   stepOutput: "Параметры вывода",
   stepFrame: "Рамка",

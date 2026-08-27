@@ -128,6 +128,7 @@ export const ko: PixenStrings = {
   stepResetTrim: "구간 초기화",
   stepCropArea: "크롭 범위",
   stepAspectRatio: "가로세로 비율",
+  stepColourMatrix: "색 변환",
   stepAdjust: "보정",
   stepOutput: "출력 설정",
   stepFrame: "테두리",

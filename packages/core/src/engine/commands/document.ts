@@ -7,6 +7,7 @@
  * document, and are here because there is nowhere narrower for them to be.
  */
 import { PixenError } from "../../errors/index.js";
+import { COLOUR_MATRIX_LENGTH, isColourMatrix } from "../../render/colour-matrix.js";
 import { scaling } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
 import { cropBounds } from "../../model/document.js";
@@ -55,6 +56,23 @@ export function setFrame(document: EditorDocument, frame: Partial<FrameSettings>
 
 export function setOutput(document: EditorDocument, output: Partial<OutputSettings>): EditorDocument {
   return { ...document, output: { ...document.output, ...output } };
+}
+
+/**
+ * The host's own colour transform, or none.
+ *
+ * Checked here rather than trusted: a matrix of the wrong length would reach
+ * the pixel pass and be ignored, which looks exactly like a transform that did
+ * nothing — and a caller who mistyped one deserves to hear about it.
+ */
+export function setColourMatrix(document: EditorDocument, matrix: readonly number[] | null): EditorDocument {
+  if (matrix === null) return { ...document, colourMatrix: null };
+  if (!isColourMatrix(matrix)) {
+    throw new PixenError("INVALID_DOCUMENT", `A colour matrix is ${COLOUR_MATRIX_LENGTH} finite numbers`, {
+      details: { received: (matrix as readonly number[]).length },
+    });
+  }
+  return { ...document, colourMatrix: [...matrix] };
 }
 
 /**

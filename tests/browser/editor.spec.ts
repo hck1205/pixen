@@ -3240,3 +3240,58 @@ test("a document can start on an empty sheet", async ({ page }) => {
   expect(outcome.layers).toBe(1);
   expect(outcome.afterUndo).toBe(0);
 });
+
+/**
+ * The twelve adjustments are a vocabulary — sliders a person understands. A
+ * brand look is not in it: a film emulation, a house grade, a duotone keyed to
+ * two brand colours are each one matrix and none of them is a slider. A product
+ * that only offers the words we thought of is one somebody has to fork.
+ */
+test("a host's own colour transform reaches the exported pixels", async ({ page }) => {
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("pixen-image-editor") as EditorElement;
+    const editor = element.editor;
+
+    const middle = async () => {
+      const data = await editor.renderToImageData();
+      const i = (Math.round(data.height / 2) * data.width + Math.round(data.width / 2)) * 4;
+      return { r: data.data[i]!, g: data.data[i + 1]!, b: data.data[i + 2]! };
+    };
+
+    const before = await middle();
+
+    // Red and blue exchanged, green left alone.
+    editor.setColourMatrix([0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0]);
+    const swapped = await middle();
+    const stored = editor.document.colourMatrix;
+    const step = editor.historyState.undoStep;
+
+    // It is a document edit, so it undoes.
+    editor.undo();
+    const undone = await middle();
+
+    // And a matrix of the wrong shape is refused rather than ignored.
+    let refused = "none";
+    try {
+      editor.setColourMatrix([1, 2, 3]);
+    } catch (error) {
+      refused = (error as { code?: string }).code ?? "unknown";
+    }
+
+    return { before, swapped, undone, stored, step, refused };
+  });
+
+  // The picture is a sunset, so red and blue are not the same to begin with.
+  expect(outcome.before.r).not.toBe(outcome.before.b);
+  expect(outcome.swapped.r).toBe(outcome.before.b);
+  expect(outcome.swapped.b).toBe(outcome.before.r);
+  expect(outcome.swapped.g).toBe(outcome.before.g);
+
+  expect(outcome.stored).toHaveLength(20);
+  expect(outcome.step).toBe("colourMatrix");
+  expect(outcome.undone).toEqual(outcome.before);
+
+  // Ignoring a mistyped matrix would look exactly like a transform that did
+  // nothing, which is the one outcome a caller cannot debug.
+  expect(outcome.refused).toBe("INVALID_DOCUMENT");
+});

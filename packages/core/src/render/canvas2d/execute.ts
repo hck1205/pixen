@@ -7,6 +7,7 @@ import type { TextMeasurer } from "../../model/text-layout.js";
 import { buildSceneOps, type BuildOptions, type DrawOp, type PathCommand } from "../ops/index.js";
 import type { Scene } from "../scene.js";
 import { drawVignette } from "./decoration.js";
+import { applyColourMatrix } from "../colour-matrix.js";
 import { healSpot } from "./retouch.js";
 import { obscureRegion } from "./redaction.js";
 
@@ -144,6 +145,9 @@ export function executeOps(context: Canvas2D, ops: readonly DrawOp[]): void {
       case "adjust-pixels":
         adjustPixels(context, op);
         break;
+      case "colour-matrix":
+        transformColours(context, op);
+        break;
     }
   }
 
@@ -222,6 +226,22 @@ function drawText(context: Canvas2D, op: Extract<DrawOp, { op: "text" }>): void 
   op.lines.forEach((line, index) => {
     context.fillText(line, op.origin.x, op.origin.y + index * op.lineHeight);
   });
+}
+
+/**
+ * The host's own colour transform, over the whole target.
+ *
+ * The same shape as `adjustPixels` and for the same reasons: a canvas the page
+ * may not read leaves the picture alone rather than failing, and the buffer is
+ * written back only when something actually changed.
+ */
+function transformColours(context: Canvas2D, op: Extract<DrawOp, { op: "colour-matrix" }>): void {
+  try {
+    const data = context.getImageData(0, 0, op.width, op.height);
+    if (applyColourMatrix(data.data, op.matrix)) context.putImageData(data, 0, 0);
+  } catch {
+    // A tainted canvas cannot be read back. See `adjustPixels`.
+  }
 }
 
 function adjustPixels(context: Canvas2D, op: Extract<DrawOp, { op: "adjust-pixels" }>): void {

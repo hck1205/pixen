@@ -69,6 +69,18 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
     });
   }
 
+  // After the named adjustments and before the vignette: a house grade is
+  // applied to a corrected picture, and the vignette is a shape drawn on the
+  // result rather than a colour the grade should have a say in.
+  if (scene.colourMatrix) {
+    ops.push({
+      op: "colour-matrix",
+      matrix: scene.colourMatrix,
+      width: scene.target.width,
+      height: scene.target.height,
+    });
+  }
+
   if (scene.adjustments.vignette > 0) {
     // Over the image and under the annotations: the vignette is part of the
     // picture, and an arrow drawn on top should not be dimmed by it.

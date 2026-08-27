@@ -22,6 +22,15 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
     summary: "Everything that changes where the pixels are rather than what colour they are.",
     entries: [
       {
+        capability: "A colour transform of the host's own",
+        layer: "Engine",
+        detail:
+          "Twenty numbers in the order the platform's own colour matrices use, applied after the " +
+          "named adjustments and before the vignette. The twelve sliders are a vocabulary; a film " +
+          "emulation, a house grade or a duotone is one matrix and none of them is a slider",
+        evidence: [unit("colour-matrix.test.ts"), browser("editor.spec.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+      },
+      {
         capability: "Retouch",
         layer: "Engine",
         detail:

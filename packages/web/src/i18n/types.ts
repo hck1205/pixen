@@ -142,6 +142,7 @@ export interface PixenStrings {
   stepAspectRatio: string;
   stepCropArea: string;
   stepAdjust: string;
+  stepColourMatrix: string;
   stepOutput: string;
   stepFrame: string;
   stepResize: string;
