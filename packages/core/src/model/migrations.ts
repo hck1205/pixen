@@ -166,6 +166,7 @@ migrations.set(5, migrateV5ToV6);
 migrations.set(6, migrateV6ToV7);
 migrations.set(7, migrateV7ToV8);
 migrations.set(8, migrateV8ToV9);
+migrations.set(9, migrateV9ToV10);
 
 export function migrateDocument(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -204,4 +205,20 @@ export function migrateDocument(raw: unknown): Record<string, unknown> {
   }
 
   return current;
+}
+
+/**
+ * v9 -> v10 let a document keep more than one part of a moving source.
+ *
+ * One range was the whole of trimming until it was not: a talk with two good
+ * answers in it, an interview with the pauses taken out. A v9 document has one
+ * range, which means one kept part, so it becomes a list of one and looks
+ * exactly as it did. The version still moves, because a v9 build reading a v10
+ * document would find a list where it expects a range and export the wrong film
+ * — or nothing.
+ */
+function migrateV9ToV10(document: Record<string, unknown>): Record<string, unknown> {
+  const stored = document.clip;
+  if (stored === null || stored === undefined || Array.isArray(stored)) return document;
+  return { ...document, clip: [stored] };
 }

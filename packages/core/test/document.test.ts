@@ -247,7 +247,7 @@ describe("isPristine", () => {
   it("notices the edits that are not adjustments", () => {
     const cases: Array<[string, Partial<ReturnType<typeof untouched>>]> = [
       ["crop", { crop: { x: 0, y: 0, width: 10, height: 10 } }],
-      ["clip", { clip: { start: 1, end: 2 } }],
+      ["clip", { clip: [{ start: 1, end: 2 }] }],
       ["frame", { frame: { ...DEFAULT_FRAME } }],
       ["aspectRatio", { aspectRatio: 1 }],
       ["rotation", { transform: { rotation: 0.1, flipX: false, flipY: false } }],

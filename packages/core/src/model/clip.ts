@@ -99,6 +99,69 @@ export function clipDuration(range: ClipRange): number {
 }
 
 /**
+ * The kept parts of a source, in order and never overlapping.
+ *
+ * One range was the whole of trimming until it was not: a talk with two good
+ * answers in it, an interview with the pauses taken out, a reel of three
+ * moments. What is stored is what is *kept*, not what is removed, because the
+ * kept parts are what the exported file is made of and what a strip draws.
+ *
+ * The invariant — sorted, non-overlapping, each range legal on its own — is
+ * held by `clampSelection` rather than by the type, so a selection read off a
+ * timeline or out of a saved document goes through the same door.
+ */
+export type ClipSelection = readonly ClipRange[];
+
+/** How long everything kept runs for, which is the exported file's length. */
+export function selectionDuration(selection: ClipSelection): number {
+  return selection.reduce((total, range) => total + clipDuration(range), 0);
+}
+
+/**
+ * A selection brought inside a source: each range clamped, then sorted, then
+ * merged where they touch or overlap.
+ *
+ * Merging rather than refusing, because two ranges that overlap describe one
+ * kept stretch and that is what the export would write anyway. Dragging one
+ * segment's edge into its neighbour is a gesture people make; the result they
+ * mean is one longer segment.
+ *
+ * `bounds.max` is a ceiling on the *total* — a host asking for thirty seconds
+ * means thirty seconds of film, however many pieces it arrives in — so ranges
+ * are kept in order until the budget runs out, and the one that crosses it is
+ * cut short rather than dropped.
+ */
+export function clampSelection(selection: ClipSelection, duration: number, bounds: ClipBounds = {}): ClipSelection {
+  const { limit, floor, ceiling } = clipLimits(duration, bounds);
+  const clamped = selection
+    .map((range) => clampClip(range, limit))
+    .sort((a, b) => a.start - b.start);
+
+  const merged: ClipRange[] = [];
+  for (const range of clamped) {
+    const last = merged[merged.length - 1];
+    if (last && range.start <= last.end) {
+      if (range.end > last.end) merged[merged.length - 1] = { start: last.start, end: range.end };
+      continue;
+    }
+    merged.push({ ...range });
+  }
+
+  if (merged.length === 0) return [clampClip(wholeClip(limit), limit, bounds)];
+
+  const kept: ClipRange[] = [];
+  let spent = 0;
+  for (const range of merged) {
+    const room = ceiling - spent;
+    if (room < floor) break;
+    const length = Math.min(clipDuration(range), room);
+    kept.push({ start: range.start, end: range.start + length });
+    spent += length;
+  }
+  return kept;
+}
+
+/**
  * Where a moment inside the clip sits in the source.
  *
  * The clip's own timeline starts at zero, which is what an exported file's does;

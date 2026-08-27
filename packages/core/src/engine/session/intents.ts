@@ -4,7 +4,7 @@ import type { ResizeIntent } from "../../image/resize.js";
 import { resolveSize } from "../../image/resize.js";
 import type { TextMeasurer } from "../../model/text-layout.js";
 import type { StepName } from "./steps.js";
-import type { ClipBounds, ClipRange } from "../../model/clip.js";
+import type { ClipBounds, ClipRange, ClipSelection } from "../../model/clip.js";
 import { cloneDocument, effectiveCrop } from "../../model/document.js";
 import type { LayerHandle } from "../../model/transform.js";
 import type {
@@ -42,7 +42,7 @@ export type Intent =
   | { kind: "set-aspect-ratio"; ratio: number | null }
   | {
       kind: "set-clip";
-      range: ClipRange | null;
+      range: ClipSelection | ClipRange | null;
       /** How long the host will let a clip be. See `ClipBounds`. */
       bounds?: ClipBounds;
     }

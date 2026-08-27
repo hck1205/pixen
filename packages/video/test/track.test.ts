@@ -57,7 +57,21 @@ describe("dragHandle", () => {
 
 describe("trackReadout", () => {
   it("says where the clip starts, ends, and how long the source is", () => {
-    expect(trackReadout({ start: 1, end: 2.5 }, 3)).toBe("1.0s – 2.5s / 3.0s");
+    expect(trackReadout([{ start: 1, end: 2.5 }], 3)).toBe("1.0s – 2.5s / 3.0s");
+  });
+
+  it("names every kept part, and then how much film that adds up to", () => {
+    // The total is the length of the file that comes out, and it is not the
+    // last part's end minus the first part's start.
+    expect(
+      trackReadout(
+        [
+          { start: 0, end: 1 },
+          { start: 2, end: 3 },
+        ],
+        3,
+      ),
+    ).toBe("0.0s – 1.0s, 2.0s – 3.0s (2.0s) / 3.0s");
   });
 });
 

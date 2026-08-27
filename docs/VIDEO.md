@@ -125,6 +125,34 @@ audio track at all.
 A source with no sound of its own is silent whatever is asked for, and so is one
 the page may not read — the same cross-origin wall the frames hit, below.
 
+## Keeping more than one part
+
+A clip is a list of kept parts, in order and never overlapping:
+
+```js
+editor.dispatch({
+  kind: "set-clip",
+  range: [
+    { start: 0, end: 12 },     // the question
+    { start: 95, end: 140 },   // the answer, without the pause in between
+  ],
+});
+```
+
+They export as one file, in one recording pass. The seek between parts costs a
+moment of wall clock and nothing in the file: the recorder is sampling a canvas,
+and the canvas goes on showing the last frame of one part until the first frame
+of the next arrives. Measured on the three-second sample — a red second, a green
+one and a blue one — keeping the red and the blue gives a 1.2-second file with
+red at the front, blue at the back and no green anywhere in it.
+
+The exported length is the *total* of the parts, not the span from the first
+start to the last end, and that total is what a length rule is measured against.
+
+Parts that touch or overlap are merged rather than refused, because two
+overlapping ranges describe one kept stretch and that is what the export would
+write anyway.
+
 ## How long a clip may be
 
 A host that accepts clips usually has a rule about the length — an advert slot,
@@ -195,8 +223,9 @@ await openVideo(editor, "https://cdn.example/clip.webm", { crossOrigin: "anonymo
 ## What is not here
 
 No frame-accurate scrubbing beyond what the browser's own seeking gives, no
-audio editing beyond the output level, no concatenation, no transitions, no
-speed changes. The package is trimming and export; each of those is a product of
+audio editing beyond the output level, no transitions, no speed changes, and no
+joining two different sources — the parts a clip keeps all come from the one
+film. The package is trimming and export; each of those is a product of
 its own.
 
 The playhead is the element's own: `openVideo` hands back the

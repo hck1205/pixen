@@ -7,7 +7,15 @@
  * what a *handle* adds — that one end may not be dragged through the other, and
  * that the numbers a reader sees are the clip's rather than the source's.
  */
-import { clipFractions, clipFromFractions, clipLimits, type ClipBounds, type ClipRange } from "@pixen/core";
+import {
+  clipFractions,
+  clipFromFractions,
+  clipLimits,
+  selectionDuration,
+  type ClipBounds,
+  type ClipRange,
+  type ClipSelection,
+} from "@pixen/core";
 
 export interface TrackLayout {
   /** Left edge of the kept region, as a percentage of the strip. */
@@ -58,7 +66,16 @@ export function dragHandle(
   return clipFromFractions(clip.start / limit, end / limit, limit, bounds);
 }
 
-/** "1.0s – 2.0s of 3.0s", the numbers a person checks a trim against. */
-export function trackReadout(clip: ClipRange, duration: number): string {
-  return `${clip.start.toFixed(1)}s – ${clip.end.toFixed(1)}s / ${duration.toFixed(1)}s`;
+/**
+ * "1.0s – 2.0s / 3.0s", the numbers a person checks a trim against.
+ *
+ * Several kept parts read as their ranges and then the total, because the total
+ * is the length of the file that comes out and is the number a host's own limit
+ * is about — and it is not the last range's end minus the first one's start.
+ */
+export function trackReadout(selection: ClipSelection, duration: number): string {
+  const parts = selection.map((part) => `${part.start.toFixed(1)}s – ${part.end.toFixed(1)}s`).join(", ");
+  const kept = selectionDuration(selection);
+  const total = selection.length > 1 ? ` (${kept.toFixed(1)}s)` : "";
+  return `${parts}${total} / ${duration.toFixed(1)}s`;
 }

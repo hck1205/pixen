@@ -1,11 +1,11 @@
 import type { Point, Rect } from "../geometry/types.js";
-import type { ClipRange } from "./clip.js";
+import type { ClipSelection } from "./clip.js";
 import type { LineEnd } from "./line.js";
 
 export type { LineEnd };
 export { LINE_ENDS } from "./line.js";
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -255,10 +255,11 @@ export interface EditorDocument {
   /** Stage-space crop region. Absent means "the whole stage". */
   crop: Rect | null;
   /**
-   * The kept part of a moving source, in seconds. Absent means all of it, and
-   * is what a still picture always has. See `model/clip.ts`.
+   * The kept parts of a moving source, in seconds — in order and never
+   * overlapping. Absent means all of it, and is what a still picture always
+   * has. See `model/clip.ts`.
    */
-  clip: ClipRange | null;
+  clip: ClipSelection | null;
   /** Locked crop ratio, kept in the document so a resumed session behaves the same. */
   aspectRatio: number | null;
   adjustments: Adjustments;

@@ -466,7 +466,7 @@ test("the trim strip sets the clip, in the language the editor is in", async ({ 
   const after = await page.evaluate(() => {
     const element = document.querySelector("#editor") as VideoEditor;
     return {
-      clip: element.editor.document.clip as { start: number; end: number } | null,
+      clip: (element.editor.document.clip as { start: number; end: number }[] | null)?.[0] ?? null,
       duration: element.editor.document.source.duration as number,
       depth: (element.editor as unknown as { historyState: { depth: number } }).historyState.depth,
     };
@@ -643,7 +643,7 @@ test("a length rule stops the handle that is being dragged", async ({ page }) =>
     const element = document.querySelector("#editor") as VideoEditor;
     const readout = element.shadowRoot?.querySelector(".pixen-trim-readout")?.textContent ?? "";
     return {
-      clip: element.editor.document.clip as { start: number; end: number } | null,
+      clip: (element.editor.document.clip as { start: number; end: number }[] | null)?.[0] ?? null,
       duration: element.editor.document.source.duration as number,
       readout,
     };
@@ -660,7 +660,7 @@ test("a length rule stops the handle that is being dragged", async ({ page }) =>
 
   const after = await page.evaluate(() => {
     const element = document.querySelector("#editor") as VideoEditor;
-    return element.editor.document.clip as { start: number; end: number };
+    return (element.editor.document.clip as { start: number; end: number }[])[0]!;
   });
 
   // Nothing is trimmed yet, and the source is three seconds — but the rule says
@@ -698,7 +698,7 @@ test("a length rule stops the handle that is being dragged", async ({ page }) =>
     handle.dispatchEvent(new Event("input", { bubbles: true }));
     handle.dispatchEvent(new Event("change", { bubbles: true }));
     return {
-      clip: element.editor.document.clip as { start: number; end: number },
+      clip: (element.editor.document.clip as { start: number; end: number }[])[0]!,
       duration: element.editor.document.source.duration as number,
     };
   });
@@ -706,4 +706,90 @@ test("a length rule stops the handle that is being dragged", async ({ page }) =>
   // The end stayed where it was, and the clip is still within the rule.
   expect(dragged.clip.end).toBeCloseTo(dragged.duration, 2);
   expect(dragged.clip.end - dragged.clip.start).toBeLessThanOrEqual(1.001);
+});
+
+/**
+ * One kept range was the whole of trimming until it was not: a talk with two
+ * good answers in it, an interview with the pauses taken out. What is stored is
+ * what is *kept*, and the export runs each part into one recording — the seek
+ * between them costs a moment of wall clock and nothing in the file, because
+ * the recorder is sampling a canvas and the canvas simply goes on showing the
+ * last frame until the next part arrives.
+ *
+ * The sample is a red second, a green second and a blue second, so "the green
+ * one is gone" is a one-pixel read rather than a judgement.
+ */
+test("two kept parts export as one file with the part between them missing", async ({ page }) => {
+  test.setTimeout(REALTIME_BUDGET_MS);
+  await openVideoPage(page);
+
+  const outcome = await page.evaluate(async () => {
+    const element = document.querySelector("#editor") as VideoEditor;
+    const clip = await window.pixenVideoDemo.recordSampleClip({ seconds: 3 });
+    const source = await window.pixenVideoDemo.openVideo(element.editor, clip);
+
+    // The red second and the blue one, inset so a frame either side of a
+    // boundary cannot drift into the answer. The green one is left out.
+    element.editor.dispatch({
+      kind: "set-clip",
+      range: [
+        { start: 0.2, end: 0.8 },
+        { start: 2.2, end: 2.8 },
+      ],
+    });
+
+    const written = await window.pixenVideoDemo.exportClip(
+      element.editor.document,
+      source.element,
+      element.editor.resources,
+    );
+
+    const played = document.createElement("video");
+    played.muted = true;
+    played.playsInline = true;
+    played.src = URL.createObjectURL(written.blob);
+    await new Promise((resolve) => {
+      played.onloadeddata = resolve;
+      played.onerror = resolve;
+      setTimeout(resolve, 8000);
+    });
+
+    const read = document.createElement("canvas");
+    read.width = written.width;
+    read.height = written.height;
+    const context = read.getContext("2d")!;
+    const sampleAt = async (fraction: number) => {
+      played.currentTime = (played.duration || 1.2) * fraction;
+      await new Promise((resolve) => {
+        played.onseeked = resolve;
+        setTimeout(resolve, 2000);
+      });
+      context.drawImage(played, 0, 0, written.width, written.height);
+      // A quarter in from the corner: the middle carries the burnt-in clock.
+      const data = context.getImageData(Math.round(written.width / 4), Math.round(written.height / 4), 1, 1).data;
+      return { r: data[0]!, g: data[1]!, b: data[2]! };
+    };
+
+    return {
+      reportedDuration: written.duration,
+      exportedDuration: played.duration,
+      early: await sampleAt(0.2),
+      late: await sampleAt(0.8),
+      storedParts: (element.editor.document.clip as unknown[]).length,
+    };
+  });
+
+  expect(outcome.storedParts).toBe(2);
+
+  // Two six-tenths of a second, so the file is about 1.2s — not the 2.6s that
+  // the outer edges of the two parts span.
+  expect(outcome.reportedDuration).toBeCloseTo(1.2, 1);
+  expect(outcome.exportedDuration).toBeGreaterThan(0.9);
+  expect(outcome.exportedDuration).toBeLessThan(1.8);
+
+  // Red at the front, blue at the back, and the green second nowhere at all.
+  expect(outcome.early.r).toBeGreaterThan(outcome.early.b);
+  expect(outcome.late.b).toBeGreaterThan(outcome.late.r);
+  expect(outcome.early.g).toBeLessThan(outcome.early.r);
+  expect(outcome.late.g).toBeLessThan(outcome.late.b);
 });

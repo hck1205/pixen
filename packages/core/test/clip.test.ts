@@ -5,6 +5,8 @@ import {
   clipFractions,
   clipFromFractions,
   clipLimits,
+  clampSelection,
+  selectionDuration,
   clipTimeToSource,
   commands,
   createDocument,
@@ -98,7 +100,7 @@ describe("clip arithmetic", () => {
 describe("setClip", () => {
   it("clamps what it is given, because it usually came from a handle", () => {
     const document = commands.setClip(movingDocument(), { start: -5, end: 99 });
-    expect(document.clip).toEqual({ start: 0, end: DURATION });
+    expect(document.clip).toEqual([{ start: 0, end: DURATION }]);
   });
 
   it("clears back to the whole source", () => {
@@ -128,7 +130,7 @@ describe("the clip in the document", () => {
     const parsed = validateDocument(stored(trimmed));
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.value.clip).toEqual({ start: 1, end: 2 });
+    expect(parsed.value.clip).toEqual([{ start: 1, end: 2 }]);
     expect(parsed.value.source.duration).toBe(DURATION);
   });
 
@@ -137,7 +139,7 @@ describe("the clip in the document", () => {
     // saved file did not come from a drag, and repairing it would hide whatever
     // wrote it.
     const trimmed = commands.setClip(movingDocument(), { start: 1, end: 2 });
-    const inverted = { ...stored(trimmed), clip: { start: 5, end: 2 } };
+    const inverted = { ...stored(trimmed), clip: [{ start: 5, end: 2 }] };
     expect(validateDocument(inverted).ok).toBe(false);
   });
 
@@ -201,21 +203,124 @@ describe("how long a clip is allowed to be", () => {
     // hold a state the host had already ruled out, and the export would write
     // it — so clearing leaves the longest clip the rule allows.
     const moving = { ...createDocument({ resourceId: "res_1", width: 8, height: 8 }), source: { resourceId: "res_1", width: 8, height: 8, duration: 60 } };
-    expect(commands.setClip({ ...moving, clip: { start: 10, end: 20 } }, null, { max: 10 }).clip).toEqual({
-      start: 0,
-      end: 10,
-    });
+    expect(commands.setClip({ ...moving, clip: [{ start: 10, end: 20 }] }, null, { max: 10 }).clip).toEqual([
+      { start: 0, end: 10 },
+    ]);
   });
 
   it("clears it outright when no ceiling stands in the way", () => {
     const moving = { ...createDocument({ resourceId: "res_1", width: 8, height: 8 }), source: { resourceId: "res_1", width: 8, height: 8, duration: 60 } };
-    expect(commands.setClip({ ...moving, clip: { start: 10, end: 20 } }, null, { max: 999 }).clip).toBeNull();
-    expect(commands.setClip({ ...moving, clip: { start: 10, end: 20 } }, null).clip).toBeNull();
+    expect(commands.setClip({ ...moving, clip: [{ start: 10, end: 20 }] }, null, { max: 999 }).clip).toBeNull();
+    expect(commands.setClip({ ...moving, clip: [{ start: 10, end: 20 }] }, null).clip).toBeNull();
   });
 
   it("applies the bounds to a range read off a timeline too", () => {
     // The strip hands over fractions; the rule cannot live in only one of the
     // two doors into the same value.
     expect(clipFromFractions(0, 1, minute, { max: 10 })).toEqual({ start: 0, end: 10 });
+  });
+});
+
+/**
+ * One range was the whole of trimming until it was not: a talk with two good
+ * answers in it, an interview with the pauses taken out, a reel of three
+ * moments. What is stored is what is *kept*, because the kept parts are what
+ * the exported file is made of.
+ */
+describe("keeping more than one part", () => {
+  const minute = 60;
+
+  it("keeps the parts it is given, in order", () => {
+    expect(
+      clampSelection(
+        [
+          { start: 30, end: 40 },
+          { start: 5, end: 10 },
+        ],
+        minute,
+      ),
+    ).toEqual([
+      { start: 5, end: 10 },
+      { start: 30, end: 40 },
+    ]);
+  });
+
+  it("merges parts that touch or overlap rather than refusing them", () => {
+    // Two ranges that overlap describe one kept stretch, which is what the
+    // export would write anyway. Dragging one segment's edge into its
+    // neighbour is a gesture people make.
+    expect(
+      clampSelection(
+        [
+          { start: 5, end: 20 },
+          { start: 15, end: 30 },
+        ],
+        minute,
+      ),
+    ).toEqual([{ start: 5, end: 30 }]);
+  });
+
+  it("adds up to the length of the file that comes out", () => {
+    // Not the last part's end minus the first part's start, which is the
+    // mistake a single range invites.
+    const selection = [
+      { start: 0, end: 5 },
+      { start: 50, end: 55 },
+    ];
+    expect(selectionDuration(selection)).toBe(10);
+  });
+
+  it("spends a ceiling across the parts in order, cutting the one that crosses it", () => {
+    // A host asking for thirty seconds means thirty seconds of film, however
+    // many pieces it arrives in.
+    const kept = clampSelection(
+      [
+        { start: 0, end: 8 },
+        { start: 20, end: 28 },
+        { start: 40, end: 48 },
+      ],
+      minute,
+      { max: 12 },
+    );
+    expect(kept).toEqual([
+      { start: 0, end: 8 },
+      { start: 20, end: 24 },
+    ]);
+    expect(selectionDuration(kept)).toBe(12);
+  });
+
+  it("falls back to the whole source rather than keeping nothing at all", () => {
+    expect(clampSelection([], minute)).toEqual([{ start: 0, end: minute }]);
+  });
+
+  it("stores what a v9 document meant, as a list of one", () => {
+    const before = { ...stored(commands.setClip(movingDocument(), { start: 1, end: 2 })), schemaVersion: 9, clip: { start: 1, end: 2 } };
+    const migrated = migrateDocument(before);
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(migrated.clip).toEqual([{ start: 1, end: 2 }]);
+    expect(validateDocument(migrated).ok).toBe(true);
+  });
+
+  it("leaves a v9 document with no trim alone", () => {
+    const before = { ...stored(movingDocument()), schemaVersion: 9, clip: null };
+    expect(migrateDocument(before).clip).toBeNull();
+  });
+
+  it("refuses a stored selection whose parts overlap", () => {
+    // Merged for a gesture, rejected for a document: a saved file with
+    // overlapping parts did not come from a drag.
+    const overlapping = {
+      ...stored(commands.setClip(movingDocument(), { start: 1, end: 2 })),
+      clip: [
+        { start: 1, end: 2 },
+        { start: 1.5, end: 2.5 },
+      ],
+    };
+    expect(validateDocument(overlapping).ok).toBe(false);
+  });
+
+  it("refuses a stored selection with nothing in it", () => {
+    const empty = { ...stored(commands.setClip(movingDocument(), { start: 1, end: 2 })), clip: [] };
+    expect(validateDocument(empty).ok).toBe(false);
   });
 });

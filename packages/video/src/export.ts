@@ -15,6 +15,7 @@ import {
   outputSize,
   PixenError,
   renderScene,
+  selectionDuration,
   throwIfAborted,
   wholeClip,
   type EditorDocument,
@@ -96,8 +97,8 @@ export async function exportClip(
     throw new PixenError("INVALID_STATE", "This document has no moving source to export");
   }
 
-  const clip = document.clip ?? wholeClip(duration);
-  const length = clipDuration(clip);
+  const selection = document.clip ?? [wholeClip(duration)];
+  const length = selectionDuration(selection);
   const target = options.size ?? outputSize(document);
   assertDrawableSize(target, "video export");
 
@@ -120,7 +121,7 @@ export async function exportClip(
   const startedAt = element.currentTime;
 
   try {
-    await seekTo(element, clip.start, options.signal, VIDEO_EXPORT);
+    await seekTo(element, selection[0]!.start, options.signal, VIDEO_EXPORT);
 
     // The first frame is painted before recording starts, so the stream has
     // something to sample the instant it does rather than a blank canvas.
@@ -129,11 +130,22 @@ export async function exportClip(
     options.onProgress?.({ stage: "render", loaded: 0, total: length });
     await recorder.start();
 
-    await runClip(element, clip, options.signal, VIDEO_EXPORT, async (seconds) => {
-      paint(context, document, element, target, resources);
-      await recorder.frame(seconds);
-      options.onProgress?.({ stage: "render", loaded: seconds, total: length });
-    });
+    // One recording, however many parts are kept. The seek between them costs a
+    // moment of wall clock and nothing in the file: the recorder is sampling a
+    // canvas, and the canvas simply goes on showing the last frame of one part
+    // until the first frame of the next arrives.
+    let written = 0;
+    for (const [index, part] of selection.entries()) {
+      if (index > 0) await seekTo(element, part.start, options.signal, VIDEO_EXPORT);
+      const before = written;
+      await runClip(element, part, options.signal, VIDEO_EXPORT, async (seconds) => {
+        paint(context, document, element, target, resources);
+        written = before + seconds;
+        await recorder.frame(written);
+        options.onProgress?.({ stage: "render", loaded: written, total: length });
+      });
+      written = before + clipDuration(part);
+    }
 
     options.onProgress?.({ stage: "encode", loaded: 0, total: null });
     const blob = await recorder.finish();

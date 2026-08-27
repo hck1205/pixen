@@ -6,7 +6,15 @@
  * three questions that were one file until the file had to be read twice to
  * answer any of them.
  */
-import { clampClip, clipFractions, wholeClip, type ClipBounds, type ClipRange, type Editor } from "@pixen/core";
+import {
+  clampSelection,
+  clipFractions,
+  wholeClip,
+  type ClipBounds,
+  type ClipRange,
+  type ClipSelection,
+  type Editor,
+} from "@pixen/core";
 import type { PluginText } from "@pixen/web";
 import { isMoving } from "../media.js";
 import { dragHandle, trackLayout, trackReadout, type Handle } from "./track.js";
@@ -40,8 +48,19 @@ const STYLE = `
  * one-second rule would be an interface disagreeing with itself before anyone
  * had touched it.
  */
-function currentClip(editor: Editor, duration: number, bounds: ClipBounds): ClipRange {
-  return clampClip(editor.document.clip ?? wholeClip(duration), duration, bounds);
+function currentSelection(editor: Editor, duration: number, bounds: ClipBounds): ClipSelection {
+  return clampSelection(editor.document.clip ?? [wholeClip(duration)], duration, bounds);
+}
+
+/**
+ * The part the two handles are editing.
+ *
+ * The first, for now. A document can keep several parts and the track draws
+ * every one of them; choosing between them is the next piece of this control,
+ * and until it exists the handles work the part they always did.
+ */
+function editedPart(selection: ClipSelection): ClipRange {
+  return selection[0]!;
 }
 
 function handleInput(
@@ -81,7 +100,10 @@ function handleInput(
     // data, and a plugin has the same way in as the element does.
     editor.dispatch({
       kind: "set-clip",
-      range: dragHandle(currentClip(editor, duration, bounds), duration, handle, Number(input.value), bounds),
+      range: [
+        dragHandle(editedPart(currentSelection(editor, duration, bounds)), duration, handle, Number(input.value), bounds),
+        ...currentSelection(editor, duration, bounds).slice(1),
+      ],
       bounds,
     });
   });
@@ -107,7 +129,8 @@ export function buildTrimStrip(editor: Editor, text: PluginText, bounds: ClipBou
   const duration = trimmableDuration(editor);
   if (duration === null) return [];
 
-  const clip = currentClip(editor, duration, bounds);
+  const selection = currentSelection(editor, duration, bounds);
+  const clip = editedPart(selection);
   const fractions = clipFractions(clip, duration);
 
   const root = document.createElement("div");
@@ -117,12 +140,15 @@ export function buildTrimStrip(editor: Editor, text: PluginText, bounds: ClipBou
 
   const track = document.createElement("div");
   track.className = "pixen-trim-track";
-  const kept = document.createElement("div");
-  kept.className = "pixen-trim-kept";
-  const layout = trackLayout(clip, duration);
-  kept.style.left = `${layout.left}%`;
-  kept.style.width = `${layout.width}%`;
-  track.append(kept);
+  // A band per kept part, so a document keeping three of them looks like it.
+  for (const part of selection) {
+    const kept = document.createElement("div");
+    kept.className = "pixen-trim-kept";
+    const layout = trackLayout(part, duration);
+    kept.style.left = `${layout.left}%`;
+    kept.style.width = `${layout.width}%`;
+    track.append(kept);
+  }
 
   const start = handleInput(editor, text, "start", duration, bounds);
   start.value = String(fractions.start);
@@ -132,7 +158,7 @@ export function buildTrimStrip(editor: Editor, text: PluginText, bounds: ClipBou
 
   const readout = document.createElement("p");
   readout.className = "pixen-trim-readout";
-  readout.textContent = trackReadout(clip, duration);
+  readout.textContent = trackReadout(selection, duration);
 
   const whole = document.createElement("button");
   whole.type = "button";

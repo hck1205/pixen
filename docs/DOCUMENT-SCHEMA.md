@@ -11,7 +11,7 @@ migratable from v1.
                                                                      // "duration": 12.5 as well, for a source that runs
   "transform": { "rotation": 0, "flipX": false, "flipY": false },   // radians, clockwise
   "crop": { "x": 0, "y": 0, "width": 4000, "height": 3000 },        // stage space, or null
-  "clip": null,                                                      // { "start": 2, "end": 7 } in seconds, or null
+  "clip": null,                                                      // [{ "start": 2, "end": 7 }] in seconds, or null
   "aspectRatio": 1.7777777777777777,                                 // locked ratio, or null
   "adjustments": { "exposure": 0, "brightness": 0, "contrast": 0, "saturation": 0,
                    "hue": 0, "grayscale": 0, "sepia": 0, "invert": 0, "vignette": 0 },
@@ -33,12 +33,18 @@ migratable from v1.
 - **`meta` is yours.** Pixen never reads it and always round-trips it.
 - **Layer geometry is image space.** Rotating or flipping the image does not
   rewrite a single layer coordinate.
-- **A clip is to time what a crop is to space**, and is stored the same way: an
-  absolute range in seconds against a source that states its own `duration`, not
-  a pair of fractions. `[0.5, 0.7]` of a source whose length you have not got is
-  not a range, and the moment the picture underneath is replaced by one of a
-  different length it silently means something else. `null` is the whole of it,
-  which is what a photograph always has.
+- **A clip is to time what a crop is to space**, and is stored the same way:
+  absolute seconds against a source that states its own `duration`, not
+  fractions. `[0.5, 0.7]` of a source whose length you have not got is not a
+  range, and the moment the picture underneath is replaced by one of a different
+  length it silently means something else. `null` is the whole of it, which is
+  what a photograph always has.
+- **What is stored is what is kept**, and there may be several parts — in order,
+  never overlapping, each legal on its own. The kept parts are what the exported
+  file is made of, so an export's length is their total rather than the span
+  from the first start to the last end. A gesture goes through
+  `clampSelection`, which sorts and merges; a *stored* document out of order is
+  rejected rather than repaired, because it did not come from a gesture.
 
 ## Layers
 
@@ -132,6 +138,8 @@ Shipped so far:
 | v5 → v6 | Added `output.upscale`, and let `output.quality` be unset. A v5 document exported through the panel *did* enlarge past its source, so `true` would preserve what it did — `false` is chosen anyway, because the panel and the batch call disagreed and only one of them can be right. The quality is left exactly as found: turning an explicit number into "unset" would re-encode somebody's archive at a different size the next time it was opened |
 | v6 → v7 | Replaced a line's two booleans with a named decoration at each end. `arrowStart: true` drew a *filled* head, so it migrates to `arrow-solid` rather than `arrow`: the open one is a new drawing, and quietly restyling every arrow in an archive would be a worse bug than the one it fixed |
 | v7 → v8 | Gave the frame the three measurements its new treatments read — spacing, line count and arm length. A v7 document has one of the three rectangles, which read none of them |
+| v8 → v9 | Added gamma and the two white-balance axes. Their neutral is zero like everything else's, so a v8 document looks exactly as it did |
+| v9 → v10 | Let a document keep more than one part of a moving source. A v9 `clip` is one range, which means one kept part, so it becomes a list of one and looks exactly as it did. The version moves because a v9 build reading a v10 document would find a list where it expects a range, and export the wrong film — or nothing |
 
 - A document from a **newer** build fails with `UNSUPPORTED_SCHEMA_VERSION`
   rather than being partially understood.

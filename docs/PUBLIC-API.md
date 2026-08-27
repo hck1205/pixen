@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-463 names.
+466 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -37,6 +37,7 @@ Canvas2D
 CanvasSurface
 ClipBounds
 ClipRange
+ClipSelection
 CropHandle
 DEFAULT_ADJUSTMENTS
 DEFAULT_ANNOTATION_COLOUR
@@ -245,6 +246,7 @@ clamp
 clampAdjustments
 clampClip
 clampInside
+clampSelection
 clampStraighten
 clipDuration
 clipFractions
@@ -427,6 +429,7 @@ scaleLayerToBounds
 scaleToFit
 scaling
 seedFrom
+selectionDuration
 serializeDocument
 shuffleOrder
 sourceFromResource

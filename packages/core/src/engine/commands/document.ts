@@ -10,7 +10,7 @@ import { PixenError } from "../../errors/index.js";
 import { scaling } from "../../geometry/matrix.js";
 import { transformBounds } from "../../geometry/rect.js";
 import { clampAdjustments } from "../../model/adjustments.js";
-import { clampClip, clipLimits, type ClipBounds, type ClipRange } from "../../model/clip.js";
+import { clampSelection, clipLimits, type ClipBounds, type ClipRange, type ClipSelection } from "../../model/clip.js";
 import { DEFAULT_FRAME, MAX_FRAME_WIDTH, MIN_FRAME_WIDTH } from "../../model/defaults.js";
 import { clamp } from "../../fp/function.js";
 import { layerBounds } from "../../model/layers.js";
@@ -111,14 +111,22 @@ export function replaceSource(document: EditorDocument, source: SourceDescriptor
  * rule allows rather than no clip at all. Otherwise the document could hold a
  * state the host had already refused, and the export would write it out.
  */
-export function setClip(document: EditorDocument, range: ClipRange | null, bounds?: ClipBounds): EditorDocument {
+export function setClip(
+  document: EditorDocument,
+  selection: ClipSelection | ClipRange | null,
+  bounds?: ClipBounds,
+): EditorDocument {
   const duration = document.source.duration;
   if (duration === undefined) return { ...document, clip: null };
-  if (range !== null) return { ...document, clip: clampClip(range, duration, bounds) };
+
+  if (selection !== null) {
+    const ranges = Array.isArray(selection) ? selection : [selection as ClipRange];
+    return { ...document, clip: clampSelection(ranges, duration, bounds) };
+  }
 
   const { ceiling } = clipLimits(duration, bounds);
   if (ceiling >= duration) return { ...document, clip: null };
-  return { ...document, clip: clampClip({ start: 0, end: ceiling }, duration, bounds) };
+  return { ...document, clip: clampSelection([{ start: 0, end: ceiling }], duration, bounds) };
 }
 
 export function resetEdits(document: EditorDocument): EditorDocument {
