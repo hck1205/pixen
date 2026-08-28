@@ -1,4 +1,3 @@
-import { clamp } from "../fp/function.js";
 import { compose, IDENTITY, meanScale, translation } from "../geometry/matrix.js";
 import { roundedSize, transformBounds } from "../geometry/rect.js";
 import { imageToStage, outputToStage, stageToOutput } from "../geometry/spaces.js";
@@ -41,9 +40,7 @@ export interface Scene {
    * a backdrop that letterboxed would be a border, and a border is `frame`.
    */
   backdrop: { source: CanvasImageSource; rect: Rect; filtered: boolean } | null;
-  /** CSS filter string, empty when nothing in the chain is active. */
-  filter: string;
-  /** The values behind that string, for the renderer's pixel fallback. */
+  /** The colour adjustments to apply, in the document's own units. */
   adjustments: Adjustments;
   /** The host's own colour transform, applied after the named adjustments. */
   colourMatrix: readonly number[] | null;
@@ -137,7 +134,6 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     target,
     background: document.output.background,
     backdrop: backdropFor(document, input, transformBounds(compose(view, regionMatrix), sourceRect)),
-    filter: cssFilter(document.adjustments),
     adjustments: document.adjustments,
     colourMatrix: document.colourMatrix,
     frame: document.frame,
@@ -225,44 +221,4 @@ function naturalSize(source: CanvasImageSource): Size {
 
 function sizeOf(rect: Rect): Size {
   return roundedSize(rect.width, rect.height);
-}
-
-/**
- * Maps the document's adjustments onto a CSS filter string.
- *
- * Canvas2D filters are the pragmatic choice: the browser applies them to the
- * preview and the export through one code path, at no per-pixel cost of ours.
- * That is also the boundary of what this version adjusts — an adjustment the
- * platform cannot express as a filter would need a pixel pass on every frame,
- * which a slider drag on a large image cannot afford.
- *
- * The vignette is the one exception, and it is drawn rather than filtered.
- */
-export function cssFilter(adjustments: Adjustments): string {
-  const parts: string[] = [];
-  // Exposure is photographic: one stop doubles the light, so it multiplies
-  // where brightness only shifts.
-  if (adjustments.exposure !== 0) parts.push(`brightness(${clampFactor(2 ** adjustments.exposure)})`);
-  if (adjustments.brightness !== 0) parts.push(`brightness(${clampFactor(1 + adjustments.brightness)})`);
-  if (adjustments.contrast !== 0) parts.push(`contrast(${clampFactor(1 + adjustments.contrast)})`);
-  if (adjustments.saturation !== 0) parts.push(`saturate(${clampFactor(1 + adjustments.saturation)})`);
-  if (adjustments.hue !== 0) parts.push(`hue-rotate(${Math.round(adjustments.hue)}deg)`);
-  if (adjustments.grayscale !== 0) parts.push(`grayscale(${clampAmount(adjustments.grayscale)})`);
-  if (adjustments.sepia !== 0) parts.push(`sepia(${clampAmount(adjustments.sepia)})`);
-  if (adjustments.invert !== 0) parts.push(`invert(${clampAmount(adjustments.invert)})`);
-  return parts.join(" ");
-}
-
-/** Filters are clamped so an absurd adjustment cannot blow out the image. */
-const MAX_FILTER_FACTOR = 4;
-const FILTER_PRECISION = 1000;
-
-function clampFactor(value: number): number {
-  const clamped = clamp(value, 0, MAX_FILTER_FACTOR);
-  return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
-}
-
-function clampAmount(value: number): number {
-  const clamped = Math.min(1, Math.max(0, value));
-  return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
 }

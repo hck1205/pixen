@@ -41,7 +41,7 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
         pixen: "Gamma, and white balance on both axes — temperature and tint",
         verdict: "met",
         market: required("adjustments", "Colour controls beyond the filter primitives the canvas exposes"),
-        evidence: [unit("pixel-adjustments.test.ts"), story("Adjustments"), doc("docs/ROADMAP.md")],
+        evidence: [unit("adjustments.test.ts"), story("Adjustments"), doc("docs/ROADMAP.md")],
         note:
           "A filter chain is a fixed set of functions and neither a gamma curve nor a channel gain is " +
           "among them, so these cost a pass over every pixel whatever engine is drawing. `adjustmentPlan` " +
@@ -221,7 +221,7 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
           "and it is a layer, so a repair undoes, moves and survives a round trip",
         verdict: "met",
         market: required("plugins", "A retouch tool for removing blemishes"),
-        evidence: [unit("heal.test.ts"), browser("editor.spec.ts")],
+        evidence: [unit("heal.test.ts"), unit("canvas-pixels.test.ts"), browser("editor.spec.ts")],
         note:
           "There is no texture in it: a blemish over a striped shirt heals to a smear rather than to " +
           "stripes. That is the honest limit of anything that runs in a millisecond, and the reason " +
@@ -235,7 +235,7 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
           "undoable, and refused when it is the wrong shape rather than quietly ignored",
         verdict: "met",
         market: required("image properties", "A colour matrix may be set on the image"),
-        evidence: [unit("colour-matrix.test.ts"), browser("editor.spec.ts")],
+        evidence: [unit("colour-matrix.test.ts"), unit("canvas-pixels.test.ts"), browser("editor.spec.ts")],
         note:
           "It reaches the alpha channel, which none of the twelve named adjustments can — and it is " +
           "the only colour operation here that needs a pixel pass on every frame, so it is a thing to " +

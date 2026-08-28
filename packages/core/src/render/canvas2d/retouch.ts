@@ -1,6 +1,7 @@
 import { clampToPixels, transformBounds } from "../../geometry/rect.js";
 import type { Matrix } from "../../geometry/types.js";
 import { healRegion } from "../heal.js";
+import { editPixels } from "./pixels.js";
 import type { DrawOp } from "../ops/types.js";
 import type { Canvas2D } from "../../image/canvas.js";
 
@@ -25,17 +26,9 @@ export function healSpot(context: Canvas2D, op: Extract<DrawOp, { op: "heal" }>,
   const region = clampToPixels(transformBounds(transform, frame), canvas.width, canvas.height);
   if (region.width < 1 || region.height < 1) return;
 
-  try {
-    const data = context.getImageData(region.x, region.y, region.width, region.height);
-    const healed = healRegion(
-      data.data,
-      data.width,
-      data.height,
-      { x: 0, y: 0, width: data.width, height: data.height },
-      op.feather,
-    );
-    if (healed) context.putImageData(data, region.x, region.y);
-  } catch {
-    // Nothing to do but leave the picture as it is. See the note above.
-  }
+  // A canvas the page may not read returns false here, and there is nothing to
+  // do about it but leave the picture as it is. See the note above.
+  editPixels(context, region, (pixels, width, height) =>
+    healRegion(pixels, width, height, { x: 0, y: 0, width, height }, op.feather),
+  );
 }
