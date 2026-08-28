@@ -32,7 +32,7 @@ import {
   type ChromeContext,
   type Readouts,
 } from "./chrome/index.js";
-import { applyAttribute, type AttributePorts } from "./attributes.js";
+import { applyAttribute, OBSERVED_ATTRIBUTES, type AttributePorts, type ObservedAttribute } from "./attributes.js";
 import { BusyIndicator } from "./busy.js";
 import { EditorOperations } from "./operations.js";
 import { isTypingTarget } from "./dom/index.js";
@@ -41,14 +41,8 @@ import { ImageIntake } from "./input/image-intake.js";
 import { resolveKeyboardAction } from "./input/keyboard.js";
 import { runKeyboardAction, type ActionPorts } from "./input/run-action.js";
 import { panelLabel, isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
-import { normaliseAspectRatios } from "./ratios.js";
-import {
-  OBSERVED_ATTRIBUTES,
-  ZOOM_STEP,
-  type AspectRatioOption,
-  type ObservedAttribute,
-  type PanelId,
-} from "./constants.js";
+import { normaliseAspectRatios, type AspectRatioOption } from "./ratios.js";
+import type { PanelId } from "./panels.js";
 import { PluginRegistry, type PixenPlugin } from "../plugins/index.js";
 import { StickerPlacer } from "./stickers.js";
 import { CanvasTextEditor } from "./text-editing.js";
@@ -694,5 +688,3 @@ export class PixenImageEditorElement extends ElementBase {
     this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
   }
 }
-
-export { ZOOM_STEP };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ARROW_VECTORS, nudgeDistance, resolveKeyboardAction, type KeyboardContext } from "../src/element/input/keyboard.js";
 import { DEFAULT_TOOLS } from "../src/tools/index.js";
-import { NUDGE_FAST_MULTIPLIER, NUDGE_FRACTION } from "../src/element/constants.js";
+import { NUDGE_FAST_MULTIPLIER, NUDGE_FRACTION } from "../src/element/input/keyboard.js";
 
 const context = (overrides: Partial<KeyboardContext> = {}): KeyboardContext => ({
   tools: DEFAULT_TOOLS,

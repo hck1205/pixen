@@ -1,6 +1,9 @@
 import { button, divider, relabel, setDisabled } from "../dom/index.js";
 import { redoLabel, undoLabel } from "../labels.js";
-import { REDO_KEY_SHORTCUTS, UNDO_KEY_SHORTCUTS } from "../constants.js";
+
+/** Shortcut hints shown on the two history buttons. */
+export const UNDO_KEY_SHORTCUTS = "Control+Z Meta+Z";
+export const REDO_KEY_SHORTCUTS = "Control+Shift+Z Meta+Shift+Z";
 import { chromeAvailability } from "./availability.js";
 import type { ChromeContext } from "./context.js";
 

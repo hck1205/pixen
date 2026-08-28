@@ -1,10 +1,6 @@
 import { longestEdge, type EditorLayer, type TextLayer } from "@pixen/core";
 import { field, input, optionButton, textButton } from "../../dom/index.js";
-import {
-  CORNER_RATIO_RANGE,
-  FONT_RATIO_RANGE,
-  STROKE_WIDTH_RANGE,
-} from "../../constants.js";
+import { CORNER_RATIO_RANGE, FONT_RATIO_RANGE, STROKE_WIDTH_RANGE } from "../../sliders.js";
 import { cornerRadiusFor, fontSizeFor, TEXT_PLATE_COLOUR } from "../../../tools/index.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";

@@ -1,5 +1,5 @@
 import { button, setPressed } from "../dom/index.js";
-import { TOOL_META } from "../constants.js";
+import { TOOL_META } from "../tool-meta.js";
 import { railPanelState, railToolState } from "./availability.js";
 import type { ChromeContext } from "./context.js";
 

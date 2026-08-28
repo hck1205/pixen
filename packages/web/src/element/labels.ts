@@ -1,5 +1,6 @@
 import type { HistorySummary, Size, StepName } from "@pixen/core";
-import { PANEL_LABEL_KEYS, TOOL_META, type PanelId } from "./constants.js";
+import { PANEL_LABEL_KEYS, type PanelId } from "./panels.js";
+import { TOOL_META } from "./tool-meta.js";
 import type { ToolId } from "../tools/index.js";
 import type { PixenStrings } from "../i18n/index.js";
 

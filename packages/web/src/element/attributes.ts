@@ -1,5 +1,17 @@
 import type { ImageFormat, PresetName } from "@pixen/core";
-import type { ObservedAttribute } from "./constants.js";
+
+/** Attributes the element reacts to. Structured values are properties instead. */
+export const OBSERVED_ATTRIBUTES = ["src", "theme", "locale", "format", "quality", "preset"] as const;
+
+/** Adding one here without handling it below fails to compile. */
+export type ObservedAttribute = (typeof OBSERVED_ATTRIBUTES)[number];
+
+/**
+ * The attributes that describe the file coming out rather than the picture
+ * going in. They are re-applied after every load, because they mean nothing
+ * until there is a document to apply them to.
+ */
+export const OUTPUT_ATTRIBUTES = ["format", "quality"] as const satisfies readonly ObservedAttribute[];
 
 /**
  * What each observed attribute means.

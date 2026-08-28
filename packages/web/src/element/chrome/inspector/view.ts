@@ -1,6 +1,6 @@
 import { button, divider, readout } from "../../dom/index.js";
 import { shortcutLabel, sizeLabel, zoomLabel } from "../../labels.js";
-import { ZOOM_STEP } from "../../constants.js";
+import { ZOOM_STEP } from "../../../viewport/view.js";
 import type { ChromeBuild, ChromeContext } from "../context.js";
 
 /**

@@ -158,6 +158,9 @@ export function renderScale(devicePixelRatio: number): number {
   return Math.min(devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
 }
 
+/** One press of the zoom buttons. */
+export const ZOOM_STEP = 1.25;
+
 export const MIN_ZOOM = 0.02;
 export const MAX_ZOOM = 12;
 

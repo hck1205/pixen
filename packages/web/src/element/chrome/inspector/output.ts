@@ -1,6 +1,6 @@
 import { isLossy, resolveOutputFormat, resolveQuality, type ImageFormat } from "@pixen/core";
 import { field, input, optionButton, textButton } from "../../dom/index.js";
-import { OUTPUT_QUALITY_RANGE } from "../../constants.js";
+import { OUTPUT_QUALITY_RANGE } from "../../sliders.js";
 import type { ChromeContext } from "../context.js";
 import {
   MAX_OUTPUT_EDGE,

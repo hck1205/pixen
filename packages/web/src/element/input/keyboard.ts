@@ -1,5 +1,5 @@
 import type { Point } from "@pixen/core";
-import { NUDGE_FAST_MULTIPLIER, NUDGE_FRACTION, TOOL_META } from "../constants.js";
+import { TOOL_META } from "../tool-meta.js";
 import type { ToolDefinition, ToolId } from "../../tools/index.js";
 
 /**
@@ -10,6 +10,10 @@ import type { ToolDefinition, ToolId } from "../../tools/index.js";
  * could answer. Resolving to an action first makes every branch testable in node
  * and leaves the element with a switch over intents.
  */
+
+/** Arrow-key nudge, as a fraction of the image width, and its shift multiplier. */
+export const NUDGE_FRACTION = 1 / 500;
+export const NUDGE_FAST_MULTIPLIER = 10;
 export type KeyboardAction =
   | { kind: "undo" }
   | { kind: "redo" }

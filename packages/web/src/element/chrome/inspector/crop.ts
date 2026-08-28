@@ -1,6 +1,6 @@
 import { straightenAngleOf, toDegrees, toRadians } from "@pixen/core";
 import { button, divider, optionButton } from "../../dom/index.js";
-import { STRAIGHTEN_RANGE } from "../../constants.js";
+import { STRAIGHTEN_RANGE } from "../../sliders.js";
 import { ratioButtonLabel, ratiosEqual } from "../../ratios.js";
 import { transactedSlider } from "./slider.js";
 import type { ChromeContext } from "../context.js";

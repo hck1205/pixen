@@ -11,7 +11,7 @@ import {
 } from "@pixen/core";
 import { applyAttribute, type AttributePorts } from "./attributes.js";
 import type { BusyIndicator } from "./busy.js";
-import { OUTPUT_ATTRIBUTES } from "./constants.js";
+import { OUTPUT_ATTRIBUTES } from "./attributes.js";
 
 /**
  * The three calls that take time.

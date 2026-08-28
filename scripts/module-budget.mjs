@@ -42,7 +42,12 @@ export const EXEMPT = {
   // the busy pill, and the three operations that take time — and what is left
   // is the element itself. The one line over the split's own count is the port
   // that hands the crop tool's configured ratio to the load.
-  "packages/web/src/element/pixen-image-editor.ts": 699,
+  //
+  // Lowered to 691: `element/constants.ts` is gone, so the element imports each
+  // group from the module that owns it, and the `ZOOM_STEP` re-export at the
+  // bottom went with it — the zoom step lives beside the zoom limits now, and
+  // is public from there.
+  "packages/web/src/element/pixen-image-editor.ts": 691,
   // The public imperative API: very nearly one line per method, each building
   // an intent and handing it to `dispatch`. Splitting it would scatter the
   // surface a host reads as one thing, and the decisions are already elsewhere.

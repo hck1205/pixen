@@ -6,7 +6,7 @@ import { en } from "../src/i18n/en.js";
 import { ko } from "../src/i18n/ko.js";
 import { zh } from "../src/i18n/zh.js";
 import type { PixenStrings } from "../src/i18n/types.js";
-import { FREEFORM_RATIO_LABEL } from "../src/element/constants.js";
+import { FREEFORM_RATIO_LABEL } from "../src/element/ratios.js";
 import { ratioButtonLabel } from "../src/element/ratios.js";
 
 describe("locale resolution", () => {

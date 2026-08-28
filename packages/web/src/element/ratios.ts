@@ -1,11 +1,38 @@
 import type { PixenStrings } from "../i18n/index.js";
-import {
-  DEFAULT_ASPECT_RATIOS,
-  FREEFORM_RATIO_LABEL,
-  KNOWN_RATIO_LABELS,
-  RATIO_TOLERANCE,
-  type AspectRatioOption,
-} from "./constants.js";
+
+/**
+ * The aspect ratios the crop tool offers, and how a host's own list becomes
+ * one.
+ */
+
+export interface AspectRatioOption {
+  label: string;
+  value: number | null;
+}
+
+export const DEFAULT_ASPECT_RATIOS: readonly AspectRatioOption[] = [
+  { label: "Free", value: null },
+  { label: "1:1", value: 1 },
+  { label: "4:3", value: 4 / 3 },
+  { label: "3:2", value: 3 / 2 },
+  { label: "16:9", value: 16 / 9 },
+];
+
+/** Labels for the ratios a host is likely to pass as bare numbers. */
+export const KNOWN_RATIO_LABELS: ReadonlyArray<readonly [number, string]> = [
+  [1, "1:1"],
+  [4 / 3, "4:3"],
+  [3 / 2, "3:2"],
+  [16 / 9, "16:9"],
+  [3 / 4, "3:4"],
+  [2 / 3, "2:3"],
+  [9 / 16, "9:16"],
+];
+
+export const FREEFORM_RATIO_LABEL = "Free";
+
+/** Ratios closer than this are the same ratio, whatever the float says. */
+export const RATIO_TOLERANCE = 0.0001;
 
 /** Two ratios are the same when float noise is all that separates them. */
 export function ratiosEqual(a: number | null, b: number | null): boolean {

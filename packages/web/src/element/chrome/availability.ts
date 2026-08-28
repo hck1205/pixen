@@ -1,5 +1,5 @@
 import { isPristine, type EditorDocument, type HistorySummary } from "@pixen/core";
-import type { PanelId } from "../constants.js";
+import type { PanelId } from "../panels.js";
 import type { ToolId } from "../../tools/index.js";
 
 /**

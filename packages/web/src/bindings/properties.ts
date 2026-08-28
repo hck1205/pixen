@@ -1,6 +1,6 @@
 import type { EditorDocument, ImagePolicy, PresetName } from "@pixen/core";
 import type { PixenImageEditorElement } from "../element/index.js";
-import type { AspectRatioOption } from "../element/constants.js";
+import type { AspectRatioOption } from "../element/ratios.js";
 import type { StickerDefinition, ToolInput } from "../tools/index.js";
 
 /**
