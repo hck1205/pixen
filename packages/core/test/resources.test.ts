@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PreviewProxy, ResourceManager } from "@pixen/core";
+import { PreviewProxy, ResourceManager, sourceFromResource } from "@pixen/core";
 
 /**
  * What happens when the manager lets a resource go.
@@ -118,5 +118,43 @@ describe("the preview proxy", () => {
     const bitmap = proxy.get(256);
     expect({ width: bitmap.width, height: bitmap.height }).toEqual(size);
     expect(proxy.bytes()).toBe(0);
+  });
+});
+
+/**
+ * The one conversion from a registered bitmap to what a document stores.
+ *
+ * Three places used to spell it out, which is what `sourceFromResource` was
+ * written to stop — and one of them, `processImage`, was still spelling it out
+ * afterwards and had never been told about `duration`. A document made that way
+ * described a video as a picture with no length. This is the check that keeps
+ * the conversion honest as the descriptor grows a field.
+ */
+describe("a resource, as the descriptor a document stores", () => {
+  const registered = (extra: Record<string, unknown> = {}) =>
+    new ResourceManager().adopt({ source: drawable(), width: 8, height: 6, ...extra });
+
+  it("carries the id and the numbers every edit is measured against", () => {
+    const resource = registered();
+    expect(sourceFromResource(resource)).toMatchObject({
+      resourceId: resource.id,
+      width: 8,
+      height: 6,
+    });
+  });
+
+  it("carries the provenance a filename is built from", () => {
+    const descriptor = sourceFromResource(registered({ name: "holiday.jpg", mimeType: "image/jpeg" }));
+    expect(descriptor).toMatchObject({ name: "holiday.jpg", mimeType: "image/jpeg" });
+  });
+
+  it("carries how long a moving source runs for", () => {
+    expect(sourceFromResource(registered({ duration: 12.5 })).duration).toBe(12.5);
+  });
+
+  it("leaves out what the resource does not know, rather than saying undefined", () => {
+    // The descriptor is stored as JSON, where an absent key and a key holding
+    // `undefined` are not the same document.
+    expect(Object.keys(sourceFromResource(registered()))).toEqual(["resourceId", "width", "height"]);
   });
 });

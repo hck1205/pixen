@@ -1,17 +1,11 @@
 import { QUARTER_TURN } from "../geometry/angles.js";
 import { findExifSegment } from "./jpeg.js";
 import { findEntry, firstDirectory, readShort, readTiffBlock } from "./tiff.js";
+import type { SourceTransform } from "../geometry/spaces.js";
 import type { Size } from "../geometry/types.js";
 
 /** TIFF orientation values as stored in EXIF tag 0x0112. */
 export type ExifOrientation = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
-
-export interface OrientationTransform {
-  /** Clockwise rotation in radians. */
-  rotation: number;
-  flipX: boolean;
-  flipY: boolean;
-}
 
 const ORIENTATION_TAG = 0x0112;
 const FIRST_ORIENTATION = 1;
@@ -42,7 +36,7 @@ export function readExifOrientation(buffer: ArrayBufferLike): ExifOrientation | 
 }
 
 /** The transform that brings an image stored with `orientation` upright. */
-export function orientationTransform(orientation: ExifOrientation): OrientationTransform {
+export function orientationTransform(orientation: ExifOrientation): SourceTransform {
   switch (orientation) {
     case 1:
       return { rotation: 0, flipX: false, flipY: false };

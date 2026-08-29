@@ -1,3 +1,4 @@
+import type { SourceTransform } from "../geometry/spaces.js";
 import type { Rect } from "../geometry/types.js";
 import type { EditorLayer } from "./annotations.js";
 import type { ClipSelection } from "./clip.js";
@@ -18,6 +19,7 @@ export const IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"] as const;
 export type ImageFormat = (typeof IMAGE_FORMATS)[number];
 
 export {
+  isFramedLayer,
   LAYER_SPACES,
   REDACTION_MODES,
   type EditorLayer,
@@ -50,13 +52,6 @@ export interface SourceDescriptor {
    * far the source extends in one of its dimensions.
    */
   duration?: number;
-}
-
-export interface DocumentTransform {
-  /** Clockwise rotation in radians. */
-  rotation: number;
-  flipX: boolean;
-  flipY: boolean;
 }
 
 /**
@@ -181,7 +176,7 @@ export interface OutputSettings {
 export interface EditorDocument {
   schemaVersion: number;
   source: SourceDescriptor;
-  transform: DocumentTransform;
+  transform: SourceTransform;
   /** Stage-space crop region. Absent means "the whole stage". */
   crop: Rect | null;
   /**

@@ -158,3 +158,16 @@ export type EditorLayer =
   | RedactLayer
   | RetouchLayer;
 export type LayerType = EditorLayer["type"];
+
+/**
+ * Whether a layer is one of the kinds a rectangle describes.
+ *
+ * Five of the eight are, and that list was written out four times — in the
+ * bounds, the translate, the resize and the stray-tap test — once in a
+ * different order, which is how you can tell they were written rather than
+ * copied. Deriving the union from the shape means there is no list at all: a
+ * new layer type with a `frame` is one of these on the day it is declared.
+ */
+export function isFramedLayer(layer: EditorLayer): layer is Extract<EditorLayer, { frame: Rect }> {
+  return "frame" in layer;
+}

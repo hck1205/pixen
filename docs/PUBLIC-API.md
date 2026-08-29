@@ -11,7 +11,7 @@ reviewed diff rather than arriving as a side effect of a barrel — see
 
 ## @pixen/core
 
-482 names.
+481 names.
 
 ```
 ADJUSTMENT_KEYS
@@ -77,7 +77,6 @@ Degradation
 DeliverableFile
 DocumentChange
 DocumentMigration
-DocumentTransform
 DrawOp
 Editor
 EditorDocument
@@ -137,7 +136,6 @@ Matrix
 MetadataPolicy
 MutateOptions
 Ok
-OrientationTransform
 OutputSettings
 PIXEL_ONLY_ADJUSTMENTS
 PRESETS
@@ -349,6 +347,7 @@ insertAt
 invert
 isErr
 isFormatSupported
+isFramedLayer
 isLossy
 isOk
 isPixenError

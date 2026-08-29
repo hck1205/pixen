@@ -5,6 +5,7 @@ import {
   createRectLayer,
   createRedactLayer,
   createRetouchLayer,
+  isFramedLayer,
   type EditorLayer,
   type Point,
   type Rect,
@@ -77,13 +78,9 @@ export function frameFrom(origin: Point, point: Point, square: boolean): Rect {
 /** True for the zero-sized layer a tap with a shape tool leaves behind. */
 export function isDegenerate(layer: EditorLayer, imageLongestEdge: number): boolean {
   const minimum = imageLongestEdge * DEGENERATE_RATIO;
+  if (isFramedLayer(layer)) return layer.frame.width < minimum && layer.frame.height < minimum;
+
   switch (layer.type) {
-    case "rect":
-    case "ellipse":
-    case "redact":
-    case "retouch":
-    case "image":
-      return layer.frame.width < minimum && layer.frame.height < minimum;
     case "line":
       return distance(layer.from, layer.to) < minimum;
     case "path":

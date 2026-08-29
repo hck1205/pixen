@@ -4,6 +4,7 @@ import { resolveSize, type ResizeIntent } from "../image/resize.js";
 import { createDocument } from "../model/document.js";
 import type { ImageFormat } from "../model/types.js";
 import { ResourceManager } from "../resources/manager.js";
+import { sourceFromResource } from "../resources/source.js";
 import type { ExportResult } from "./options.js";
 import { exportDocument } from "./pipeline.js";
 
@@ -35,13 +36,7 @@ export async function processImage(input: ImageInput, options: ProcessOptions = 
   const resources = new ResourceManager();
   try {
     const resource = await resources.load(input, { ...options.decode, ...(options.signal ? { signal: options.signal } : {}) });
-    const document = createDocument({
-      resourceId: resource.id,
-      width: resource.width,
-      height: resource.height,
-      ...(resource.name ? { name: resource.name } : {}),
-      ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-    });
+    const document = createDocument(sourceFromResource(resource));
 
     const target = resolveSize({ width: resource.width, height: resource.height }, options);
     const result = await exportDocument(

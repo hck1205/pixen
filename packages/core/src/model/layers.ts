@@ -19,16 +19,17 @@ import {
 } from "./defaults.js";
 import { REDACTION_COLOUR } from "./palette.js";
 import { estimateTextWidth, textBlock, type TextMeasurer } from "./text-layout.js";
-import type {
-  EditorLayer,
-  ImageLayer,
-  RedactLayer,
-  RetouchLayer,
-  EllipseLayer,
-  LineLayer,
-  PathLayer,
-  RectLayer,
-  TextLayer,
+import {
+  isFramedLayer,
+  type EditorLayer,
+  type ImageLayer,
+  type RedactLayer,
+  type RetouchLayer,
+  type EllipseLayer,
+  type LineLayer,
+  type PathLayer,
+  type RectLayer,
+  type TextLayer,
 } from "./types.js";
 
 const layerDefaults = {
@@ -194,13 +195,9 @@ export function createRetouchLayer(frame: Rect, options: Partial<RetouchLayer> =
  * to hand should pass one.
  */
 export function layerBounds(layer: EditorLayer, measure: TextMeasurer = estimateTextWidth): Rect {
+  if (isFramedLayer(layer)) return layer.frame;
+
   switch (layer.type) {
-    case "rect":
-    case "ellipse":
-    case "image":
-    case "redact":
-    case "retouch":
-      return layer.frame;
     case "line": {
       const x = Math.min(layer.from.x, layer.to.x);
       const y = Math.min(layer.from.y, layer.to.y);
@@ -221,13 +218,11 @@ export function layerBounds(layer: EditorLayer, measure: TextMeasurer = estimate
 }
 
 export function translateLayer(layer: EditorLayer, dx: number, dy: number): EditorLayer {
+  if (isFramedLayer(layer)) {
+    return { ...layer, frame: { ...layer.frame, x: layer.frame.x + dx, y: layer.frame.y + dy } };
+  }
+
   switch (layer.type) {
-    case "rect":
-    case "ellipse":
-    case "image":
-    case "redact":
-    case "retouch":
-      return { ...layer, frame: { ...layer.frame, x: layer.frame.x + dx, y: layer.frame.y + dy } };
     case "line":
       return {
         ...layer,

@@ -4,7 +4,7 @@ import { center, longestEdge } from "../geometry/rect.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
 import { layerBounds } from "./layers.js";
 import type { TextMeasurer } from "./text-layout.js";
-import type { EditorLayer } from "./types.js";
+import { isFramedLayer, type EditorLayer } from "./types.js";
 
 /**
  * Resizing and rotating a layer, as pure geometry.
@@ -108,13 +108,9 @@ export function scaleLayerToBounds(layer: EditorLayer, from: Rect, to: Rect): Ed
     y: to.y + (point.y - from.y) * scaleY,
   });
 
+  if (isFramedLayer(layer)) return { ...layer, frame: to };
+
   switch (layer.type) {
-    case "rect":
-    case "ellipse":
-    case "image":
-    case "redact":
-    case "retouch":
-      return { ...layer, frame: to };
     case "line":
       return { ...layer, from: map(layer.from), to: map(layer.to) };
     case "path":

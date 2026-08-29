@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  createEllipseLayer,
   createImageLayer,
+  createLineLayer,
+  createRectLayer,
   createRedactLayer,
   createWatermarkLayer,
   DEFAULT_REDACTION_MODE,
@@ -12,6 +15,7 @@ import {
   imageLayerOps,
   createTextLayer,
   estimateTextWidth,
+  isFramedLayer,
   layerBounds,
   layerRotationCentre,
   redactLayerOps,
@@ -198,5 +202,25 @@ describe("a caption's bounding box", () => {
 
   it("falls back to the estimate when nothing can measure", () => {
     expect(layerBounds(caption("WWWW")).width).toBeCloseTo(estimateTextWidth("WWWW", "50px sans-serif"), 5);
+  });
+});
+
+/**
+ * The guard the bounds, the translate, the resize and the stray-tap test all
+ * ask instead of listing five kinds each.
+ *
+ * What keeps it honest is the compiler: it narrows the union, so the switch
+ * after it still has to answer for every kind that is left, and dropping one is
+ * a build error rather than a layer that silently moves nowhere.
+ */
+describe("which layers a rectangle describes", () => {
+  it("accepts the kinds that are sized by a frame", () => {
+    expect(isFramedLayer(createRectLayer({ x: 0, y: 0, width: 10, height: 10 }))).toBe(true);
+    expect(isFramedLayer(createEllipseLayer({ x: 0, y: 0, width: 10, height: 10 }))).toBe(true);
+  });
+
+  it("refuses the kinds that are not", () => {
+    expect(isFramedLayer(createLineLayer({ x: 0, y: 0 }, { x: 10, y: 10 }))).toBe(false);
+    expect(isFramedLayer(createTextLayer({ x: 0, y: 0 }, "hello"))).toBe(false);
   });
 });

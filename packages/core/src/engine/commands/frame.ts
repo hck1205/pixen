@@ -28,7 +28,8 @@ import {
 import { imageToStage, stageToImage } from "../../geometry/spaces.js";
 import type { Point, Rect } from "../../geometry/types.js";
 import { cropBounds, effectiveCrop, stageRect } from "../../model/document.js";
-import type { DocumentTransform, EditorDocument } from "../../model/types.js";
+import type { SourceTransform } from "../../geometry/spaces.js";
+import type { EditorDocument } from "../../model/types.js";
 
 /**
  * Re-expresses the crop rect after the source transform changes.
@@ -39,7 +40,7 @@ import type { DocumentTransform, EditorDocument } from "../../model/types.js";
  */
 export function remapCrop(
   document: EditorDocument,
-  nextTransform: DocumentTransform,
+  nextTransform: SourceTransform,
 ): { crop: Rect | null; aspectRatio: number | null } {
   if (!document.crop) {
     const aspectRatio = rotateAspectRatio(document, nextTransform);
@@ -56,15 +57,15 @@ export function remapCrop(
 }
 
 /** A quarter turn swaps the axes, so a locked 16:9 becomes a locked 9:16. */
-function rotateAspectRatio(document: EditorDocument, nextTransform: DocumentTransform): number | null {
+function rotateAspectRatio(document: EditorDocument, nextTransform: SourceTransform): number | null {
   if (document.aspectRatio == null) return null;
   const delta = nextTransform.rotation - document.transform.rotation;
   const swaps = Math.abs(Math.abs(Math.sin(delta)) - 1) < 1e-6;
   return swaps ? 1 / document.aspectRatio : document.aspectRatio;
 }
 
-export function setTransform(document: EditorDocument, transform: DocumentTransform): EditorDocument {
-  const next: DocumentTransform = { ...transform, rotation: positiveAngle(transform.rotation) };
+export function setTransform(document: EditorDocument, transform: SourceTransform): EditorDocument {
+  const next: SourceTransform = { ...transform, rotation: positiveAngle(transform.rotation) };
   const { crop, aspectRatio } = remapCrop(document, next);
   return { ...document, transform: next, crop, aspectRatio };
 }
@@ -116,7 +117,7 @@ export function straighten(document: EditorDocument, radians: number): EditorDoc
 }
 
 export function flip(document: EditorDocument, axis: "x" | "y"): EditorDocument {
-  const transform: DocumentTransform =
+  const transform: SourceTransform =
     axis === "x"
       ? { ...document.transform, flipX: !document.transform.flipX }
       : { ...document.transform, flipY: !document.transform.flipY };
