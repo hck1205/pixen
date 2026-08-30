@@ -5,7 +5,7 @@ Four suites, each answering a different question.
 | Command | Answers |
 | --- | --- |
 | `pnpm typecheck` | Does everything still agree about the types — the packages, **the unit suites**, the stories and the playground? |
-| `pnpm test` | Do the pure functions decide correctly? Also runs the five scans below |
+| `pnpm test` | Do the pure functions decide correctly? Also runs the six scans below |
 | `pnpm test:browser` | Does the real bundle behave, in a real engine, driven by a real pointer? |
 | `pnpm test:visual` | Does it still *look* the same? Opt-in; see below |
 | `pnpm stories` | What does it look like now — for a person, not an assertion. Its *Coverage* story is the feature list, checked by `pnpm test` |
@@ -39,7 +39,7 @@ layout bugs this project has actually shipped were invisible to unit tests.
 
 ## The scans
 
-Five checks run inside `pnpm test`, each turning a rule from the working
+Six checks run inside `pnpm test`, each turning a rule from the working
 agreement into a failing test rather than a good intention:
 
 | Scan | Fails on |
@@ -49,6 +49,7 @@ agreement into a failing test rather than a good intention:
 | `check:duplication` | The same four meaningful lines in three places |
 | `check:size` | A source file past 300 lines with no recorded reason, or an exemption the file has since shrunk well below |
 | `check:surface` | A `@pixen/*` export that `docs/PUBLIC-API.md` does not record |
+| `check:paths` | A file the documentation names in backticks that is not in the tree |
 
 ### Why four lines, and why three copies
 

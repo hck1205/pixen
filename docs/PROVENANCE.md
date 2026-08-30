@@ -33,10 +33,10 @@ was supplied to an AI tool as input at any point.
 | `geometry/crop.ts` | Handle-drag resize with edge anchoring and ratio locking | First principles: pin the opposite edge, solve the free axis from the locked ratio |
 | `model/transform.ts` | Resizing and rotating a layer about its own centre | First principles: take the pointer into the layer's unrotated frame, pin the opposite corner, then correct for the drift rotation puts in the centre |
 | `model/*` | `EditorDocument` schema, layers, migrations | Original design for this project |
-| `model/validate.ts` | Composable validators accumulating every issue | Ordinary parser-combinator technique; the shapes validated are our own schema |
+| `model/validate/` | Composable validators accumulating every issue | Ordinary parser-combinator technique; the shapes validated are our own schema |
 | `fp/*` | `Result`, `pipe`, immutable array helpers | Standard functional idioms, written here in a few dozen lines rather than taken from a library |
 | `model/palette.ts` | Annotation colours and default ratios | Chosen for this project; not taken from any design system |
-| `engine/commands.ts` | Pure document transforms, crop remapping across a rotate | First principles, using the matrices above |
+| `engine/commands/` | Pure document transforms, crop remapping across a rotate | First principles, using the matrices above |
 | `engine/history.ts` | Snapshot undo with explicit transactions, as immutable state | Ordinary software design; undo-as-snapshot and command grouping are textbook concepts, not anyone's implementation |
 | `engine/session/` | The intent vocabulary and the reducer over document, selection and history | Original design for this project; the reducer shape is a common functional idiom |
 | `image/exif.ts` | JPEG APP1 / TIFF IFD orientation parsing | The Exif and TIFF 6.0 specifications: `FFD8` SOI, `FFE1` APP1, the `Exif\0\0` header, `II`/`MM` byte order, magic `0x002A`, IFD entry layout, orientation tag `0x0112`. Written from the specified byte layout |
@@ -70,10 +70,10 @@ was supplied to an AI tool as input at any point.
 | `model/document.ts` (`cropBounds`) · `render/scene.ts` (`backdrop`) | A crop beyond the picture, and a bitmap behind it | Ours. The two requirements came from the supplied documentation; how much room a crop gets outside the picture (one picture's worth on each side, so a handle cannot be dragged to the horizon), that restoring the rule brings an overhanging crop home, and that the backdrop covers rather than fits — a backdrop that letterboxed would be a border — are all our own decisions |
 | `render/heal.ts` | Taking a blemish out | Ours. Boundary diffusion — every pixel in the spot reads the four boundaries along its own rays, weighted by nearness — is a textbook inpainting idea rather than anyone's implementation, and the arithmetic here is written from that idea. That no colour is invented, that the rim fades so the repair is not a shape, and the limit stated plainly (no texture, so a striped shirt smears) are ours |
 | `render/colour-matrix.ts` | A colour transform a host wrote | MDN/W3C: **Filter Effects** `feColorMatrix`, whose 4×5 layout and constant-as-a-fraction-of-full-scale convention this follows so a matrix copied from a stylesheet means the same thing here. The arithmetic is written from that specification; that a wrong-length matrix is refused rather than ignored, and that it runs after the named adjustments and before the vignette, are ours |
-| `web/viewport/overlay.ts` | Crop chrome geometry | Rule-of-thirds guides and corner brackets, laid out here |
+| `web/viewport/overlay/` | Crop chrome geometry | Rule-of-thirds guides and corner brackets, laid out here |
 | `web/element/*`, `web/viewport/*` | Custom element, viewport, event plumbing | Web Components, Pointer Events and Resize Observer as specified by WHATWG/W3C. Layout, interaction model and chrome are original |
 | `web/theme/icons.ts` | Icon set | Drawn for this project as single-weight stroked primitives on a 24×24 grid |
-| `web/theme/styles.ts` | Theme tokens and layout | Written for this project |
+| `web/theme/styles/` | Theme tokens and layout | Written for this project |
 | `web/i18n/*` | Strings in nine languages | Translated for this project from the English source strings, which were written here |
 | `web/viewport/text-box.ts` | Placing a real input over a text layer | First principles: the same origin and line height the renderer uses |
 | `web/tools/stickers.ts` | Normalising host-supplied sticker definitions | Original design for this project. Pixen ships no sticker artwork |

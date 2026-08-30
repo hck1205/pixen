@@ -38,6 +38,7 @@ import { PINCH_POINTERS, TouchPoints } from "./touch.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
 import {
   fitView,
+  type ViewFit,
   insetsFor,
   insetsFromChrome,
   renderScale,
@@ -176,12 +177,7 @@ export class Viewport {
     const size = this.#cssSize();
     const measured = this.#callbacks.measureChrome?.();
     const insets = measured ? insetsFromChrome(measured.host, measured.chrome) : insetsFor(size);
-    const fitted = fitView(this.#editor.stageSize, size, insets);
-    this.#zoom = fitted.zoom;
-    this.#pan = fitted.pan;
-    this.#autoFit = true;
-    this.invalidate();
-    this.#callbacks.onViewChange?.();
+    this.#moveView(fitView(this.#editor.stageSize, size, insets), true);
   }
 
   /**
@@ -200,17 +196,29 @@ export class Viewport {
     const view = zoomAt(this.#editor.stageSize, this.#cssSize(), { zoom: this.#zoom, pan: this.#pan }, factor, anchor);
     if (view.zoom === this.#zoom) return;
 
-    this.#zoom = view.zoom;
-    this.#pan = view.pan;
-    this.#autoFit = false;
-    this.invalidate();
-    this.#callbacks.onViewChange?.();
+    this.#moveView(view, false);
   }
 
   panBy(delta: Point): void {
-    this.#pan = { x: this.#pan.x + delta.x, y: this.#pan.y + delta.y };
-    this.#autoFit = false;
+    this.#moveView({ zoom: this.#zoom, pan: { x: this.#pan.x + delta.x, y: this.#pan.y + delta.y } }, false);
+  }
+
+  /**
+   * Everything a change of view does, in the one place that does it.
+   *
+   * Written out three times before, and the third — `panBy` — left the host
+   * unannounced, while `onViewChange` says on the line above it that it fires
+   * for zoom *and* pan. Nothing in Pixen's own chrome noticed, because a pan
+   * moves no readout; what it cost is a host that draws its own overlay through
+   * the exported `Viewport`, which missed every pan and saw a pinch as a zoom
+   * carrying the pan of the step before it.
+   */
+  #moveView(view: ViewFit, autoFit: boolean): void {
+    this.#zoom = view.zoom;
+    this.#pan = view.pan;
+    this.#autoFit = autoFit;
     this.invalidate();
+    this.#callbacks.onViewChange?.();
   }
 
   // --- coordinates ---------------------------------------------------------

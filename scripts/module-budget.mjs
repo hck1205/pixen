@@ -101,7 +101,13 @@ export const EXEMPT = {
   // out of it, and the overlay it draws is now a folder it reaches through one
   // import rather than two. The measurer it hands the engine is here because it
   // owns the canvas, so it is the only part that can.
-  "packages/web/src/viewport/viewport.ts": 464,
+  //
+  // Raised to 472 for `#moveView`: the three methods that change the view each
+  // wrote out the same four steps, and the third of them told the host nothing,
+  // against what `onViewChange` says one line above it. The code is shorter by
+  // commonising them; the paragraph saying what that cost a host is what grew
+  // the file.
+  "packages/web/src/viewport/viewport.ts": 472,
 };
 
 const SOURCE = /^(packages|apps)\/[^/]+\/src\/.*\.tsx?$/;

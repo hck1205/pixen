@@ -40,7 +40,7 @@ Refactoring is part of every change, not a separate task. Leave each file better
 than you found it, and act on these the moment you notice them:
 
 - **Name every literal.** A number or string with meaning becomes a named
-  constant next to the thing it configures — `element/constants.ts`,
+  constant next to the thing it configures — `element/sliders.ts`,
   `model/defaults.ts`, `geometry/crop.ts`. If the same value appears twice, it
   had one home all along; find it and import from there.
 - **One concern per module.** When a file starts answering two questions, split
@@ -60,7 +60,7 @@ than you found it, and act on these the moment you notice them:
   `pnpm check:exports` fails on one, so this is a check rather than an intention;
   a genuine host-facing seam goes in that script's short allowlist with a reason.
 
-Three of these are enforced mechanically, and the rest are read for:
+Some of this is enforced mechanically; the rest is read for:
 
 | Check | Enforces |
 | --- | --- |
@@ -68,6 +68,7 @@ Three of these are enforced mechanically, and the rest are read for:
 | `pnpm check:duplication` | Commonise the third occurrence |
 | `pnpm check:size` | A file past 300 lines is split, or its reason is written down, and an exemption ratchets down as the file shrinks |
 | `pnpm check:surface` | Every `@pixen/*` export is recorded in `docs/PUBLIC-API.md`, so adding one is a reviewed line rather than a side effect of a barrel |
+| `pnpm check:paths` | Every file the documentation names is still there — a module that grew into a folder leaves the prose pointing nowhere |
 
 The checks are a floor, not the standard. They cannot see a file answering two
 questions, a decision buried in an effect, or a literal that wants a name — so

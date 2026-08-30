@@ -77,13 +77,13 @@ unit test instead of only from a browser.
 
 | Decision | Pure module | Shell |
 | --- | --- | --- |
-| What an edit does to a document | `engine/commands.ts` | — |
+| What an edit does to a document | `engine/commands/` | — |
 | What an intent means for state, history and selection | `engine/session/` | `engine/editor.ts` |
 | When history records, collapses or refuses | `engine/history.ts` | `engine/editor.ts` |
 | What to draw, and in what order | `render/scene.ts`, `render/ops/` | `render/canvas2d/` |
 | Where an editing input goes and what it commits | `web/viewport/text-box.ts` | `web/element/text-editing.ts` |
 | What a pointer gesture means | `web/viewport/gestures/` | `web/viewport/viewport.ts` |
-| Whether a document is valid, and why | `model/validate.ts` | `model/serialize.ts` |
+| Whether a document is valid, and why | `model/validate/` | `model/serialize.ts` |
 
 Two conventions keep it honest:
 

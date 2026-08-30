@@ -25,6 +25,7 @@
     "check:duplication": "node scripts/duplicate-blocks.mjs",
     "check:size": "node scripts/module-budget.mjs",
     "check:surface": "node scripts/public-surface.mjs",
+    "check:paths": "node scripts/doc-paths.mjs",
     "build:standalone": "node scripts/build-standalone.mjs"
   },
   "devDependencies": {
