@@ -1,6 +1,6 @@
 import { PixenError } from "../errors/index.js";
 import type { ImageInput, DecodeOptions } from "../image/decode.js";
-import { resolveSize, type ResizeIntent } from "../image/resize.js";
+import { resolveSize, type ResizeIntent } from "../image/resize/plan.js";
 import { createDocument } from "../model/document.js";
 import type { ImageFormat } from "../model/types.js";
 import { ResourceManager } from "../resources/manager.js";

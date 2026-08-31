@@ -11,7 +11,7 @@ import {
   type Rect,
 } from "@pixen/core";
 import { strokeFor } from "../../tools/index.js";
-import { DEGENERATE_RATIO } from "./constants.js";
+import { DEGENERATE_RATIO } from "./tuning.js";
 import type { GestureContext, ShapeTool } from "./types.js";
 
 /**

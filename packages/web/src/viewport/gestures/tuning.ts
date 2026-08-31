@@ -2,7 +2,9 @@
  * The numbers that decide how a gesture feels.
  *
  * Internal to this folder: they are tuning, not API, and a host that wants a
- * different feel changes the behaviour rather than the constant.
+ * different feel changes the behaviour rather than the constant. Named for
+ * that rather than for being constants — `constants.ts` says what the contents
+ * are, which is the one thing a reader can already see.
  */
 export const HANDLE_HIT_RADIUS = 14;
 /** Layer handles sit inside a smaller radius, so they beat the layer body to a grab. */

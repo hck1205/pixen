@@ -8,5 +8,5 @@ export * from "./tiff.js";
 export * from "./bytes.js";
 export * from "./decode.js";
 export * from "./encode.js";
-export * from "./resize.js";
+export * from "./resize/index.js";
 export * from "./worker/index.js";

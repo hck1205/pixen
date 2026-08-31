@@ -7,7 +7,7 @@ import { OUTLINE_WIDTH } from "./ink.js";
  */
 
 const SELECTION_DASH: readonly [number, number] = [5, 4];
-/** Grip size in CSS pixels; the hit radius in `gestures/constants.ts` is larger on purpose. */
+/** Grip size in CSS pixels; the hit radius in `gestures/tuning.ts` is larger on purpose. */
 const HANDLE_SIZE = 9;
 const HANDLE_RIM = "rgba(255, 255, 255, 0.92)";
 const HANDLE_RIM_WIDTH = 1.5;

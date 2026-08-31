@@ -9,7 +9,7 @@ import {
   type LayerHandle,
 } from "@pixen/core";
 import { cornerRadiusFor } from "../../tools/index.js";
-import { MIN_LAYER_SIZE_RATIO, PATH_SAMPLE_RATIO } from "./constants.js";
+import { MIN_LAYER_SIZE_RATIO, PATH_SAMPLE_RATIO } from "./tuning.js";
 import { screenToImage, screenToStage } from "./coordinates.js";
 import { constrainToAxis, frameFrom, isDegenerate } from "./shapes.js";
 import { IDLE, intent } from "./effects.js";

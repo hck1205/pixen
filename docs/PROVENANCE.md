@@ -48,7 +48,7 @@ was supplied to an AI tool as input at any point.
 | `export/upload.ts` | Multipart delivery with upload progress | MDN/WHATWG: `XMLHttpRequest`, `XMLHttpRequestUpload` and `FormData`. XHR rather than `fetch` because only it reports request-body progress; `ProgressEvent.lengthComputable` is the platform's own name for "there is no total" |
 | `export/hooks.ts` | Host steps inside an export | Original design for this project. Passing a canvas rather than a pixel array is our own choice, for the reason recorded in the module |
 | `engine/tasks/` | Start, progress, cancel and end of a long-running task | Original design for this project. `AbortController`/`AbortSignal` are the platform's own cancellation contract; `loaded`/`total`/"length computable" mirrors the vocabulary of the DOM `ProgressEvent` interface, which is a specification rather than anyone's code |
-| `image/resize.ts` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
+| `image/resize/` | Step-down (halving) downscale | Standard sampling practice: decimating in one step drops the pixels between samples, so halve first. General technique, no library involved |
 | `render/scene.ts` | Document → draw list projection | Original design for this project |
 | `render/presets.ts` | Nine named looks | Values chosen here by eye against this project's own sample image |
 | `render/canvas2d/decoration.ts` | Vignette and frame | A radial gradient fill and a stroked rectangle; first principles |

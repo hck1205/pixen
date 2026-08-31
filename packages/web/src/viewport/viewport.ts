@@ -32,7 +32,7 @@ import {
 } from "./gestures/index.js";
 // Straight from the module rather than the barrel: these are the gesture's own
 // tuning, and the barrel deliberately keeps tuning out of the package's API.
-import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/constants.js";
+import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/tuning.js";
 import { drawOverlay, planOverlay, readOverlayPalette } from "./overlay/index.js";
 import { PINCH_POINTERS, TouchPoints } from "./touch.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
@@ -79,7 +79,7 @@ export interface ViewportCallbacks {
  * The canvas shell: what the user sees, and the plumbing that turns DOM events
  * into gestures.
  *
- * Every decision about what a pointer means lives in `gestures.ts`; this class
+ * Every decision about what a pointer means lives in `gestures/`; this class
  * owns the canvas, the render loop, and the view transform. View state (zoom and
  * pan) stays here rather than in the document on purpose — it is per-viewer, not
  * per-image, and putting it in the document would make every wheel tick a change

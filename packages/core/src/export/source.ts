@@ -16,7 +16,7 @@
  */
 import type { Size } from "../geometry/types.js";
 import { sourceSize } from "../image/canvas.js";
-import { standInSize } from "../image/resize.js";
+import { standInSize } from "../image/resize/plan.js";
 import type { ImageResource } from "../resources/manager.js";
 import type { ExportHooks } from "./hooks.js";
 

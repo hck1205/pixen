@@ -1,5 +1,5 @@
 import { delta, distance, midpoint, type Point } from "@pixen/core";
-import { PINCH_ZOOM_INTENSITY, WHEEL_ZOOM_INTENSITY } from "./constants.js";
+import { PINCH_ZOOM_INTENSITY, WHEEL_ZOOM_INTENSITY } from "./tuning.js";
 
 /** Two-finger zoom, and the wheel gesture that stands in for it on a desktop. */
 export interface PinchState {

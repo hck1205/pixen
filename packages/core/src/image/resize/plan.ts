@@ -1,6 +1,14 @@
-import { fitScale, roundedSize } from "../geometry/rect.js";
-import type { Size } from "../geometry/types.js";
-import { createSurface, releaseSurface, type Canvas2D } from "./canvas.js";
+import { fitScale, roundedSize } from "../../geometry/rect.js";
+import type { Size } from "../../geometry/types.js";
+
+/**
+ * What size an export should be, decided as arithmetic.
+ *
+ * Nothing here touches a canvas, which is the point: the reducer and the export
+ * pipeline both ask these questions, and neither of them draws. They used to
+ * ask a module that also held the drawing, so the pure engine depended on one
+ * that could allocate a bitmap.
+ */
 
 /**
  * What to do when a width *and* a height are asked for and the picture's own
@@ -119,47 +127,4 @@ export function standInSize(source: Size, crop: Size, target: Size): Size | null
   // would leave the stand-in a fraction off the source's aspect ratio, and the
   // scene would draw that fraction as a stretch.
   return { width, height: Math.max(1, Math.round(source.height * scale)) };
-}
-
-function configureSmoothing(context: Canvas2D): void {
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-}
-
-/**
- * Draws `source` into `context` at `target` size, halving in steps first.
- *
- * A single large downscale keeps only one sample per output pixel on several
- * browsers, which turns fine detail into aliasing; halving first averages the
- * pixels that would otherwise be skipped.
- */
-export function drawResized(
-  context: Canvas2D,
-  source: CanvasImageSource,
-  sourceSize: Size,
-  target: Size,
-  destination: { x: number; y: number } = { x: 0, y: 0 },
-): void {
-  configureSmoothing(context);
-  const passes = stepDownPasses(sourceSize, target);
-
-  if (passes === 0) {
-    context.drawImage(source, destination.x, destination.y, target.width, target.height);
-    return;
-  }
-
-  let current = createSurface(Math.ceil(sourceSize.width / 2), Math.ceil(sourceSize.height / 2));
-  configureSmoothing(current.context);
-  current.context.drawImage(source, 0, 0, current.canvas.width, current.canvas.height);
-
-  for (let pass = 1; pass < passes; pass += 1) {
-    const next = createSurface(Math.ceil(current.canvas.width / 2), Math.ceil(current.canvas.height / 2));
-    configureSmoothing(next.context);
-    next.context.drawImage(current.canvas, 0, 0, next.canvas.width, next.canvas.height);
-    releaseSurface(current);
-    current = next;
-  }
-
-  context.drawImage(current.canvas, destination.x, destination.y, target.width, target.height);
-  releaseSurface(current);
 }

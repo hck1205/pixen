@@ -5,7 +5,7 @@ import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
 import type { CanvasSurface } from "../image/canvas.js";
-import type { ResizeIntent } from "../image/resize.js";
+import type { ResizeIntent } from "../image/resize/plan.js";
 import type { DecodeOptions, ImageInput } from "../image/decode.js";
 import { cloneDocument, createDocument, effectiveCrop, outputSize, stageRect, stageSize } from "../model/document.js";
 import { estimateTextWidth, type TextMeasurer } from "../model/text-layout.js";

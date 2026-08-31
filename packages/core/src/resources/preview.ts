@@ -1,7 +1,7 @@
 import { scaleToFit } from "../geometry/rect.js";
 import type { Size } from "../geometry/types.js";
 import { disposeImageSource, drawnSurface } from "../image/canvas.js";
-import { drawResized } from "../image/resize.js";
+import { drawResized } from "../image/resize/draw.js";
 
 /**
  * Which preview bitmap a request needs, and at what size.

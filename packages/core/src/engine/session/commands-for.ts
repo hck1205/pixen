@@ -1,4 +1,4 @@
-import { resolveSize } from "../../image/resize.js";
+import { resolveSize } from "../../image/resize/plan.js";
 import { cloneDocument, effectiveCrop } from "../../model/document.js";
 import type { TextMeasurer } from "../../model/text-layout.js";
 import type { EditorDocument } from "../../model/types.js";

@@ -1,5 +1,5 @@
 import type { Size } from "../geometry/types.js";
-import { resolveSize, type ResizeIntent } from "../image/resize.js";
+import { resolveSize, type ResizeIntent } from "../image/resize/plan.js";
 import type { EditorDocument, ImageFormat } from "../model/types.js";
 import { outputSize as documentOutputSize } from "../model/document.js";
 import type { ResourceManager } from "../resources/manager.js";

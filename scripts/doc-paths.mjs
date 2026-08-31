@@ -12,9 +12,13 @@
  * project makes deliberately and often. Nothing failed, because prose does not
  * compile.
  *
- * Markdown only. Source comments legitimately name files that are gone — a note
- * saying what used to be somewhere is history, not a pointer — and failing on
- * those would teach people to stop writing them.
+ * Markdown only, and measured rather than assumed: source comments hold 105
+ * path references, of which four were not in the tree — two live pointers that
+ * had rotted, and two notes saying what a file used to be, which is history and
+ * not a pointer at all. Half the findings being correct as they stand is a poor
+ * check, and failing on the history would teach people to stop writing it. So
+ * the scan reads documentation, where a path is always a pointer, and source
+ * comments are read by people.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";

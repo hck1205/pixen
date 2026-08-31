@@ -1,6 +1,6 @@
 import type { CropHandle } from "../../geometry/crop.js";
 import type { Point, Rect } from "../../geometry/types.js";
-import type { ResizeIntent } from "../../image/resize.js";
+import type { ResizeIntent } from "../../image/resize/plan.js";
 import type { ClipBounds, ClipRange, ClipSelection } from "../../model/clip.js";
 import type { LayerHandle } from "../../model/transform.js";
 import type {

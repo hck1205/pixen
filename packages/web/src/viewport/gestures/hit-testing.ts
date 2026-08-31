@@ -12,7 +12,7 @@ import {
   type Point,
   type Rect,
 } from "@pixen/core";
-import { HANDLE_HIT_RADIUS, LAYER_HANDLE_HIT_RADIUS, LAYER_HIT_TOLERANCE_RATIO } from "./constants.js";
+import { HANDLE_HIT_RADIUS, LAYER_HANDLE_HIT_RADIUS, LAYER_HIT_TOLERANCE_RATIO } from "./tuning.js";
 import { screenToImage, stageToScreen } from "./coordinates.js";
 import type { GestureContext } from "./types.js";
 
