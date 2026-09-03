@@ -109,7 +109,7 @@ Application → framework wrapper → <pixen-image-editor> → Viewport → Edit
 ## Checks before a commit
 
 ```bash
-pnpm build              # typecheck and build every package
+pnpm build              # typecheck and build every package, and typecheck the apps and tests
 pnpm test               # unit tests, including every scan above
 pnpm test:browser       # Playwright against the built playground
 pnpm stories            # visual review; UI changes need a story

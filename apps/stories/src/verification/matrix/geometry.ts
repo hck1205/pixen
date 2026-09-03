@@ -5,7 +5,7 @@
  * verdict is allowed to mean.
  */
 import { browser, doc, list, required, story, unit, type ClaimGroup } from "../claim.js";
-import { CROP_HANDLES, RESIZE_FITS } from "@pixen/core";
+import { RESIZE_FITS } from "@pixen/core";
 import { DEFAULT_ASPECT_RATIOS } from "@pixen/web";
 
 const RATIOS = list(DEFAULT_ASPECT_RATIOS.map((ratio) => ratio.label));
@@ -145,7 +145,7 @@ export const GEOMETRY_CLAIMS: ClaimGroup[] = [
         pixen: "The floor is one number, the smallest edge a crop may have",
         verdict: "open",
         market: required("image properties", "The smallest and largest crop are each a width and a height"),
-        evidence: [list(CROP_HANDLES), doc("docs/DOCUMENT-SCHEMA.md")],
+        evidence: [unit("crop.test.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
         note:
           "One number cannot say \"at least 200 wide and at least 80 tall\", which is what a banner " +
           "crop wants. The gesture code already resolves a floor per axis internally, so this is a " +

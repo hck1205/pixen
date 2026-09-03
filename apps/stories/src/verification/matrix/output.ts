@@ -36,7 +36,10 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
         note:
           "Three functions rather than one call with three modes, because the results are different shapes " +
           "and a union of them would make every caller narrow it. The pixels one releases the surface " +
-          "itself: `getImageData` copies, so keeping the canvas would keep a second copy of the picture",
+          "itself: `getImageData` copies, so keeping the canvas would keep a second copy of the picture. " +
+          "And a call rather than a drawer object — no `disableDraw` and later `draw()`, because a host " +
+          "that wants to redraw calls again — with no even-size switch, because the encoders this package " +
+          "drives take what the canvas is",
       },
       {
         capability: "A byte budget",
@@ -100,12 +103,11 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
         ),
         evidence: [unit("upload.test.ts"), story("Progress"), browser("editor.spec.ts")],
         note:
-          "The server's reply comes back to the caller that awaited `exportTo`, not on the `export` " +
-          "event, which carries the file alone; a host listening rather than awaiting does not see it",
-        note:
           "The third shape — hand the result to a function — is what `export` already is: it returns the " +
           "blob, and a host that wants to store it its own way simply does. Progress is through XHR " +
-          "because it is still the only API that reports how much of a request body has gone",
+          "because it is still the only API that reports how much of a request body has gone. The " +
+          "server's reply comes back to the caller that awaited `exportTo`, not on the `export` event, " +
+          "which carries the file alone; a host listening rather than awaiting does not see it",
       },
       {
         capability: "Default quality",
@@ -138,6 +140,18 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
           "the option would be an option to remove six numbers. Adding an API that does nothing useful is " +
           "worse than not having it — and if a result ever grows something worth dropping, this row is " +
           "where that argument gets reopened",
+      },
+      {
+        capability: "Another product's saved edits",
+        pixen: "Migrations run from every version of our own schema; none reads anyone else's",
+        verdict: "declined",
+        market: required("image exports", "A converter from the previous major version's data format to the current state"),
+        evidence: [unit("document.test.ts"), doc("docs/DOCUMENT-SCHEMA.md")],
+        note:
+          "The requirement is the comparison's own upgrade path. Ours is the fourteen migration steps in " +
+          "`model/migrations/`, one per schema version, which is the same promise made to our own " +
+          "customers. Reading a different product's format would mean reading that product's code, " +
+          "which the independence rule forbids and no customer of ours has asked for",
       },
       {
         capability: "Headless processing",

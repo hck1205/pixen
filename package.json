@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -b packages/core packages/web packages/video packages/react packages/vue packages/svelte",
+    "build": "pnpm typecheck",
     "typecheck": "tsc -b packages/core packages/web packages/video packages/react packages/vue packages/svelte && tsc --noEmit -p tsconfig.tests.json && pnpm --filter @pixen/stories exec tsc --noEmit -p tsconfig.json && pnpm --filter @pixen/playground exec tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",

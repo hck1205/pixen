@@ -8,17 +8,10 @@ import {
   validateDocument,
   SCHEMA_VERSION,
   migrateDocument,
-  DEFAULT_ADJUSTMENTS,
-  type Adjustments,
   type EditorDocument,
   commands,} from "@pixen/core";
 
 const source = { width: 1000, height: 500 } as unknown as CanvasImageSource;
-
-/** A full adjustment set, so a test only names the values it cares about. */
-function adjust(overrides: Partial<Adjustments> = {}): Adjustments {
-  return { ...DEFAULT_ADJUSTMENTS, ...overrides };
-}
 
 function document() {
   return createDocument({ resourceId: "res_1", width: 1000, height: 500 });
