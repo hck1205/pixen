@@ -35,6 +35,20 @@ export const SURFACE_CLAIMS: ClaimGroup[] = [
           "the supplied list has and this does not is a preview-ready event — see the intake page",
       },
       {
+        capability: "State a host can read",
+        pixen: "Loading and exporting are announced as events, with progress, and `busy` says whether either is running",
+        verdict: "open",
+        market: required(
+          "image properties",
+          "The load state and the process state are readable properties, not only events",
+        ),
+        evidence: [browser("editor.spec.ts"), unit("task-runner.test.ts")],
+        note:
+          "A host that mounts the editor after a load has begun has nothing to read, and one that " +
+          "re-renders from props has to keep its own copy of what the events said. `busy` is the " +
+          "boolean half of the answer; which stage, and how far, is only in the event",
+      },
+      {
         capability: "Slots and parts",
         pixen:
           "The actions, the tool rail and the inspector are each a slot with a default inside it — replace " +

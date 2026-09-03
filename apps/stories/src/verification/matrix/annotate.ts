@@ -228,6 +228,47 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
           "this is a spot remover rather than content-aware fill",
       },
       {
+        capability: "A scrambler a host writes",
+        pixen: "Scrambling is ours: whole mosaic blocks permuted, seeded from the layer's id",
+        verdict: "open",
+        market: required(
+          "image properties",
+          "The scrambling step may be replaced by a host function, which is handed the pixels and " +
+          "returns scrambled pixels",
+        ),
+        evidence: [unit("scramble.test.ts")],
+        note:
+          "The seam is not free here, and the reason is `docs/SECURITY.md`: the preview and the export " +
+          "must agree, so a host function would have to be pure and deterministic and we would have no " +
+          "way to hold it to that. A replaceable scrambler that ran once and differently on the second " +
+          "pass would ship a redaction that hides one thing on screen and another in the file",
+      },
+      {
+        capability: "How a redaction is resampled",
+        pixen: "Blocks are drawn hard-edged, which is what a mosaic is",
+        verdict: "open",
+        market: required(
+          "image properties",
+          "Whether a redaction is drawn hard-edged or smoothed is a host setting, because one engine " +
+          "cannot smooth it",
+        ),
+        evidence: [unit("redaction.test.ts")],
+        note:
+          "Ours chooses per mode rather than per host — the blur smooths, the mosaic does not — so the " +
+          "setting has nothing to switch today. It becomes real the moment a host wants a soft mosaic",
+      },
+      {
+        capability: "A bright vignette",
+        pixen: "The vignette darkens, from nothing to full",
+        verdict: "open",
+        market: required("image properties", "A vignette may lighten the edges as well as darken them"),
+        evidence: [list(ADJUSTMENT_KEYS)],
+        note:
+          "The slider runs 0 to 1 rather than -1 to 1. The drawing already paints a radial gradient " +
+          "over the picture, so the negative half is a colour and a composite mode rather than a new " +
+          "operation — it is missing because nobody asked, not because it is hard",
+      },
+      {
         capability: "A colour matrix",
         pixen:
           "Twenty numbers, in the order the platform's own colour matrices use, so one copied from a " +
@@ -239,7 +280,9 @@ export const ANNOTATE_CLAIMS: ClaimGroup[] = [
         note:
           "It reaches the alpha channel, which none of the twelve named adjustments can — and it is " +
           "the only colour operation here that needs a pixel pass on every frame, so it is a thing to " +
-          "reach for rather than a thing to leave on",
+          "reach for rather than a thing to leave on. The supplied material keeps several matrices at " +
+          "once, one per stage of its own pipeline; ours is one matrix, because the stages it would " +
+          "key them by are the twelve named adjustments and those are stored as their own values",
       },
     ],
   },

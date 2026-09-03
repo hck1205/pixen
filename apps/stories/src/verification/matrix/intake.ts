@@ -20,8 +20,24 @@ export const INTAKE_CLAIMS: ClaimGroup[] = [
         pixen:
           "Blob and File, ArrayBuffer and typed arrays, an ImageBitmap, an <img>, a canvas, and a string " +
           "URL — remote, object or data. One `load` call for all of them",
-        verdict: "unmeasured",
+        verdict: "met",
+        market: required(
+          "image properties",
+          "A source may be a file, a blob, a data URL, a URL, an image bitmap, a canvas or an image element",
+        ),
         evidence: [unit("decode.test.ts"), story("Sources"), browser("editor.spec.ts")],
+        note: "Two the supplied list does not ask for are accepted as well: an ArrayBuffer and an OffscreenCanvas",
+      },
+      {
+        capability: "Pixels handed straight in",
+        pixen: "Every source is either bytes to decode or something already drawable. A raw pixel buffer is neither",
+        verdict: "open",
+        market: required("image properties", "A source may also be a raw pixel buffer"),
+        evidence: [unit("decode.test.ts")],
+        note:
+          "The one kind of the supplied list not accepted. It is a short step — a buffer becomes drawable " +
+          "by being put on a canvas — but the step has to happen somewhere, and doing it inside `load` " +
+          "means the editor allocates a canvas the caller cannot release",
       },
       {
         capability: "Drag, drop and paste",

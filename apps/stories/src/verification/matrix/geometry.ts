@@ -5,7 +5,7 @@
  * verdict is allowed to mean.
  */
 import { browser, doc, list, required, story, unit, type ClaimGroup } from "../claim.js";
-import { RESIZE_FITS } from "@pixen/core";
+import { CROP_HANDLES, RESIZE_FITS } from "@pixen/core";
 import { DEFAULT_ASPECT_RATIOS } from "@pixen/web";
 
 const RATIOS = list(DEFAULT_ASPECT_RATIOS.map((ratio) => ratio.label));
@@ -128,12 +128,38 @@ export const GEOMETRY_CLAIMS: ClaimGroup[] = [
         capability: "A largest crop",
         pixen: "There is a floor on the crop and no ceiling",
         verdict: "open",
-        market: required("image properties", "A maximum crop size as well as a minimum"),
+        market: required(
+          "image properties",
+          "A maximum crop size as well as a minimum, both a width and a height, defaulting to the " +
+          "largest canvas a browser will allocate",
+        ),
         evidence: [doc("docs/DOCUMENT-SCHEMA.md")],
         note:
-          "The floor exists because a crop can be dragged to nothing. A ceiling has no equivalent " +
-          "gesture behind it — nothing drags a crop larger than its own bounds — so it would be a " +
-          "setting rather than a guard, and nothing here needs one yet",
+          "The floor exists because a crop can be dragged to nothing. The supplied default — a square " +
+          "of 32768 — says what the ceiling is really for, and it is not a gesture: it is the size " +
+          "past which a canvas cannot be allocated. Pixen has that guard already, as a pixel budget " +
+          "rather than an edge length, so what is open is the setting and not the protection",
+      },
+      {
+        capability: "Crop bounds per axis",
+        pixen: "The floor is one number, the smallest edge a crop may have",
+        verdict: "open",
+        market: required("image properties", "The smallest and largest crop are each a width and a height"),
+        evidence: [list(CROP_HANDLES), doc("docs/DOCUMENT-SCHEMA.md")],
+        note:
+          "One number cannot say \"at least 200 wide and at least 80 tall\", which is what a banner " +
+          "crop wants. The gesture code already resolves a floor per axis internally, so this is a " +
+          "wider property rather than new geometry",
+      },
+      {
+        capability: "The rotation limit, readable",
+        pixen: "The limit is a constant the straighten slider is derived from",
+        verdict: "open",
+        market: required("image properties", "The rotation range is readable from the editor"),
+        evidence: [unit("sliders.test.ts")],
+        note:
+          "A host building its own straighten control has to import the constant rather than ask the " +
+          "editor, which is the same answer by a longer route",
       },
     ],
   },

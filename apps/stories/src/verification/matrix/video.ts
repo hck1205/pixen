@@ -132,6 +132,17 @@ export const VIDEO_CLAIMS: ClaimGroup[] = [
           "already was: half of a source whose length you have not got is not a range",
       },
       {
+        capability: "The soundtrack level, saved",
+        pixen: "The volume is an export argument: the document stores which parts are kept, not how loud they are",
+        verdict: "open",
+        market: required("image properties", "The saved state carries the soundtrack level with the trim"),
+        evidence: [unit("clip.test.ts")],
+        note:
+          "Restoring a saved clip brings back the trim and loses the level. It belongs in the document " +
+          "for the same reason the trim does — both are the edit rather than the run — and it is a " +
+          "schema step, so it goes in with a migration or not at all",
+      },
+      {
         capability: "A length a host requires",
         pixen:
           "A floor and a ceiling on the kept length. On what is kept rather than on what may be " +
