@@ -78,7 +78,7 @@ export const GEOMETRY_CLAIMS: ClaimGroup[] = [
           "A drag opens a transaction and closes it on release, so a hundred pointermoves undo as one — " +
           "and a gesture that cannot start rolls its own back rather than the one already open",
         verdict: "unmeasured",
-        evidence: [unit("history.test.ts"), unit("gestures.test.ts"), browser("editor.spec.ts")],
+        evidence: [unit("history.test.ts"), unit("gestures/hit-testing.test.ts"), browser("editor.spec.ts")],
       },
       {
         capability: "The coordinate model",

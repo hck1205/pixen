@@ -133,7 +133,7 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
         capability: "Tools",
         layer: "Element",
         detail: list(DEFAULT_TOOLS.map((tool) => tool.id)),
-        evidence: [unit("gestures.test.ts"), story("Tools")],
+        evidence: [unit("gestures/lifecycle.test.ts"), story("Tools")],
       },
       {
         capability: "Layer kinds",
@@ -270,7 +270,7 @@ export const EDITING_COVERAGE: CoverageGroup[] = [
         capability: "Locked layers are inert",
         layer: "Element",
         detail: "Not hit-tested and drawn without handles, so a locked mark cannot be nudged by accident",
-        evidence: [unit("gestures.test.ts"), story("Layers")],
+        evidence: [unit("gestures/hit-testing.test.ts"), story("Layers")],
       },
     ],
   },

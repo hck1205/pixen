@@ -16,7 +16,7 @@ export const ANNOTATION_CLAIMS: ClaimGroup = {
         capability: "Tools",
         pixen: list(DEFAULT_TOOLS.map((tool) => tool.id)),
         verdict: "unmeasured",
-        evidence: [unit("gestures.test.ts"), story("Tools"), browser("editor.spec.ts")],
+        evidence: [unit("gestures/lifecycle.test.ts"), story("Tools"), browser("editor.spec.ts")],
       },
       {
         capability: "Styling",

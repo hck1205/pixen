@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { ROOT, browserTestFiles, storyNames, unitTestFiles } from "./evidence-files.js";
 import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/coverage/index.js";
 
 /**
@@ -11,44 +11,10 @@ import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/c
  * becomes something nobody trusts. So every file and every story named there
  * has to exist, and every capability has to name something.
  */
-const ROOT = new URL("../../", import.meta.url).pathname;
-
-/** Where a unit test may live: any package's suite, or the root suite. */
-function unitTestFiles(): Set<string> {
-  const files = new Set(readdirSync(`${ROOT}tests/unit`));
-  for (const pkg of readdirSync(`${ROOT}packages`)) {
-    const directory = `${ROOT}packages/${pkg}/test`;
-    if (!existsSync(directory)) continue;
-    for (const file of readdirSync(directory)) files.add(file);
-  }
-  return files;
-}
-
-/**
- * Every story the browser can actually show, by its exported name.
- *
- * Walks into folders, because the stories stopped being one flat directory when
- * the verification section arrived — and a scanner that only read the top level
- * would have quietly started passing every claim that cited one of them.
- */
-function storyNames(directory = `${ROOT}apps/stories/src`, names = new Set<string>()): Set<string> {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      storyNames(path, names);
-      continue;
-    }
-    if (!entry.name.endsWith(".stories.tsx")) continue;
-    for (const match of readFileSync(path, "utf8").matchAll(/^export const (\w+): Story/gm)) {
-      names.add(match[1]!);
-    }
-  }
-  return names;
-}
 
 const units = unitTestFiles();
 const stories = storyNames();
-const browserTests = new Set(readdirSync(`${ROOT}tests/browser`));
+const browserTests = browserTestFiles();
 const entries = COVERAGE.flatMap((group) => group.entries);
 
 describe("the coverage page", () => {

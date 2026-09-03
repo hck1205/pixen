@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ROOT, browserTestFiles, storyNames, unitTestFiles } from "./evidence-files.js";
 import { VERIFICATION } from "../../apps/stories/src/verification/matrix/index.js";
 import { claimsOf, countVerdicts, evidenceLabel } from "../../apps/stories/src/verification/claim.js";
 import { THIRD_PARTY_NAMES } from "../../scripts/independence-scan.mjs";
@@ -18,37 +19,10 @@ import { THIRD_PARTY_NAMES } from "../../scripts/independence-scan.mjs";
  * name where it came from — and a verdict that says nothing about the
  * comparison must not smuggle one in through the market column.
  */
-const ROOT = new URL("../../", import.meta.url).pathname;
-
-function unitTestFiles(): Set<string> {
-  const files = new Set(readdirSync(`${ROOT}tests/unit`));
-  for (const pkg of readdirSync(`${ROOT}packages`)) {
-    const directory = `${ROOT}packages/${pkg}/test`;
-    if (!existsSync(directory)) continue;
-    for (const file of readdirSync(directory)) files.add(file);
-  }
-  return files;
-}
-
-/** Every story the browser can show, including the ones in subfolders. */
-function storyNames(directory = `${ROOT}apps/stories/src`, names = new Set<string>()): Set<string> {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      storyNames(path, names);
-      continue;
-    }
-    if (!entry.name.endsWith(".stories.tsx")) continue;
-    for (const match of readFileSync(path, "utf8").matchAll(/^export const (\w+): Story/gm)) {
-      names.add(match[1]!);
-    }
-  }
-  return names;
-}
 
 const units = unitTestFiles();
 const stories = storyNames();
-const browserTests = new Set(readdirSync(`${ROOT}tests/browser`));
+const browserTests = browserTestFiles();
 const claims = claimsOf(VERIFICATION);
 
 describe("the verification matrix", () => {
