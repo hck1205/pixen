@@ -31,8 +31,22 @@ export const SURFACE_CLAIMS: ClaimGroup[] = [
         ),
         evidence: [unit("observe.test.ts"), story("EventLog"), browser("editor.spec.ts")],
         note:
-          "One error channel rather than one per phase, and `change` carries the whole document. The one " +
-          "the supplied list has and this does not is a preview-ready event — see the intake page",
+          "Twelve of theirs map onto twelve of ours, `preview` included; `ready` and `history` are ours " +
+          "alone. `change` carries the whole document rather than only saying it changed. The one shape " +
+          "difference is the error channel — one rather than one per phase — which has its own row",
+      },
+      {
+        capability: "Which task an error belongs to",
+        pixen: "One `error` event, carrying a `PixenError` with a machine-readable code and a cause",
+        verdict: "open",
+        market: required("image events", "A failed load and a failed process are announced as two different events"),
+        evidence: [unit("observe.test.ts"), story("EventLog")],
+        note:
+          "The code often says — `DECODE_FAILED` is a load, `ENCODE_FAILED` an export — but not always: " +
+          "a memory limit, a CORS refusal or an abort can come from either, and a refused edit arrives " +
+          "on the same channel. A host with one listener that has to re-enable the right button is " +
+          "left inferring the phase from the code, and the inference has holes. A `task` field on the " +
+          "detail closes them without a second event type",
       },
       {
         capability: "Stopping a task from the element",

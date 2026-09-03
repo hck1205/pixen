@@ -100,6 +100,9 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
         ),
         evidence: [unit("upload.test.ts"), story("Progress"), browser("editor.spec.ts")],
         note:
+          "The server's reply comes back to the caller that awaited `exportTo`, not on the `export` " +
+          "event, which carries the file alone; a host listening rather than awaiting does not see it",
+        note:
           "The third shape — hand the result to a function — is what `export` already is: it returns the " +
           "blob, and a host that wants to store it its own way simply does. Progress is through XHR " +
           "because it is still the only API that reports how much of a request body has gone",

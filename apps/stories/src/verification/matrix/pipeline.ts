@@ -138,8 +138,29 @@ export const PIPELINE_CLAIMS: ClaimGroup[] = [
         pixen:
           "One error type with a machine-readable code and a cause, on an error channel of its own, so a " +
           "host can tell a refused file from a broken one",
-        verdict: "unmeasured",
+        verdict: "met",
+        market: required("image events", "A load that fails and a process that fails are each announced with the error"),
         evidence: [unit("validate.test.ts"), story("EventLog"), doc("docs/SECURITY.md")],
+        note: "Both are announced. Telling them apart is the open row on the element's surface",
+      },
+      {
+        capability: "A stage says when it is done",
+        pixen:
+          "Every stage reports when it begins; the countable ones — the fetch, the encode attempts, the " +
+          "upload — report as they go and reach their total. Decoding and rendering report only that " +
+          "they began",
+        verdict: "open",
+        market: required(
+          "image events",
+          "Every step reports at least a progress of zero and a progress of one, with whether its length " +
+          "could be measured",
+        ),
+        evidence: [unit("task-runner.test.ts"), story("Progress")],
+        note:
+          "A per-stage indicator sees decoding start and never sees it finish; it learns by the next " +
+          "stage beginning, or by the task's own `load` or `export` event. That is enough for the busy " +
+          "pill, which asks only whether the task is running, and not enough for a host drawing one bar " +
+          "per stage. A closing report from the two uncounted stages is a line each",
       },
     ],
   },
