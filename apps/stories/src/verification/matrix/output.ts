@@ -157,8 +157,27 @@ export const OUTPUT_CLAIMS: ClaimGroup[] = [
         pixen:
           `Schema v${SCHEMA_VERSION}, serialised, restored, and migrated step by step from every earlier ` +
           "version — with the bitmaps kept out of it and referenced by id",
-        verdict: "unmeasured",
+        verdict: "met",
+        market: required(
+          "image methods",
+          "A saved state may be handed in when loading an image, so a picture opens on the edit it was left with",
+        ),
         evidence: [unit("document.test.ts"), story("SaveAndResume"), doc("docs/DOCUMENT-SCHEMA.md")],
+        note:
+          "`restore` takes the state and the bytes together, because a document references its bitmap by " +
+          "id and a saved edit without its picture is not openable",
+      },
+      {
+        capability: "The edit that made the file, returned with it",
+        pixen: "The result is the file and what it cost: the blob, its size, format, quality, bytes and filename",
+        verdict: "open",
+        market: required("image methods", "Processing resolves with the saved state alongside the written file"),
+        evidence: [unit("processing.test.ts")],
+        note:
+          "A host that wants both calls `toJSON()` after the export, and those are two reads of a " +
+          "document that anyone may have edited in between — so the state it saves can describe an edit " +
+          "the file it saved does not have. Returning the state the export actually drew from makes the " +
+          "pair consistent by construction, which is the argument for this rather than convenience",
       },
     ],
   },

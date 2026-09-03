@@ -123,10 +123,15 @@ export const PIPELINE_CLAIMS: ClaimGroup[] = [
       {
         capability: "Cancellation",
         pixen:
-          "An AbortSignal on load, export and video export; an encode in progress cannot be interrupted by " +
-          "any browser, so a cancel arriving mid-encode throws the result away rather than delivering it",
-        verdict: "unmeasured",
+          "`cancelLoad` and `cancelExport`, an AbortSignal on load, export and video export; an encode in " +
+          "progress cannot be interrupted by any browser, so a cancel arriving mid-encode throws the result " +
+          "away rather than delivering it",
+        verdict: "met",
+        market: required("image methods", "The load in flight and the process in flight can each be stopped by a call"),
         evidence: [unit("task-runner.test.ts"), story("Progress"), browser("editor.spec.ts")],
+        note:
+          "Both are on the engine. The element passes through the calls a host makes often — load, " +
+          "export, undo — and these two are not among them; see the row on the element's own surface",
       },
       {
         capability: "Errors",

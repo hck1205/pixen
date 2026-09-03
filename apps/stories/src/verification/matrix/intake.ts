@@ -29,6 +29,33 @@ export const INTAKE_CLAIMS: ClaimGroup[] = [
         note: "Two the supplied list does not ask for are accepted as well: an ArrayBuffer and an OffscreenCanvas",
       },
       {
+        capability: "Loading and exporting in one call",
+        pixen: "`load` resolves with the document; `export` is the next call",
+        verdict: "open",
+        market: required("image methods", "One call loads an image and resolves with the written file"),
+        evidence: [unit("lifecycle.test.ts"), browser("editor.spec.ts")],
+        note:
+          "Two awaits rather than one, which is not much — but the shorthand is what a host writes when " +
+          "the editor is never shown, and that host is the one most likely to reach for the headless " +
+          "`processImage` instead. Worth having once it is clear which of the two it should be",
+      },
+      {
+        capability: "An edit given as an argument",
+        pixen:
+          "An edit is dispatched: `load` takes decoding options, and what to do to the picture is said " +
+          "afterwards as intents",
+        verdict: "open",
+        market: required(
+          "image methods",
+          "Loading and processing each accept transform instructions, so a rotation can be asked for in the same call",
+        ),
+        evidence: [unit("session.test.ts"), doc("docs/ARCHITECTURE.md")],
+        note:
+          "`restore` already takes a whole saved state, which is the same idea at full size. What is " +
+          "open is the small end of it — one or two properties rather than a document — and it lands on " +
+          "a decision: whether such an instruction is one history step, or none at all",
+      },
+      {
         capability: "Pixels handed straight in",
         pixen: "Every source is either bytes to decode or something already drawable. A raw pixel buffer is neither",
         verdict: "open",

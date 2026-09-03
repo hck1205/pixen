@@ -35,6 +35,17 @@ export const SURFACE_CLAIMS: ClaimGroup[] = [
           "the supplied list has and this does not is a preview-ready event — see the intake page",
       },
       {
+        capability: "Stopping a task from the element",
+        pixen: "`cancelLoad` and `cancelExport` are on the engine, reachable as `element.editor`",
+        verdict: "open",
+        market: required("image methods", "Aborting the load and aborting the process are editor methods"),
+        evidence: [browser("editor.spec.ts")],
+        note:
+          "Not a missing capability but a missing pass-through, and the one that matters: a cancel " +
+          "button is written against the element like every other button, and this is the only common " +
+          "action that makes a host reach past it",
+      },
+      {
         capability: "State a host can read",
         pixen: "Loading and exporting are announced as events, with progress, and `busy` says whether either is running",
         verdict: "open",
