@@ -1,14 +1,11 @@
-import type { EditorLayer, TextLayer } from "@pixen/core";
-import { button, field, input } from "../../dom/index.js";
-import {
-  CORNER_RATIO_RANGE,
-  FONT_RATIO_RANGE,
-  STROKE_WIDTH_RANGE,
-} from "../../constants.js";
-import { TEXT_PLATE_COLOUR, type AnnotationStyle } from "../../../tools/index.js";
+import { longestEdge, type EditorLayer, type TextLayer } from "@pixen/core";
+import { field, input, optionButton, textButton } from "../../dom/index.js";
+import { CORNER_RATIO_RANGE, FONT_RATIO_RANGE, STROKE_WIDTH_RANGE } from "../../sliders.js";
+import { cornerRadiusFor, fontSizeFor, TEXT_PLATE_COLOUR } from "../../../tools/index.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
-import { styleControlsFor, type StyleControl, type StyleSubject } from "./style-controls.js";
+import { lineEndLabel, lineEndPicker } from "./line-end-picker.js";
+import { styleControlsFor, styleTarget, type StyleControl, type StyleSubject } from "./style-controls.js";
 import { styleWriter } from "./style-writer.js";
 
 /**
@@ -20,8 +17,10 @@ import { styleWriter } from "./style-writer.js";
  * knows how to draw each one and where to send its value.
  */
 export function buildStyleControls(context: ChromeContext, subject: StyleSubject): Node[] {
-  const controls = styleControlsFor(subject);
-  return controls.flatMap((control) => buildControl(context, control));
+  // Not `editor.selectedLayer`: a control may only patch a layer of the kind it
+  // is about. See `styleTarget`.
+  const target = styleTarget(subject, context.editor.selectedLayer);
+  return styleControlsFor(subject).flatMap((control) => buildControl(context, control, target));
 }
 
 const ALIGNMENTS: ReadonlyArray<{ value: TextLayer["align"]; key: keyof PixenStrings }> = [
@@ -30,9 +29,8 @@ const ALIGNMENTS: ReadonlyArray<{ value: TextLayer["align"]; key: keyof PixenStr
   { value: "right", key: "alignRight" },
 ];
 
-function buildControl(context: ChromeContext, control: StyleControl): Node[] {
+function buildControl(context: ChromeContext, control: StyleControl, selected: EditorLayer | null): Node[] {
   const { strings, annotationStyle: style, editor } = context;
-  const selected = editor.selectedLayer;
   const apply = styleWriter(context, selected);
 
   switch (control) {
@@ -44,10 +42,7 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             type: "color",
             value: style.colour,
             dataset: { field: "colour" },
-            onInput: (value) => {
-              context.actions.setAnnotationStyle({ colour: value });
-              if (selected) editor.updateLayer(selected.id, recolourPatch(selected, value));
-            },
+            onInput: (value) => apply({ colour: value }, selected ? recolourPatch(selected, value) : undefined),
           }),
         ),
       ];
@@ -65,10 +60,9 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             onInput: (value) => apply({ fill: value }, { fill: value }),
           }),
         ),
-        button({
-          label: `${strings.fillColour}: ${strings.fillNone}`,
+        optionButton({
+          group: strings.fillColour,
           text: strings.fillNone,
-          className: "text",
           active: style.fill === null,
           onClick: () => apply({ fill: null }, { fill: null }),
         }),
@@ -90,10 +84,8 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 
     case "dash":
       return [
-        button({
-          label: strings.dash,
+        textButton({
           text: strings.dash,
-          className: "text",
           active: style.dashed,
           onClick: () => context.actions.setAnnotationStyle({ dashed: !style.dashed }),
         }),
@@ -108,13 +100,16 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             ...CORNER_RATIO_RANGE,
             value: String(style.cornerRatio),
             dataset: { field: "corner" },
+            // Through the same resolver the drawing gesture uses: a rectangle
+            // drawn and a rectangle edited must round by the same rule.
             onInput: (value) => {
-              const ratio = Number(value);
-              context.actions.setAnnotationStyle({ cornerRatio: ratio });
-              if (selected?.type === "rect") {
-                const shorter = Math.min(selected.frame.width, selected.frame.height);
-                editor.updateLayer(selected.id, { cornerRadius: ratio * shorter });
-              }
+              const cornerRatio = Number(value);
+              apply(
+                { cornerRatio },
+                selected?.type === "rect"
+                  ? { cornerRadius: cornerRadiusFor({ ...style, cornerRatio }, selected.frame) }
+                  : undefined,
+              );
             },
           }),
         ),
@@ -130,12 +125,13 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
             value: String(style.fontRatio),
             dataset: { field: "font-size" },
             onInput: (value) => {
-              const ratio = Number(value);
-              context.actions.setAnnotationStyle({ fontRatio: ratio });
-              if (selected?.type === "text") {
-                const longestEdge = Math.max(editor.document.source.width, editor.document.source.height);
-                editor.updateLayer(selected.id, { fontSize: Math.max(8, longestEdge * ratio) });
-              }
+              const fontRatio = Number(value);
+              apply(
+                { fontRatio },
+                selected?.type === "text"
+                  ? { fontSize: fontSizeFor({ ...style, fontRatio }, longestEdge(editor.document.source)) }
+                  : undefined,
+              );
             },
           }),
         ),
@@ -143,10 +139,8 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 
     case "align":
       return ALIGNMENTS.map((alignment) =>
-        button({
-          label: strings[alignment.key],
+        textButton({
           text: strings[alignment.key],
-          className: "text",
           active: style.textAlign === alignment.value,
           onClick: () =>
             apply({ textAlign: alignment.value }, { align: alignment.value }),
@@ -155,10 +149,8 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
 
     case "textPlate":
       return [
-        button({
-          label: strings.textPlate,
+        textButton({
           text: strings.textPlate,
-          className: "text",
           active: style.textPlate,
           onClick: () => {
             const next = !style.textPlate;
@@ -169,25 +161,12 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
         }),
       ];
 
-    case "arrowEnds":
-      return [
-        button({
-          label: strings.arrowStart,
-          text: strings.arrowStart,
-          className: "text",
-          active: style.arrowStart,
-          onClick: () =>
-            apply({ arrowStart: !style.arrowStart }, { arrowStart: !style.arrowStart }),
-        }),
-        button({
-          label: strings.arrowEnd,
-          text: strings.arrowEnd,
-          className: "text",
-          active: style.arrowEnd,
-          onClick: () =>
-            apply({ arrowEnd: !style.arrowEnd }, { arrowEnd: !style.arrowEnd }),
-        }),
-      ];
+    case "lineEnds":
+      // Two rows of eight rather than one of sixteen: a person picks what goes
+      // on *this* end, and the two ends are independent.
+      return (["startStyle", "endStyle"] as const).map((end) =>
+        field(lineEndLabel(context, end), lineEndPicker(context, end, style[end], selected)),
+      );
   }
 }
 
@@ -200,6 +179,9 @@ function buildControl(context: ChromeContext, control: StyleControl): Node[] {
  */
 export function recolourPatch(layer: EditorLayer, colour: string): Partial<EditorLayer> {
   switch (layer.type) {
+    // A repair has no colour of its own: it is made of the picture around it.
+    case "retouch":
+      return {};
     case "text":
       return { color: colour };
     case "line":

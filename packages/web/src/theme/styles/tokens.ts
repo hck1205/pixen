@@ -18,6 +18,11 @@ export const tokens = `
   --pixen-accent: #4f8cff;
   --pixen-accent-contrast: #ffffff;
   --pixen-border: rgba(255, 255, 255, 0.10);
+  /* The tint a control takes on hover and a field takes as its fill, as colour
+     channels rather than a colour: the three places that use it want three
+     different strengths of the same wash, and a host restyling it wants to
+     change all three at once. */
+  --pixen-tint: 127 140 170;
   --pixen-radius: 12px;
   --pixen-radius-small: 8px;
   --pixen-gap: 8px;
@@ -54,6 +59,9 @@ export const tokens = `
   --pixen-text: #14161b;
   --pixen-text-muted: #5c6474;
   --pixen-border: rgba(20, 22, 27, 0.12);
+  /* Its own, rather than the dark theme's: a wash lifted off a dark surface
+     reads as haze on a light one. */
+  --pixen-tint: 20 22 27;
   --pixen-shadow: 0 10px 26px rgba(20, 22, 27, 0.16);
   --pixen-crop-scrim: rgba(240, 242, 246, 0.7);
   --pixen-crop-outline: rgba(20, 22, 27, 0.9);

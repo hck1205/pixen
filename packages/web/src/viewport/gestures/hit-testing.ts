@@ -1,6 +1,7 @@
 import {
   applyToPoint,
   CROP_HANDLES,
+  distance,
   findLayer,
   LAYER_HANDLES,
   layerBounds,
@@ -11,7 +12,7 @@ import {
   type Point,
   type Rect,
 } from "@pixen/core";
-import { HANDLE_HIT_RADIUS, LAYER_HANDLE_HIT_RADIUS, LAYER_HIT_TOLERANCE_RATIO } from "./constants.js";
+import { HANDLE_HIT_RADIUS, LAYER_HANDLE_HIT_RADIUS, LAYER_HIT_TOLERANCE_RATIO } from "./tuning.js";
 import { screenToImage, stageToScreen } from "./coordinates.js";
 import type { GestureContext } from "./types.js";
 
@@ -27,9 +28,9 @@ export function hitCropHandle(context: GestureContext, point: Point): CropHandle
   let best: { handle: CropHandle; distance: number } | null = null;
   for (const handle of CROP_HANDLES) {
     const screen = stageToScreen(context, cropHandlePosition(context.crop, handle));
-    const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
-    if (distance <= HANDLE_HIT_RADIUS && (!best || distance < best.distance)) {
-      best = { handle, distance };
+    const away = distance(screen, point);
+    if (away <= HANDLE_HIT_RADIUS && (!best || away < best.distance)) {
+      best = { handle, distance: away };
     }
   }
   return best?.handle ?? null;
@@ -50,7 +51,7 @@ export function hitLayer(context: GestureContext, imagePoint: Point): EditorLaye
   for (let i = context.layers.length - 1; i >= 0; i -= 1) {
     const layer = context.layers[i]!;
     if (!layer.visible || layer.locked) continue;
-    const bounds = layerBounds(layer);
+    const bounds = layerBounds(layer, context.measure);
     if (
       imagePoint.x >= bounds.x - tolerance &&
       imagePoint.x <= bounds.x + bounds.width + tolerance &&
@@ -82,11 +83,11 @@ export function hitLayerHandle(context: GestureContext, point: Point): LayerHand
 
   let best: { handle: LayerHandle; distance: number } | null = null;
   for (const handle of LAYER_HANDLES) {
-    const image = layerHandlePosition(layer, handle);
+    const image = layerHandlePosition(layer, handle, context.measure);
     const screen = stageToScreen(context, applyToPoint(context.stageFromImage, image));
-    const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
-    if (distance <= LAYER_HANDLE_HIT_RADIUS && (!best || distance < best.distance)) {
-      best = { handle, distance };
+    const away = distance(screen, point);
+    if (away <= LAYER_HANDLE_HIT_RADIUS && (!best || away < best.distance)) {
+      best = { handle, distance: away };
     }
   }
   return best?.handle ?? null;

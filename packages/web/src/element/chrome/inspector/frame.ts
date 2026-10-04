@@ -5,7 +5,7 @@ import {
   MIN_FRAME_WIDTH,
   type FrameStyle,
 } from "@pixen/core";
-import { button, field, input } from "../../dom/index.js";
+import { field, input, optionButton } from "../../dom/index.js";
 import { transactedSlider } from "./slider.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
@@ -15,13 +15,54 @@ const STYLE_KEYS = {
   solid: "frameSolid",
   inset: "frameInset",
   rounded: "frameRounded",
+  hook: "frameHook",
+  line: "frameLine",
+  edge: "frameEdge",
 } as const satisfies Record<FrameStyle, keyof PixenStrings>;
+
+/**
+ * Which measurements each treatment actually reads.
+ *
+ * A slider that changes nothing is worse than no slider: it says the setting
+ * does something. Corner brackets have an arm length and a plain border does
+ * not, so the panel asks this rather than showing all five to everybody.
+ */
+type FrameMeasurement = "inset" | "radius" | "offset" | "count" | "armLength";
+
+const STYLE_CONTROLS: Record<FrameStyle, readonly FrameMeasurement[]> = {
+  solid: [],
+  inset: ["inset"],
+  rounded: ["radius"],
+  hook: ["inset", "armLength"],
+  line: ["inset", "offset", "count"],
+  edge: ["inset", "offset"],
+};
+
+/** All of them are fractions of the longest edge, so the steps are small. */
+const FRACTION_RANGE = { min: 0, max: 0.12, step: 0.002 };
+const COUNT_RANGE = { min: 1, max: 5, step: 1 };
+
+/**
+ * The slider each measurement gets, named the way `STYLE_KEYS` is.
+ *
+ * A table of string *keys* rather than resolved strings, so it can sit here
+ * beside the other one instead of being rebuilt inside the builder every time
+ * the panel is drawn.
+ */
+const TUNING = {
+  inset: { key: "frameInsetAmount", field: "frame-inset", range: FRACTION_RANGE },
+  radius: { key: "frameRadius", field: "frame-radius", range: FRACTION_RANGE },
+  offset: { key: "frameOffset", field: "frame-offset", range: FRACTION_RANGE },
+  armLength: { key: "frameArm", field: "frame-arm", range: FRACTION_RANGE },
+  count: { key: "frameCount", field: "frame-count", range: COUNT_RANGE },
+} as const satisfies Record<FrameMeasurement, { key: keyof PixenStrings; field: string; range: object }>;
 
 /** Width is a fraction of the longest edge, so the step is small. */
 const FRAME_WIDTH_RANGE = { min: MIN_FRAME_WIDTH, max: MAX_FRAME_WIDTH, step: 0.002 };
 
 /**
- * The frame: off, or one of three styles with a width and a colour.
+ * The frame: off, or one of six treatments with a width, a colour, and the
+ * measurements that treatment actually reads.
  *
  * "None" is a button in the same row rather than a separate toggle, because
  * choosing no frame is the same kind of decision as choosing a round one.
@@ -31,18 +72,16 @@ export function buildFrameControls(context: ChromeContext): Node[] {
   const frame = editor.document.frame;
 
   const nodes: Node[] = [
-    button({
-      label: `${strings.frame}: ${strings.frameNone}`,
+    optionButton({
+      group: strings.frame,
       text: strings.frameNone,
-      className: "text",
       active: frame === null,
       onClick: () => editor.setFrame(null),
     }),
     ...FRAME_STYLES.map((style) =>
-      button({
-        label: `${strings.frame}: ${strings[STYLE_KEYS[style]]}`,
+      optionButton({
+        group: strings.frame,
         text: strings[STYLE_KEYS[style]],
-        className: "text",
         active: frame?.style === style,
         onClick: () => editor.setFrame({ style }),
       }),
@@ -60,6 +99,15 @@ export function buildFrameControls(context: ChromeContext): Node[] {
       value: frame.width,
       onInput: (width) => editor.setFrame({ width }),
     }),
+    ...STYLE_CONTROLS[frame.style].map((name) =>
+      transactedSlider(editor, {
+        label: strings[TUNING[name].key],
+        field: TUNING[name].field,
+        range: TUNING[name].range,
+        value: frame[name],
+        onInput: (value) => editor.setFrame({ [name]: value }),
+      }),
+    ),
     field(
       strings.frameColour,
       input({

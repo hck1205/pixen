@@ -98,5 +98,51 @@ the failure mode is an import-time crash rather than a render-time one.
   trip costs more than it saves; and the byte-budget search encodes on the main
   thread, because it tries up to five times and reading the canvas back for each
   attempt would cost more than the offload returns.
+- **EXIF orientation is applied once, by whichever of us does it.** A rotated
+  photograph used to arrive as stored, and turning it upright was the
+  application's job. That is no longer true: Chromium turns all eight
+  orientations itself, and — measured — `createImageBitmap(blob, {
+  imageOrientation: "none" })` does not stop it. A library that turns the pixels
+  as well turns them twice, which is a photograph on its side.
+
+  There is no capability to test for this and no version to key off, so Pixen
+  asks: the first time a rotated image is opened, a tiny picture whose right way
+  up is known is put through the same decoder, and what comes back decides. The
+  answer is kept for the session, and a browser with no rotated images to open
+  never pays for it. If the probe fails for any reason the answer is "the
+  decoder did not", which is what Pixen has always assumed.
+- **Downscaling is left to the browser on export.** The standard advice for
+  shrinking an image by more than about half is to halve it in steps first, on
+  the grounds that a single `drawImage` keeps one sample per output pixel and
+  turns fine detail into aliasing. Pixen does that for the *preview*, where one
+  proxy is reused for every frame, and deliberately does not for the export.
+
+  The reason is a measurement rather than a preference. Rendering a 1-pixel
+  checkerboard and a fine stripe pattern down by factors of 20 and 32, upright
+  and rotated, Chromium's single draw and a chain of halvings were
+  indistinguishable; against an exactly computed area average, both were off by
+  the same amount. On a 6000 × 4000 source the halvings added roughly 560 ms per
+  export. Paying that on every browser to fix something one of them does not
+  have is the wrong default.
+
+  This is measured on Chromium only, which is the engine this repository can
+  drive. If you have measured otherwise on the engines you ship to, the
+  `resample` hook on `export()` puts your own downscaler in that exact place —
+  including Pixen's own `drawResized`, which is exported for it. See
+  [FRAMEWORKS.md](FRAMEWORKS.md).
 - **Very large images** are bounded at 268,435,456 pixels (16384 × 16384), above
-  which `MEMORY_LIMIT` is raised rather than the tab being killed.
+  which `MEMORY_LIMIT` is raised rather than the tab being killed. That is a
+  decompression-bomb guard and stays a refusal: nothing that large was meant.
+
+  What a device will *really* allocate is another matter, and it is well below
+  that — low enough on some phones that a photograph taken on the same phone
+  does not fit. The failure there is the bad part: an over-large canvas comes
+  back blank or transparent rather than throwing, so the export is silently
+  wrong and nothing says why.
+
+  Pixen does not guess a number for your device — there is no honest way to
+  measure a limit without allocating up to it, and a page that does that on load
+  is a page that sometimes crashes on load. Instead `export({ maxPixels })`
+  takes one from you, and an export past it is **scaled to fit rather than
+  refused**, keeping its shape. The size in the result is the size you got, so
+  read it back rather than assuming what was asked for.

@@ -1,12 +1,10 @@
 import {
   applyPolicy,
   Editor,
-  isPixenError,
-  PixenError,
+  type DecodeOptions,
   type EditorDocument,
   type ExportOptions,
   type ExportResult,
-  type ImageFormat,
   type ImagePolicy,
   type PresetName,
 } from "@pixen/core";
@@ -14,39 +12,37 @@ import { directionFor, resolveStrings, type PixenStrings } from "../i18n/index.j
 import {
   DEFAULT_STYLE,
   normaliseStickers,
+  cropToolSettings,
   normaliseTools,
   type AnnotationStyle,
   type StickerDefinition,
   type ToolDefinition,
   type ToolId,
 } from "../tools/index.js";
-import { Viewport, type EdgeBox } from "../viewport/index.js";
+import { Viewport } from "../viewport/index.js";
 import {
   buildActions,
   buildEmptyState,
   buildInspector,
   buildRail,
+  measureChrome,
   refreshActions,
   refreshRail,
   type ChromeActions,
   type ChromeContext,
   type Readouts,
 } from "./chrome/index.js";
+import { applyAttribute, OBSERVED_ATTRIBUTES, type AttributePorts, type ObservedAttribute } from "./attributes.js";
+import { BusyIndicator } from "./busy.js";
+import { EditorOperations } from "./operations.js";
 import { isTypingTarget } from "./dom/index.js";
+import { observeEditor, type ObserverPorts } from "./observe.js";
 import { ImageIntake } from "./input/image-intake.js";
 import { resolveKeyboardAction } from "./input/keyboard.js";
 import { runKeyboardAction, type ActionPorts } from "./input/run-action.js";
-import { isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
-import { normaliseAspectRatios } from "./ratios.js";
-import {
-  OBSERVED_ATTRIBUTES,
-  TOOL_META,
-  ZOOM_STEP,
-  type AspectRatioOption,
-  type ObservedAttribute,
-  PANEL_LABEL_KEYS,
-  type PanelId,
-} from "./constants.js";
+import { panelLabel, isAppleShortcutPlatform, sizeLabel, zoomLabel } from "./labels.js";
+import { normaliseAspectRatios, type AspectRatioOption } from "./ratios.js";
+import type { PanelId } from "./panels.js";
 import { PluginRegistry, type PixenPlugin } from "../plugins/index.js";
 import { StickerPlacer } from "./stickers.js";
 import { CanvasTextEditor } from "./text-editing.js";
@@ -81,6 +77,12 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   readonly editor = new Editor();
+  /**
+   * Applied to every load — the file picker, a drop, a paste, the `src`
+   * attribute — because a format no browser reads arrives by all of them, not
+   * only through a `load()` the host wrote. Options passed to `load()` win.
+   */
+  decodeOptions: DecodeOptions = {};
 
   #root: ShadowRoot;
   #canvas!: HTMLCanvasElement;
@@ -90,7 +92,6 @@ export class PixenImageEditorElement extends ElementBase {
   #inspectorHost!: HTMLElement;
   #emptyHost!: HTMLElement;
   #dropHost!: HTMLElement;
-  #busyHost!: HTMLElement;
   #statusHost!: HTMLElement;
   #fileInput!: HTMLInputElement;
   #textInput!: HTMLTextAreaElement;
@@ -104,24 +105,58 @@ export class PixenImageEditorElement extends ElementBase {
   #annotationStyle: AnnotationStyle = { ...DEFAULT_STYLE };
   #policy: ImagePolicy | PresetName | null = null;
   #strings: PixenStrings = resolveStrings("en");
+  #locale: string | null = null;
   #panel: PanelId = "tool";
-  #busy = false;
-  #status: string | null = null;
   #disabled = false;
   /** True when the host set `dir` itself, which then outranks the locale. */
   #explicitDirection = false;
   #pendingSrc: string | null = null;
-  #loadToken = 0;
   /** Readout nodes are updated in place so a drag does not rebuild the chrome. */
   #readouts: Readouts = {};
   #apple = isAppleShortcutPlatform(typeof navigator === "undefined" ? "" : navigator.platform);
   #unsubscribe: Array<() => void> = [];
-  #plugins = new PluginRegistry(() => this.#renderChrome());
+  #plugins = new PluginRegistry({
+    changed: () => this.#renderChrome(),
+    locale: () => this.#locale,
+  });
+
+  /**
+   * What the editor is doing, said out loud. Built here rather than on connect
+   * because a framework may set `status` on the property before the element is
+   * in the document, and the pill it writes into exists as soon as the template
+   * does.
+   */
+  readonly #busy: BusyIndicator;
+  readonly #operations: EditorOperations;
 
   constructor() {
     super();
     this.#root = this.attachShadow({ mode: "open" });
     this.#root.innerHTML = template();
+    this.#busy = new BusyIndicator({
+      pill: this.#root.querySelector<HTMLElement>(SELECTORS.busy)!,
+      strings: () => this.#strings,
+      changed: (busy) => {
+        this.toggleAttribute("busy", busy);
+        this.setAttribute("aria-busy", String(busy));
+        // Before connection there is no chrome to rebuild; `connectedCallback`
+        // builds it from the state this has already recorded.
+        if (this.#actionsHost) refreshActions(this.#actionsHost, this.#context());
+      },
+    });
+
+    this.#operations = new EditorOperations({
+      editor: this.editor,
+      busy: this.#busy,
+      decodeOptions: () => this.decodeOptions,
+      policy: () => this.#policy,
+      defaultAspectRatio: () => cropToolSettings(this.#tools).defaultRatio,
+      attributePorts: () => this.#attributePorts,
+      attribute: (name) => this.getAttribute(name),
+      emit: (type, detail) => this.#emit(type, detail),
+      refresh: () => this.#syncUI(),
+      invalidate: () => this.#viewport?.invalidate(),
+    });
   }
 
   // --- lifecycle -----------------------------------------------------------
@@ -134,7 +169,6 @@ export class PixenImageEditorElement extends ElementBase {
     this.#inspectorHost = find(SELECTORS.inspector);
     this.#emptyHost = find(SELECTORS.empty);
     this.#dropHost = find(SELECTORS.dropzone);
-    this.#busyHost = find(SELECTORS.busy);
     this.#statusHost = find(SELECTORS.status);
     this.#fileInput = find(SELECTORS.fileInput);
     this.#textInput = find(SELECTORS.textInput);
@@ -151,9 +185,11 @@ export class PixenImageEditorElement extends ElementBase {
         this.#textEditing.reposition();
       },
       onEditText: (id) => this.#textEditing.open(id),
-      measureChrome: () => this.#measureChrome(),
+      measureChrome: () => measureChrome(this.#canvas, this.#root),
     });
     this.#viewport.style = this.#annotationStyle;
+    // A fresh viewport starts at the default floor; see `cropToolSettings`.
+    this.#viewport.minCropSize = cropToolSettings(this.#tools).minSize;
 
     this.#textEditing = new CanvasTextEditor({
       input: this.#textInput,
@@ -169,33 +205,12 @@ export class PixenImageEditorElement extends ElementBase {
     });
     this.#unsubscribe.push(this.#textEditing.attach());
 
-    this.#unsubscribe.push(
-      this.editor.on("change", (event) => {
-        this.#emit("pixen-change", { document: event.document, reason: event.reason, transient: event.transient });
-        // A drag emits transient changes at pointer speed. Rebuilding the
-        // inspector for each one would be wasteful and would steal focus, but
-        // the readouts have to keep up — a crop with a stale size is worse than
-        // no size at all.
-        if (event.transient) this.#updateReadouts();
-        else this.#syncUI();
-      }),
-      this.editor.on("history", (state) => this.#emit("pixen-history", state)),
-      this.editor.on("selection", () => this.#syncUI()),
-      // The engine is the source of truth, so the element observes a close
-      // rather than only knowing about the ones it started itself.
-      this.editor.on("close", () => {
-        this.#stickerPlacer.clear();
-        this.#viewport?.invalidate();
-        this.#syncUI();
-      }),
-      this.editor.on("error", (error) => this.#emit("pixen-error", { error })),
-    );
+    this.#unsubscribe.push(...observeEditor(this.editor, this.#observerPorts));
 
     this.addEventListener("keydown", this.#onKeyDown);
-    // The viewport calls preventDefault() on pointerdown to own the gesture,
-    // which also suppresses the browser's focus-on-click. Restore it, or the
-    // keyboard shortcuts stop working the moment someone touches the canvas.
-    this.addEventListener("pointerdown", this.#onPointerDownFocus, true);
+    // Capture, so an open caption is finished before the gesture underneath it
+    // begins. See `#onPointerDownInside`.
+    this.addEventListener("pointerdown", this.#onPointerDownInside, true);
 
     this.#intake = new ImageIntake({
       host: this,
@@ -208,13 +223,9 @@ export class PixenImageEditorElement extends ElementBase {
     this.#renderChrome();
     this.#syncUI();
 
-    if (this.#pendingSrc) {
-      const src = this.#pendingSrc;
-      this.#pendingSrc = null;
-      void this.load(src);
-    } else if (this.hasAttribute("src")) {
-      void this.load(this.getAttribute("src")!);
-    }
+    const src = this.#pendingSrc ?? this.getAttribute("src");
+    this.#pendingSrc = null;
+    if (src) void this.load(src);
     this.#emit("pixen-ready", { editor: this.editor });
   }
 
@@ -222,7 +233,7 @@ export class PixenImageEditorElement extends ElementBase {
     // A component can be moved in the DOM, which disconnects and reconnects it.
     // Tear down listeners either way; bitmaps are released only on destroy().
     this.removeEventListener("keydown", this.#onKeyDown);
-    this.removeEventListener("pointerdown", this.#onPointerDownFocus, true);
+    this.removeEventListener("pointerdown", this.#onPointerDownInside, true);
     this.#plugins.dispose();
     this.#viewport?.destroy();
     this.#viewport = null;
@@ -232,45 +243,46 @@ export class PixenImageEditorElement extends ElementBase {
 
   attributeChangedCallback(name: string, previous: string | null, value: string | null): void {
     if (previous === value) return;
-    this.#applyAttribute(name as ObservedAttribute, value);
+    applyAttribute(name as ObservedAttribute, value, this.#attributePorts);
   }
 
-  /** One place that knows what each observed attribute means. */
-  #applyAttribute(name: ObservedAttribute, value: string | null): void {
-    switch (name) {
-      case "src":
-        if (!value) return;
-        // Before the viewport exists there is nothing to render into, so the
-        // source waits for connectedCallback.
-        if (this.#viewport) void this.load(value);
-        else this.#pendingSrc = value;
-        return;
-      case "locale":
-        this.#strings = resolveStrings(value);
-        this.#applyDirection(value);
-        this.#renderChrome();
-        this.#syncUI();
-        return;
-      case "format":
-        if (this.editor.ready && value) this.editor.setFormat(value as ImageFormat);
-        return;
-      case "quality":
-        if (this.editor.ready && value) this.editor.setQuality(Number(value));
-        return;
-      case "preset":
-        this.policy = (value as PresetName) || null;
-        return;
-      case "theme":
-        // Themes are pure CSS; the chrome only needs to re-read its state.
-        this.#syncUI();
-        return;
-      default: {
-        // Adding an observed attribute without handling it fails to compile.
-        const unhandled: never = name;
-        void unhandled;
-      }
-    }
-  }
+  /** What the engine's events do to this element. See `observeEditor`. */
+  readonly #observerPorts: ObserverPorts = {
+    emit: (type, detail) => this.#emit(type, detail),
+    refresh: () => this.#syncUI(),
+    refreshReadouts: () => this.#updateReadouts(),
+    progress: (report) => this.#busy.report(report),
+    closed: () => {
+      this.#stickerPlacer.clear();
+      this.#viewport?.invalidate();
+      this.#syncUI();
+    },
+  };
+
+  /** The effects each observed attribute maps to. See `applyAttribute`. */
+  readonly #attributePorts: AttributePorts = {
+    mounted: () => this.#viewport !== null,
+    ready: () => this.editor.ready,
+    load: (src) => void this.load(src),
+    defer: (src) => {
+      this.#pendingSrc = src;
+    },
+    setFormat: (format) => this.editor.setFormat(format),
+    setQuality: (quality) => this.editor.setQuality(quality),
+    setLocale: (locale) => {
+      // Kept as the tag, not only as the resolved table: a plugin's own strings
+      // are looked up against it, and `ko-KR` has to still find `ko`.
+      this.#locale = locale;
+      this.#strings = resolveStrings(locale);
+      this.#applyDirection(locale);
+      this.#renderChrome();
+      this.#syncUI();
+    },
+    setPreset: (preset) => {
+      this.policy = preset;
+    },
+    refresh: () => this.#syncUI(),
+  };
 
   /** Releases decoded bitmaps. Call it when the host is done with the editor. */
   destroy(): void {
@@ -288,14 +300,23 @@ export class PixenImageEditorElement extends ElementBase {
 
   set tools(value: unknown) {
     this.#tools = normaliseTools(value);
-    const cropOptions = this.#tools.find((tool) => tool.id === "crop")?.options as
-      | { ratios?: (number | null)[]; minSize?: number }
-      | undefined;
-    if (cropOptions?.ratios) this.aspectRatios = cropOptions.ratios;
-    if (cropOptions?.minSize && this.#viewport) this.#viewport.minCropSize = cropOptions.minSize;
+    const ratios = cropToolSettings(this.#tools).ratios;
+    if (ratios) this.aspectRatios = ratios;
+    if (this.#viewport) this.#viewport.minCropSize = cropToolSettings(this.#tools).minSize;
     this.#renderChrome();
     this.#syncUI();
   }
+
+  /** The stickers the sticker tool offers. Pixen ships none of its own. */
+  get stickers(): StickerDefinition[] {
+    return this.#stickers;
+  }
+
+  set stickers(value: unknown) {
+    this.#stickers = normaliseStickers(value);
+    this.#syncUI();
+  }
+
 
   get aspectRatios(): AspectRatioOption[] {
     return this.#ratios;
@@ -370,7 +391,7 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   get busy(): boolean {
-    return this.#busy;
+    return this.#busy.busy;
   }
 
   /**
@@ -382,12 +403,11 @@ export class PixenImageEditorElement extends ElementBase {
    * null takes it away.
    */
   get status(): string | null {
-    return this.#status;
+    return this.#busy.status;
   }
 
   set status(value: string | null) {
-    this.#status = value === null || value === "" ? null : value;
-    this.#refreshOverlay();
+    this.#busy.status = value;
   }
 
   /**
@@ -410,60 +430,14 @@ export class PixenImageEditorElement extends ElementBase {
 
   // --- imperative API ------------------------------------------------------
 
-  /**
-   * The token is not the same guard as the engine's.
-   *
-   * The engine aborts a superseded decode, which stops it wasting work. This
-   * stops the *continuation* of a superseded load — applying the policy, the
-   * format, the busy state — from running against an editor that has moved on.
-   * Both are needed; neither replaces the other.
-   */
-  async load(input: Parameters<Editor["load"]>[0]): Promise<void> {
-    const token = ++this.#loadToken;
-    this.#setBusy(true);
-    try {
-      await this.editor.load(input);
-      // A newer load started while this one was decoding: drop the stale result.
-      if (token !== this.#loadToken) return;
-      if (this.#policy) applyPolicy(this.editor, this.#policy);
-      const format = this.getAttribute("format");
-      if (format) this.editor.setFormat(format as ImageFormat);
-      const quality = this.getAttribute("quality");
-      if (quality) this.editor.setQuality(Number(quality));
-      this.#emit("pixen-load", { document: this.editor.toJSON() });
-    } catch (error) {
-      // The editor already emitted this failure; only surface errors raised
-      // after the load itself (policy application, attribute parsing).
-      if (token === this.#loadToken && !isPixenError(error)) {
-        this.#emit("pixen-error", {
-          error: new PixenError("INVALID_IMAGE", "The image could not be loaded", { cause: error }),
-        });
-      }
-    } finally {
-      if (token === this.#loadToken) {
-        this.#setBusy(false);
-        this.#syncUI();
-      }
-    }
+  /** See `EditorOperations`, which owns the busy state and the load token. */
+  async load(input: Parameters<Editor["load"]>[0], options?: DecodeOptions): Promise<void> {
+    return this.#operations.load(input, options);
   }
 
-  /**
-   * Swaps the pixels under the current edit, keeping the edit.
-   *
-   * The host round trip this exists for — a background remover, an upscaler —
-   * is slow and invisible, so the busy state is held for its duration.
-   */
+  /** Swaps the pixels under the current edit, keeping the edit. */
   async replaceSource(input: Parameters<Editor["replaceSource"]>[0]): Promise<void> {
-    this.#setBusy(true);
-    try {
-      await this.editor.replaceSource(input);
-      this.#viewport?.invalidate();
-      this.#syncUI();
-    } catch (error) {
-      this.#emit("pixen-error", { error });
-    } finally {
-      this.#setBusy(false);
-    }
+    return this.#operations.replaceSource(input);
   }
 
   /** Back to the empty state, letting the picture go. */
@@ -472,14 +446,7 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   async export(options: ExportOptions = {}): Promise<ExportResult> {
-    this.#setBusy(true);
-    try {
-      const result = await this.editor.export(options);
-      this.#emit("pixen-export", result);
-      return result;
-    } finally {
-      this.#setBusy(false);
-    }
+    return this.#operations.export(options);
   }
 
   undo(): boolean {
@@ -528,7 +495,7 @@ export class PixenImageEditorElement extends ElementBase {
       tool: this.tool,
       zoom: this.#viewport?.zoom ?? 1,
       apple: this.#apple,
-      busy: this.#busy,
+      busy: this.busy,
       stickers: this.#stickers,
       plugins: this.#plugins,
       actions: this.#actions,
@@ -542,7 +509,7 @@ export class PixenImageEditorElement extends ElementBase {
     },
     togglePanel: (panel) => {
       this.#panel = this.#panel === panel ? "tool" : panel;
-      this.#announce(this.#panelLabel());
+      this.#announce(panelLabel(this.#panel, this.tool, this.#strings));
       this.#syncUI();
     },
     setAnnotationStyle: (patch) => {
@@ -577,13 +544,6 @@ export class PixenImageEditorElement extends ElementBase {
     this.#dropHost.textContent = strings.dropHint;
   }
 
-  /** State that changes with the document: pressed, disabled, and the inspector. */
-  /** What the panel that just opened is called; the tool panel is its tool. */
-  #panelLabel(): string {
-    const key = PANEL_LABEL_KEYS[this.#panel] ?? TOOL_META[this.tool]?.key ?? "crop";
-    return this.#strings[key];
-  }
-
   #syncUI(): void {
     if (!this.#railHost) return;
     const context = this.#context();
@@ -600,6 +560,8 @@ export class PixenImageEditorElement extends ElementBase {
 
     refreshRail(this.#railHost, context);
     refreshActions(this.#actionsHost, context);
+    // The pill reads its strings late, so a locale change reaches it here.
+    this.#busy.refresh();
 
     const inspector = ready ? buildInspector(context) : { nodes: [], readouts: {} };
     this.#readouts = inspector.readouts;
@@ -636,21 +598,6 @@ export class PixenImageEditorElement extends ElementBase {
   }
 
   /**
-   * The chrome's current rectangles, for fitting the image around them.
-   *
-   * Read from the live DOM rather than assumed: the inspector's height depends
-   * on which panel is open and how many rows it wrapped onto.
-   */
-  #measureChrome(): { host: EdgeBox; chrome: EdgeBox[] } | null {
-    const root = this.#root;
-    const host = this.#canvas.getBoundingClientRect();
-    const chrome = [...root.querySelectorAll<HTMLElement>(".cluster")]
-      .filter((node) => node.offsetParent !== null || node.getClientRects().length > 0)
-      .map((node) => node.getBoundingClientRect());
-    return { host, chrome };
-  }
-
-  /**
    * Mirrors the layout for a right-to-left locale.
    *
    * Only when the host has not said otherwise: a page that has already chosen a
@@ -678,45 +625,30 @@ export class PixenImageEditorElement extends ElementBase {
       strings: this.#strings,
       addAction: (action) => this.#plugins.addAction(action),
       addInspectorSection: (section) => this.#plugins.addInspectorSection(section),
+      addStrings: (locales) => this.#plugins.addStrings(locales),
     });
     this.#plugins.retain(teardown);
     return this;
   }
 
-  // --- stickers ------------------------------------------------------------
-
-  /** The stickers the sticker tool offers. Pixen ships none of its own. */
-  get stickers(): StickerDefinition[] {
-    return this.#stickers;
-  }
-
-  set stickers(value: unknown) {
-    this.#stickers = normaliseStickers(value);
-    this.#syncUI();
-  }
-
-  #setBusy(busy: boolean): void {
-    this.#busy = busy;
-    this.toggleAttribute("busy", busy);
-    this.setAttribute("aria-busy", String(busy));
-    this.#refreshOverlay();
-    refreshActions(this.#actionsHost, this.#context());
-  }
-
-  /**
-   * One pill, two reasons to show it: the editor's own work, and the host's.
-   * A host message wins, because it is the more specific thing to say.
-   */
-  #refreshOverlay(): void {
-    if (!this.#busyHost) return;
-    const message = this.#status ?? (this.#busy ? this.#strings.exporting : null);
-    this.#busyHost.hidden = message === null;
-    this.#busyHost.textContent = message ?? "";
-  }
-
   // --- input ---------------------------------------------------------------
 
-  #onPointerDownFocus = (): void => {
+  /**
+   * The two things a pointerdown would have done by itself.
+   *
+   * The viewport calls `preventDefault()` to own the gesture, which suppresses
+   * the browser's focus-on-click — and with it the blur that ends an open
+   * caption. Restoring the focus was done here from the start; the blur was
+   * not, so a caption stayed open with its transaction pending. The next
+   * gesture then threw on `begin-transaction`, and rolled back a transaction it
+   * did not own on the way out: drawing a rectangle after typing a caption
+   * deleted the caption.
+   *
+   * A pointerdown inside the caption's own box is the caret being placed, and
+   * ends nothing.
+   */
+  #onPointerDownInside = (event: PointerEvent): void => {
+    if (event.composedPath()[0] !== this.#textInput) this.#textEditing.close();
     if (this.contains(document.activeElement) || document.activeElement === this) return;
     this.focus({ preventScroll: true });
   };
@@ -745,9 +677,10 @@ export class PixenImageEditorElement extends ElementBase {
     selectTool: (tool) => this.#actions.selectTool(tool),
     editText: (layer) => {
       // The transaction is opened by whoever opens the editor, so creating and
-      // typing collapse into one undo step.
+      // typing collapse into one undo step — and taken back when no editor
+      // opens, because nothing else would ever close it. See `open`.
       this.editor.beginTransaction(this.#strings.text);
-      this.#textEditing.open(layer.id);
+      if (!this.#textEditing.open(layer.id)) this.editor.rollbackTransaction();
     },
   };
 
@@ -755,5 +688,3 @@ export class PixenImageEditorElement extends ElementBase {
     this.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
   }
 }
-
-export { ZOOM_STEP };

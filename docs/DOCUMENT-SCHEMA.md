@@ -6,15 +6,17 @@ migratable from v1.
 
 ```jsonc
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "source": { "resourceId": "res_1a2b", "width": 4000, "height": 3000, "name": "beach.jpg", "mimeType": "image/jpeg" },
+                                                                     // "duration": 12.5 as well, for a source that runs
   "transform": { "rotation": 0, "flipX": false, "flipY": false },   // radians, clockwise
   "crop": { "x": 0, "y": 0, "width": 4000, "height": 3000 },        // stage space, or null
+  "clip": null,                                                      // [{ "start": 2, "end": 7 }] in seconds, or null
   "aspectRatio": 1.7777777777777777,                                 // locked ratio, or null
   "adjustments": { "exposure": 0, "brightness": 0, "contrast": 0, "saturation": 0,
                    "hue": 0, "grayscale": 0, "sepia": 0, "invert": 0, "vignette": 0 },
   "layers": [],                                                      // image space
-  "output": { "width": null, "height": null, "format": null, "quality": 0.85, "background": null },
+  "output": { "width": null, "height": null, "format": null, "quality": null, "background": null, "upscale": false },
   "meta": {}                                                         // host data, round-tripped untouched
 }
 ```
@@ -29,8 +31,33 @@ migratable from v1.
   `await editor.restore(saved, file)`. Restoring with an unknown id and no image
   throws `RESOURCE_MISSING` rather than guessing.
 - **`meta` is yours.** Pixen never reads it and always round-trips it.
-- **Layer geometry is image space.** Rotating or flipping the image does not
-  rewrite a single layer coordinate.
+- **A crop need not stay inside the picture.** `cropWithinImage` is true by
+  default, which is what a crop usually means. False lets it hang off the
+  edges — a square cut from a panorama keeps its ends, a rotated picture keeps
+  its corners — with room of one picture on each side, so a handle cannot be
+  dragged to the horizon. What lies outside is `output.background` and
+  `output.backgroundImage`.
+- **A layer names the frame it belongs to.** `space: "image"` is the picture's
+  own pixels: the layer rides the rotation and the flips, so a caption written
+  across someone's face stays across their face when the photograph is turned.
+  Rotating or flipping never rewrites a single layer coordinate.
+  `space: "output"` is the exported image's own pixels from its own top-left —
+  the layer does not turn with the picture and does not move when the crop does,
+  which is what a watermark, a caption bar or a logo in a corner wants. The two
+  names are two of the four spaces in `geometry/spaces.ts`, because they are
+  those spaces rather than something new.
+- **A clip is to time what a crop is to space**, and is stored the same way:
+  absolute seconds against a source that states its own `duration`, not
+  fractions. `[0.5, 0.7]` of a source whose length you have not got is not a
+  range, and the moment the picture underneath is replaced by one of a different
+  length it silently means something else. `null` is the whole of it, which is
+  what a photograph always has.
+- **What is stored is what is kept**, and there may be several parts — in order,
+  never overlapping, each legal on its own. The kept parts are what the exported
+  file is made of, so an export's length is their total rather than the span
+  from the first start to the last end. A gesture goes through
+  `clampSelection`, which sorts and merges; a *stored* document out of order is
+  rejected rather than repaired, because it did not come from a gesture.
 
 ## Layers
 
@@ -110,7 +137,7 @@ one, applying each registered step in order:
 ```js
 import { registerMigration } from "@pixen/core";
 
-registerMigration(4, (document) => ({ ...document, /* v4 -> v5 changes */ }));
+registerMigration(8, (document) => ({ ...document, /* v8 -> v9 changes */ }));
 ```
 
 Shipped so far:
@@ -119,6 +146,17 @@ Shipped so far:
 | --- | --- |
 | v1 → v2 | Added the `image` and `redact` layer types. Nothing in a v1 document changes, but the version moves so that a v1 build refuses a v2 document rather than dropping a redaction it cannot render |
 | v2 → v3 | Widened `adjustments` from three values to nine. The new ones are filled in neutral, so a v2 document looks exactly as it did |
+| v3 → v4 | Added the optional `frame`. A v3 document had none, and `null` is exactly that |
+| v4 → v5 | Added the optional `clip`, and `duration` on the source. A v4 document is a still picture, and `null` is exactly "all of it" |
+| v5 → v6 | Added `output.upscale`, and let `output.quality` be unset. A v5 document exported through the panel *did* enlarge past its source, so `true` would preserve what it did — `false` is chosen anyway, because the panel and the batch call disagreed and only one of them can be right. The quality is left exactly as found: turning an explicit number into "unset" would re-encode somebody's archive at a different size the next time it was opened |
+| v6 → v7 | Replaced a line's two booleans with a named decoration at each end. `arrowStart: true` drew a *filled* head, so it migrates to `arrow-solid` rather than `arrow`: the open one is a new drawing, and quietly restyling every arrow in an archive would be a worse bug than the one it fixed |
+| v7 → v8 | Gave the frame the three measurements its new treatments read — spacing, line count and arm length. A v7 document has one of the three rectangles, which read none of them |
+| v8 → v9 | Added gamma and the two white-balance axes. Their neutral is zero like everything else's, so a v8 document looks exactly as it did |
+| v13 → v14 | Let a host write a colour transform of its own. A v13 document has none, and `null` is exactly that. The version moves because a v13 build would ignore the matrix and export a differently coloured picture without saying anything — the worst shape a schema difference takes, since the file still opens |
+| v12 → v13 | Added the retouch layer. Nothing to fill in: a v12 document simply has none. The version moves because a v12 build would meet a layer kind it has no case for, and an unhandled kind is a blemish left in a picture somebody thought they had repaired |
+| v11 → v12 | Let a crop hang off the picture, and put a bitmap behind it. A v11 crop was always inside the picture and there was never a backdrop, so the defaults leave it looking exactly as it did. The version moves because a v11 build would clamp a crop meant to overhang — cutting the export down to the picture — and would drop the backdrop without saying so |
+| v10 → v11 | Gave every layer a frame of reference. Every layer a v10 document holds is in the picture's own pixels — that was the only kind there was — so `image` is filled in and it looks exactly as it did. The version moves because a v10 build reading a v11 document would draw an `output` layer as though it belonged to the picture: turned with a rotation it should have ignored, and in the wrong place |
+| v9 → v10 | Let a document keep more than one part of a moving source. A v9 `clip` is one range, which means one kept part, so it becomes a list of one and looks exactly as it did. The version moves because a v9 build reading a v10 document would find a list where it expects a range, and export the wrong film — or nothing |
 
 - A document from a **newer** build fails with `UNSUPPORTED_SCHEMA_VERSION`
   rather than being partially understood.

@@ -1,4 +1,5 @@
-import type { PluginAction, PluginInspectorSection } from "./types.js";
+import { pickLocale } from "../i18n/index.js";
+import type { PluginAction, PluginInspectorSection, PluginLocales, PluginText } from "./types.js";
 
 /**
  * What the plugins have contributed, as data.
@@ -7,29 +8,54 @@ import type { PluginAction, PluginInspectorSection } from "./types.js";
  * the two apart means "what does the chrome show" stays answerable without
  * running a plugin, and a plugin removed really is removed.
  */
+export interface RegistryPorts {
+  /** Something a plugin contributed changed, so the chrome is out of date. */
+  changed(): void;
+  /** The locale tag the element is on now, which a plugin's reader follows. */
+  locale(): string | null;
+}
+
 export class PluginRegistry {
   #actions = new Map<string, PluginAction>();
   #sections = new Map<string, PluginInspectorSection>();
   #teardowns: Array<() => void> = [];
-  #onChange: () => void;
+  #ports: RegistryPorts;
 
-  constructor(onChange: () => void) {
-    this.#onChange = onChange;
+  constructor(ports: RegistryPorts) {
+    this.#ports = ports;
+  }
+
+  /**
+   * A plugin's own translations, and the reader for them.
+   *
+   * The tables are captured, not merged into the editor's: a plugin's keys are
+   * its own, so two plugins cannot collide with each other or with Pixen. The
+   * reader looks the locale up each time it is called, so a plugin that
+   * registered once still follows the element when the language changes.
+   */
+  addStrings(locales: PluginLocales): PluginText {
+    const tables = new Map(Object.entries(locales));
+    return (key) => {
+      const table = pickLocale(tables, this.#ports.locale()) ?? locales.en;
+      // The key itself is the last resort: a missing translation should read as
+      // something a developer can search for, not as an empty button.
+      return table[key] ?? locales.en[key] ?? key;
+    };
   }
 
   addAction(action: PluginAction): () => void {
     this.#actions.set(action.id, action);
-    this.#onChange();
+    this.#ports.changed();
     return () => {
-      if (this.#actions.delete(action.id)) this.#onChange();
+      if (this.#actions.delete(action.id)) this.#ports.changed();
     };
   }
 
   addInspectorSection(section: PluginInspectorSection): () => void {
     this.#sections.set(section.id, section);
-    this.#onChange();
+    this.#ports.changed();
     return () => {
-      if (this.#sections.delete(section.id)) this.#onChange();
+      if (this.#sections.delete(section.id)) this.#ports.changed();
     };
   }
 

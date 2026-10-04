@@ -4,10 +4,16 @@ import { pixen } from "../src/index.js";
 /**
  * A stand-in for the element: an action is a contract about `update` and
  * `destroy`, so it can be checked without a DOM or a Svelte compiler.
+ *
+ * It carries every member the action actually touches, which is the point. This
+ * fake had no `destroy` at all, and so the action could quietly never call one:
+ * a Svelte host leaked the full-resolution bitmap on every route change, while
+ * React and Vue had both written down why they release it.
  */
 function fakeElement() {
   const listeners = new Map<string, EventListener[]>();
   const applied: Array<[string, unknown]> = [];
+  let destroyed = 0;
 
   const element = {
     addEventListener(type: string, listener: EventListener) {
@@ -26,6 +32,15 @@ function fakeElement() {
     set policy(value: unknown) {
       applied.push(["policy", value]);
     },
+    set aspectRatios(value: unknown) {
+      applied.push(["aspectRatios", value]);
+    },
+    set stickers(value: unknown) {
+      applied.push(["stickers", value]);
+    },
+    destroy() {
+      destroyed += 1;
+    },
     emit(type: string, detail: unknown) {
       for (const listener of listeners.get(type) ?? []) {
         listener({ detail } as unknown as Event);
@@ -34,7 +49,7 @@ function fakeElement() {
     listenerCount: () => [...listeners.values()].reduce((total, list) => total + list.length, 0),
   };
 
-  return { element, applied };
+  return { element, applied, destroyCount: () => destroyed };
 }
 
 describe("the pixen action", () => {
@@ -94,5 +109,23 @@ describe("the pixen action", () => {
     element.emit("pixen-export", {});
     expect(handler).not.toHaveBeenCalled();
     expect(element.listenerCount()).toBe(0);
+  });
+
+  it("lets the element go on destroy, which is what frees the decoded bitmaps", () => {
+    // The element releases them there and nowhere else, so an action that only
+    // unhooked its listeners left the whole image behind on a route change.
+    const { element, destroyCount } = fakeElement();
+    const action = pixen(element as never, {});
+    expect(destroyCount()).toBe(0);
+    action.destroy();
+    expect(destroyCount()).toBe(1);
+  });
+
+  it("applies the stickers a host passed", () => {
+    // Reached only through `applyProperties`, which did not carry them: the
+    // panel came up empty with nothing to debug.
+    const { element, applied } = fakeElement();
+    pixen(element as never, { stickers: ["/star.svg"] } as never);
+    expect(applied).toContainEqual(["stickers", ["/star.svg"]]);
   });
 });

@@ -1,14 +1,20 @@
 import { PixenError, toPixenError } from "../errors/index.js";
-import type { Size } from "../geometry/types.js";
-import { assertDrawableSize, createSurface, releaseSurface } from "./canvas.js";
+import type { StepReporter } from "../util/progress.js";
+import { assertDrawableSize, disposeImageSource, sourceSize } from "./canvas.js";
+import { throwIfAborted } from "../util/abort.js";
+import { toBlob } from "./bytes.js";
 import { imageWorker } from "./worker/client.js";
-import {
-  applyOrientationToSize,
-  orientationTransform,
-  readExifOrientation,
-  type ExifOrientation,
-} from "./exif.js";
+import { uprightImage, type UprightImage } from "./auto-orient.js";
+import { readExifOrientation, type ExifOrientation } from "./exif.js";
 
+/**
+ * Everything `load` accepts.
+ *
+ * The drawables are here because the code already took them — anything with an
+ * intrinsic size is trusted as an upright picture and used as it is — and
+ * `OffscreenCanvas` was the one that worked at runtime and was missing from
+ * this list, which is the kind of gap only a typechecked test finds.
+ */
 export type ImageInput =
   | Blob
   | ArrayBuffer
@@ -16,6 +22,7 @@ export type ImageInput =
   | ImageBitmap
   | HTMLImageElement
   | HTMLCanvasElement
+  | OffscreenCanvas
   | string;
 
 export interface DecodedImage {
@@ -23,7 +30,11 @@ export interface DecodedImage {
   source: CanvasImageSource;
   width: number;
   height: number;
-  /** Original bytes when the input carried them, for size reporting and re-encode shortcuts. */
+  /**
+   * The bytes the pixels were decoded from, when the input carried any — for
+   * size reporting and re-encode shortcuts. After a `beforeDecode` conversion
+   * these are the converted bytes, not the ones the host was originally given.
+   */
   blob: Blob | null;
   mimeType: string;
   /** The orientation found in the file; the returned source has it applied. */
@@ -31,49 +42,63 @@ export interface DecodedImage {
   name?: string;
 }
 
+/**
+ * The steps of turning an input into pixels that are worth reporting.
+ *
+ * Only `fetch` can be counted: it is bytes over a network, and the server
+ * usually says how many. A decode is one call into the browser that returns
+ * when it returns, so it reports its start and nothing else rather than
+ * inventing a percentage.
+ */
+export type DecodeStage = "fetch" | "decode";
+
 export interface DecodeOptions {
   signal?: AbortSignal;
+  /** Called as the input is fetched and decoded. See `DecodeStage`. */
+  onProgress?: StepReporter<DecodeStage>;
   /** Skip EXIF normalisation when the caller knows the bytes are already upright. */
   respectExifOrientation?: boolean;
   /** Passed to `fetch` for string inputs. */
   crossOrigin?: RequestCredentials;
+  /** Sent with the request for a string input — a bearer token, a tenant id. */
+  headers?: Record<string, string>;
+  /**
+   * Turns bytes no browser can decode into bytes it can, before anything tries.
+   *
+   * HEIC is the case this exists for: every recent iPhone produces it and no
+   * browser reads it, so a host drops a converter in here rather than
+   * pre-converting every file it might ever be handed. Bundling one ourselves
+   * would mean a megabyte of decoder in everyone's build for a format most
+   * applications never see.
+   */
+  beforeDecode?: (input: Blob, signal?: AbortSignal) => Blob | Promise<Blob>;
+  /**
+   * The decoded pixels, before the editor takes them as the picture.
+   *
+   * `beforeDecode` is the seam for bytes no browser reads; this is the one for
+   * pixels the host wants changed before anyone edits them — a colour profile
+   * the browser ignored, a denoiser or upscaler compiled to WebAssembly, a white
+   * background composited under a transparent PNG, a scan straightened by a
+   * model. Doing any of that through `beforeDecode` would mean decoding and
+   * re-encoding to get at the pixels, which is slower and, for a lossy format,
+   * lossy.
+   *
+   * The picture arrives upright, so a hook never has to think about EXIF. Return
+   * a source of any size — at load it simply is the size; through
+   * `replaceSource` the aspect ratio has to match, and the document's geometry
+   * is rescaled to it. Draw onto the surface you were handed and return it and
+   * nothing is copied.
+   *
+   * `blob` in the result stays the bytes that were decoded, so the byte size a
+   * host reports and the metadata an export can carry still describe the file
+   * the picture came from.
+   */
+  afterDecode?: (image: UprightImage, signal?: AbortSignal) => CanvasImageSource | Promise<CanvasImageSource>;
 }
 
 const EXIF_SCAN_BYTES = 256 * 1024;
-
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new PixenError("ABORTED", "Image decoding was aborted");
-}
-
-export async function toBlob(input: ImageInput, options: DecodeOptions = {}): Promise<Blob | null> {
-  if (input instanceof Blob) return input;
-  if (input instanceof ArrayBuffer) return new Blob([input]);
-  if (ArrayBuffer.isView(input)) {
-    return new Blob([input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) as ArrayBuffer]);
-  }
-  if (typeof input === "string") {
-    try {
-      const response = await fetch(input, {
-        signal: options.signal ?? null,
-        credentials: options.crossOrigin ?? "same-origin",
-      });
-      if (!response.ok) {
-        throw new PixenError("INVALID_IMAGE", `Fetching the image failed with HTTP ${response.status}`, {
-          details: { status: response.status, url: input },
-        });
-      }
-      return await response.blob();
-    } catch (cause) {
-      if (cause instanceof PixenError) throw cause;
-      throw new PixenError(
-        "CORS_ERROR",
-        `Could not fetch "${input}". Check the URL and the server's CORS headers.`,
-        { cause, details: { url: input } },
-      );
-    }
-  }
-  return null;
-}
+/** What a cancelled decode calls itself, wherever it is noticed. */
+const DECODE = "Image decoding";
 
 async function readOrientation(blob: Blob): Promise<ExifOrientation> {
   if (blob.type && blob.type !== "image/jpeg" && blob.type !== "image/tiff") return 1;
@@ -91,20 +116,34 @@ async function readOrientation(blob: Blob): Promise<ExifOrientation> {
  */
 const WORKER_DECODE_MIN_BYTES = 512 * 1024;
 
-async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<CanvasImageSource> {
-  throwIfAborted(signal);
+/**
+ * Whether a decode is worth moving off the main thread.
+ *
+ * Named and exported for the same reason as its encode counterpart: the
+ * threshold is quoted on the coverage page, and a number stated in prose and
+ * checked by nothing is a number that drifts.
+ */
+export function worthDecodingOffThread(bytes: number): boolean {
+  return bytes >= WORKER_DECODE_MIN_BYTES;
+}
 
-  if (blob.size >= WORKER_DECODE_MIN_BYTES) {
+async function decodeBlob(blob: Blob, signal: AbortSignal | undefined): Promise<CanvasImageSource> {
+  throwIfAborted(signal, DECODE);
+
+  if (worthDecodingOffThread(blob.size)) {
     // Null when the environment has no worker, or a policy forbids one; the
     // main-thread path below is then exactly what ran before.
     const offloaded = await imageWorker().decode(blob);
-    throwIfAborted(signal);
+    throwIfAborted(signal, DECODE);
     if (offloaded) return offloaded.bitmap;
   }
 
   if (typeof createImageBitmap === "function") {
     try {
-      // "none" keeps orientation handling in our hands so every browser agrees.
+      // Asks for the pixels as stored. Chromium ignores it and turns them
+      // anyway, which is why `decoderAppliesOrientation` measures rather than
+      // trusts — but engines that honour it are then handed a consistent
+      // starting point, so it is still worth asking for.
       return (await createImageBitmap(blob, { imageOrientation: "none" })) as ImageBitmap;
     } catch (cause) {
       if (typeof Image === "undefined") {
@@ -123,7 +162,7 @@ function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Pr
     image.onload = () => {
       cleanup();
       if (signal?.aborted) {
-        reject(new PixenError("ABORTED", "Image decoding was aborted"));
+        reject(new PixenError("ABORTED", `${DECODE} was aborted`));
         return;
       }
       resolve(image);
@@ -136,44 +175,6 @@ function decodeWithImageElement(blob: Blob, signal: AbortSignal | undefined): Pr
   });
 }
 
-/** Intrinsic pixel size of any drawable source. */
-export function sourceSize(source: CanvasImageSource): Size {
-  if (typeof HTMLImageElement !== "undefined" && source instanceof HTMLImageElement) {
-    return { width: source.naturalWidth, height: source.naturalHeight };
-  }
-  const candidate = source as unknown as Size;
-  return { width: Number(candidate.width), height: Number(candidate.height) };
-}
-
-export interface UprightImage extends Size {
-  source: CanvasImageSource;
-}
-
-/**
- * Bakes an EXIF orientation into pixels so nothing downstream has to know about
- * it. The size travels beside the source rather than being written onto it:
- * `ImageBitmap.width` is a read-only accessor, and assigning to it throws.
- */
-function normaliseOrientation(source: CanvasImageSource, orientation: ExifOrientation): UprightImage {
-  const size = sourceSize(source);
-  if (orientation === 1) return { source, ...size };
-
-  const upright = applyOrientationToSize(size, orientation);
-  assertDrawableSize(upright, "image");
-  const surface = createSurface(upright.width, upright.height);
-  const { rotation, flipX, flipY } = orientationTransform(orientation);
-
-  const context = surface.context;
-  context.translate(upright.width / 2, upright.height / 2);
-  context.rotate(rotation);
-  context.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-  context.drawImage(source, -size.width / 2, -size.height / 2, size.width, size.height);
-  context.setTransform(1, 0, 0, 1, 0, 0);
-
-  if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) source.close();
-  return { source: surface.canvas, ...upright };
-}
-
 /**
  * Turns any supported input into an upright, drawable image.
  *
@@ -182,7 +183,7 @@ function normaliseOrientation(source: CanvasImageSource, orientation: ExifOrient
  * engine ignore where an image came from.
  */
 export async function decodeImage(input: ImageInput, options: DecodeOptions = {}): Promise<DecodedImage> {
-  throwIfAborted(options.signal);
+  throwIfAborted(options.signal, DECODE);
 
   const blob = await toBlob(input, options);
   const name = typeof File !== "undefined" && input instanceof File ? input.name : undefined;
@@ -200,46 +201,59 @@ export async function decodeImage(input: ImageInput, options: DecodeOptions = {}
   if (blob.size === 0) {
     throw new PixenError("INVALID_IMAGE", "The provided file is empty");
   }
-  if (blob.type && !blob.type.startsWith("image/")) {
-    throw new PixenError("UNSUPPORTED_FORMAT", `"${blob.type}" is not an image type`, {
-      details: { mimeType: blob.type },
+
+  // Before the format checks, not after: the point of the hook is to hand back
+  // something those checks will accept.
+  const decodable = options.beforeDecode ? await options.beforeDecode(blob, options.signal) : blob;
+  throwIfAborted(options.signal, DECODE);
+
+  if (decodable.type && !decodable.type.startsWith("image/")) {
+    throw new PixenError("UNSUPPORTED_FORMAT", `"${decodable.type}" is not an image type`, {
+      details: { mimeType: decodable.type },
     });
   }
-  if (blob.type === "image/svg+xml") {
+  if (decodable.type === "image/svg+xml") {
     throw new PixenError(
       "UNSUPPORTED_FORMAT",
       "SVG input is not accepted: rasterising untrusted SVG can execute embedded content.",
-      { details: { mimeType: blob.type } },
+      { details: { mimeType: decodable.type } },
     );
   }
 
-  const orientation = options.respectExifOrientation === false ? 1 : await readOrientation(blob);
-  const decoded = await decodeBlob(blob, options.signal);
+  // Everything below reads the bytes the pixels actually came from. Reading the
+  // orientation off the original would be wrong the moment a conversion moved
+  // the EXIF block, and re-encode shortcuts have to agree with what was decoded.
+  const orientation = options.respectExifOrientation === false ? 1 : await readOrientation(decodable);
+  options.onProgress?.({ stage: "decode", loaded: 0, total: null });
+  const decoded = await decodeBlob(decodable, options.signal);
   assertDrawableSize(sourceSize(decoded), "image");
-  const upright = normaliseOrientation(decoded, orientation);
+  const upright = await uprightImage(decoded, orientation, (blob) => decodeBlob(blob, undefined));
+  const ready = options.afterDecode ? await runAfterDecode(upright, options) : upright;
 
   return {
-    source: upright.source,
-    width: upright.width,
-    height: upright.height,
-    blob,
-    mimeType: blob.type || "application/octet-stream",
+    source: ready.source,
+    width: ready.width,
+    height: ready.height,
+    blob: decodable,
+    mimeType: decodable.type || "application/octet-stream",
     orientation,
     ...(name ? { name } : {}),
   };
 }
 
-export function disposeImageSource(source: CanvasImageSource | null | undefined): void {
-  if (!source) return;
-  if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) {
-    source.close();
-    return;
-  }
-  if (typeof OffscreenCanvas !== "undefined" && source instanceof OffscreenCanvas) {
-    releaseSurface({ canvas: source, context: null as never });
-    return;
-  }
-  if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) {
-    releaseSurface({ canvas: source, context: null as never });
-  }
+/**
+ * Hands the decoded picture to the host, and takes back whatever it returns.
+ *
+ * The source is released only when the hook swapped it for a different one:
+ * drawing onto the surface it was given and returning that is the cheap path,
+ * and freeing it would take the picture away.
+ */
+async function runAfterDecode(image: UprightImage, options: DecodeOptions): Promise<UprightImage> {
+  const replacement = await options.afterDecode!(image, options.signal);
+  throwIfAborted(options.signal, DECODE);
+
+  const size = sourceSize(replacement);
+  assertDrawableSize(size, "image");
+  if (replacement !== image.source) disposeImageSource(image.source);
+  return { source: replacement, ...size };
 }

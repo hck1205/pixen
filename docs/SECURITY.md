@@ -6,7 +6,21 @@
   execute embedded content, so it is not accepted until a sanitisation pipeline
   exists. This is a deliberate, documented limitation, not an oversight.
 - **Decompression bombs** are bounded: `assertDrawableSize` rejects anything over
-  268,435,456 pixels (16384 × 16384) with `MEMORY_LIMIT` before allocation.
+  268,435,456 pixels (16384 × 16384) with `MEMORY_LIMIT`. It measures the area
+  rather than either edge, so a panorama wider than the square limit is allowed
+  while a bomb of any shape is not.
+
+  Where that sits matters, and it is worth being exact. Every canvas Pixen
+  allocates is checked *before* the allocation — the export target, the mask, the
+  surface an orientation is baked into. A decoded image is checked *after* the
+  browser decoded it, because the check needs a size and only the decoder knows
+  one. So a hostile file can still make the browser's own decoder allocate once;
+  what is bounded is everything Pixen would then do with it, which is where the
+  multiplication would otherwise happen.
+
+  The per-dimension limits real engines have — well below 16,384 on some phones
+  — are a separate matter, and not something Pixen guesses at. See
+  `export({ maxPixels })` in [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md).
 - **Non-image and empty files** fail with `UNSUPPORTED_FORMAT` / `INVALID_IMAGE`
   rather than producing a blank canvas.
 - **EXIF parsing** walks segment headers only, never trusts a length field far
@@ -23,27 +37,90 @@ Redaction rasterises into the exported pixels, not into an overlay: whatever a
 mode does, it does it to the file. The browser suite proves it by exporting a
 PNG, reading it back, and measuring the detail left in the region.
 
-The three modes do **not** make the same promise:
+The four modes do **not** make the same promise:
 
 | Mode | What it does | Safe for sensitive data |
 | --- | --- | --- |
 | `solid` (default) | Paints over the region. The original pixels are gone from the export | Yes |
+| `scramble` | Averages the region into blocks, then shuffles the blocks | No — obfuscation only |
 | `pixelate` | Averages the region into blocks | No — obfuscation only |
-| `blur` | Blurs the region | No — obfuscation only |
+| `blur` | Blurs the region | No — obfuscation only, and the weakest |
 
 `solid` is the default because it is the only one that removes information.
-Blurred and pixelated text can sometimes be recovered, especially when the
-attacker knows the font, the wording, or the block size; treat both as visual
-tidying, not as protection.
+Everything below it is ordered by how much work recovery takes, not by whether
+recovery is possible:
+
+- A **blur** is a linear filter with a known kernel. Given the radius, it can be
+  partly undone by deconvolution. It is the weakest of the three.
+- **Pixelating** averages each block, which is not invertible on its own — but
+  it leaves the *arrangement*. An attacker who knows the font and the wording
+  can render candidate text, pixelate it the same way, and compare block for
+  block until it matches. This is a published attack, not a theoretical one.
+- **Scrambling** averages the blocks and then permutes them, so a recovered
+  block has nowhere to go: the arrangement that the comparison attack depends on
+  is gone. The order is derived from the layer's own id, so the preview and the
+  exported file always agree — which also means it is not a secret. Someone with
+  the document can compute the same permutation and undo it.
+
+Treat all three as visual tidying. If the pixels must not leave the browser,
+use `solid`.
 
 Two implementation notes that matter for the guarantee:
 
-- `blur` and `pixelate` read the canvas back. A cross-origin source without CORS
-  taints the canvas, and an engine without canvas filters cannot blur — **both
-  fall back to the solid fill**, because a redaction that quietly does nothing is
-  the one outcome that must never happen.
+- **Every mode falls back to the solid fill rather than painting nothing**,
+  because a redaction that quietly does nothing is the one outcome that must
+  never happen. That is the promise; here is exactly when each fallback fires,
+  which is narrower than this paragraph used to claim:
+
+  | Mode | Falls back when |
+  | --- | --- |
+  | `blur` | The engine has no canvas `filter`, so there is no way to blur |
+  | `scramble` | The pixels cannot be read back — a cross-origin source without CORS taints the canvas, and `getImageData` on a tainted one throws |
+  | `pixelate` | Only if the downscale-and-redraw itself fails |
+
+  `blur` and `pixelate` reach their region with `drawImage` rather than
+  `getImageData`, so a tainted canvas does **not** stop them — reading is what
+  taint prevents, and only `scramble` reads.
+- The strength is measured in image pixels and applied in device pixels, so it
+  travels through the render transform. A rotated picture is redacted exactly as
+  hard as an upright one.
 - The original file the user picked is untouched. If your application uploads
   both, redaction has bought you nothing.
+
+## Metadata on the way out
+
+A re-encoded canvas carries no EXIF, so **an export strips the source's metadata
+by default** and that is the recommended setting. Most pictures are shared rather
+than archived, and a photograph's own record of itself says more than the person
+sharing it usually means to.
+
+`export({ metadata: "copy" })` carries it across, for an archive or a
+photographer's workflow where losing the camera, the lens, the exposure and the
+copyright is a real loss. It is a rewrite rather than a copy, and three things
+never travel:
+
+| Not carried | Why |
+| --- | --- |
+| The orientation | Already spent — Pixen turned the pixels upright at decode, so copying the tag would turn them again |
+| The location | A person sharing an edited photograph is not thereby offering their home address |
+| The embedded thumbnail | It is a copy of the **original** picture, from before the crop, the redaction or the sticker |
+
+The thumbnail is the one worth stopping at. EXIF can embed a small copy of the
+picture as the camera wrote it, which predates every edit — so an export with a
+face redacted would hand the unredacted face back inside its own metadata. That
+is the edit undone by the file it is stored in.
+
+The location and the thumbnail are **erased, not unlinked**: the bytes are
+overwritten and then the directory entry that pointed at them is dropped.
+Removing only the pointer would leave the coordinates sitting in the file for
+anything that reads it with something other than an EXIF parser, which is not
+what "the location is not in this file" should mean.
+
+Two limits worth knowing. Only JPEG to JPEG carries anything — PNG has no EXIF
+worth the name. And this covers the EXIF block only: a source carrying XMP or
+IPTC keeps neither, because those are not copied in the first place. If you want
+the block copied verbatim, with everything above included, `hooks.bytes` hands
+you the encoded file to do it yourself — deliberately, rather than by default.
 
 ## Privacy
 

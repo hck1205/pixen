@@ -18,6 +18,16 @@ import type { Matrix, Point, Rect, Size } from "./types.js";
  *   view    output-independent screen space owned by the UI (pan and zoom).
  */
 
+/**
+ * How the source picture is turned and mirrored.
+ *
+ * One shape with one name, because it is one value: what an EXIF orientation
+ * means, what the document stores, and what the image-to-stage conversions
+ * take. It was declared three times under three names, which read as three
+ * kinds of thing while TypeScript — being structural — let them pass for each
+ * other freely. The distinction was fictional, and `imageToStage` was already
+ * being handed the document's own transform.
+ */
 export interface SourceTransform {
   /** Clockwise rotation in radians. */
   rotation: number;
@@ -51,6 +61,21 @@ export function stageToOutput(crop: Rect, outputSize: Size): Matrix {
   return compose(
     scaling(outputSize.width / crop.width, outputSize.height / crop.height),
     translation(-crop.x, -crop.y),
+  );
+}
+
+/**
+ * output -> stage, for a layer positioned against the exported frame.
+ *
+ * The inverse of `stageToOutput`, written out rather than inverted: a layer in
+ * output space is measured in the exported image's own pixels from its own
+ * top-left, so this is the scale that turns those into stage units and the
+ * offset that puts them where the crop is.
+ */
+export function outputToStage(crop: Rect, outputSize: Size): Matrix {
+  return compose(
+    translation(crop.x, crop.y),
+    scaling(crop.width / outputSize.width, crop.height / outputSize.height),
   );
 }
 

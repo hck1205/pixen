@@ -1,6 +1,6 @@
 import { PixenError } from "../../errors/index.js";
 import { err, ok, type Result } from "../../fp/result.js";
-import { cloneDocument } from "../../model/document.js";
+import type { TextMeasurer } from "../../model/text-layout.js";
 import type { EditorDocument } from "../../model/types.js";
 import {
   begin,
@@ -16,7 +16,8 @@ import {
   type HistoryState,
   type HistorySummary,
 } from "../history.js";
-import { documentChangeFor, type DocumentChange, type Intent, type SessionEvent } from "./intents.js";
+import { documentChangeFor, type DocumentChange } from "./commands-for.js";
+import type { Intent, SessionEvent } from "./intents.js";
 
 /**
  * The session machine: what happens when an intent arrives.
@@ -35,6 +36,16 @@ export interface SessionState {
 export interface SessionOutcome {
   readonly state: SessionState;
   readonly events: readonly SessionEvent[];
+  /**
+   * Whether committing a gesture actually recorded a step.
+   *
+   * Only `commit-transaction` sets it, and it is here because the reducer is the
+   * only thing that knows. `commit` compares the document against the snapshot
+   * the gesture opened with; a shell counting history entries cannot tell a
+   * gesture that changed nothing from one that changed something at a history
+   * that is already full and drops its oldest entry to make room.
+   */
+  readonly recorded?: boolean;
 }
 
 export interface SessionOptions {
@@ -54,12 +65,20 @@ export function historyOf(state: SessionState): HistorySummary {
   return summarise(state.history);
 }
 
+/** Selection only survives while the layer it points at does. */
 export function pruneSelection(document: EditorDocument, selection: string | null): string | null {
   if (selection === null) return null;
   return document.layers.some((layer) => layer.id === selection) ? selection : null;
 }
 
-function toPixenError(failure: HistoryFailure): PixenError {
+/**
+ * A history refusal, as an error a host can act on.
+ *
+ * Not called `toPixenError`: `errors/index.ts` exports a function by that name
+ * which wraps an unknown cause, and two different meanings under one name in
+ * neighbouring modules is a collision waiting for whoever imports the other.
+ */
+function historyError(failure: HistoryFailure): PixenError {
   return new PixenError("INVALID_STATE", describeFailure(failure), { details: { ...failure } });
 }
 
@@ -70,7 +89,8 @@ function applyDocumentChange(state: SessionState, change: DocumentChange): Sessi
 
   const transient = state.history.pending !== null;
   const shouldRecord = !transient && change.silent !== true;
-  const history = shouldRecord ? record(state.history, change.label, before, after) : state.history;
+  const named = change.step ?? change.label;
+  const history = shouldRecord ? record(state.history, named, before, after) : state.history;
   const selection = pruneSelection(after, state.selection);
 
   const events: SessionEvent[] = [{ type: "change", document: after, reason: change.reason, transient }];
@@ -80,7 +100,12 @@ function applyDocumentChange(state: SessionState, change: DocumentChange): Sessi
   return { state: { document: after, selection, history }, events };
 }
 
-function restoreSnapshot(state: SessionState, snapshot: EditorDocument, reason: string, history: HistoryState<EditorDocument>): SessionOutcome {
+function restoreSnapshot(
+  state: SessionState,
+  snapshot: EditorDocument,
+  reason: string,
+  history: HistoryState<EditorDocument>,
+): SessionOutcome {
   const selection = pruneSelection(snapshot, state.selection);
   const events: SessionEvent[] = [
     { type: "change", document: snapshot, reason, transient: false },
@@ -95,7 +120,11 @@ function restoreSnapshot(state: SessionState, snapshot: EditorDocument, reason: 
  * a transaction, committing without one, undoing mid-gesture — come back as
  * errors rather than exceptions.
  */
-export function reduce(state: SessionState, intent: Intent): Result<SessionOutcome, PixenError> {
+export function reduce(
+  state: SessionState,
+  intent: Intent,
+  measure?: TextMeasurer,
+): Result<SessionOutcome, PixenError> {
   switch (intent.kind) {
     case "select": {
       const id = pruneSelection(state.document, intent.id);
@@ -104,8 +133,8 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
     }
 
     case "begin-transaction": {
-      const opened = begin(state.history, intent.label, state.document);
-      if (!opened.ok) return err(toPixenError(opened.error));
+      const opened = begin(state.history, intent.step ?? intent.label, state.document);
+      if (!opened.ok) return err(historyError(opened.error));
       return ok({
         state: { ...state, history: opened.value },
         events: [{ type: "history", summary: summarise(opened.value) }],
@@ -114,18 +143,18 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
 
     case "commit-transaction": {
       const committed = commit(state.history, state.document);
-      if (!committed.ok) return err(toPixenError(committed.error));
+      if (!committed.ok) return err(historyError(committed.error));
       const { state: history, recorded } = committed.value;
       const events: SessionEvent[] = [{ type: "history", summary: summarise(history) }];
       if (recorded) {
         events.push({ type: "change", document: state.document, reason: "commit", transient: false });
       }
-      return ok({ state: { ...state, history }, events });
+      return ok({ state: { ...state, history }, events, recorded });
     }
 
     case "rollback-transaction": {
       const rolledBack = rollback(state.history);
-      if (!rolledBack.ok) return err(toPixenError(rolledBack.error));
+      if (!rolledBack.ok) return err(historyError(rolledBack.error));
       return ok(
         restoreSnapshot(state, rolledBack.value.snapshot, "rollback", rolledBack.value.state),
       );
@@ -134,15 +163,16 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
     case "undo":
     case "redo": {
       const stepped = intent.kind === "undo" ? undo(state.history) : redo(state.history);
-      if (!stepped.ok) return err(toPixenError(stepped.error));
+      if (!stepped.ok) return err(historyError(stepped.error));
       const { state: history, snapshot } = stepped.value;
       if (!snapshot) return ok({ state, events: [] });
       return ok(restoreSnapshot(state, snapshot, intent.kind, history));
     }
 
     case "add-layer": {
-      const change = documentChangeFor(intent)!;
-      const outcome = applyDocumentChange(state, change);
+      // Never null: `add-layer` has a case in the table, and the table is
+      // checked against the union at compile time.
+      const outcome = applyDocumentChange(state, documentChangeFor(intent, measure)!);
       if (intent.select === false || outcome.state === state) return ok(outcome);
       return ok({
         state: { ...outcome.state, selection: intent.layer.id },
@@ -151,7 +181,7 @@ export function reduce(state: SessionState, intent: Intent): Result<SessionOutco
     }
 
     default: {
-      const change = documentChangeFor(intent);
+      const change = documentChangeFor(intent, measure);
       if (!change) {
         return err(
           new PixenError("INVALID_STATE", `Unknown intent "${(intent as { kind: string }).kind}"`, {

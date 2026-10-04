@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   applyToPoint,
-  ARROW_HEAD_RATIO,
-  arrowHeadCommands,
+  compose,
+  lineEndInset,
+  scaling,
+  translation,
+  type Rect,
   buildSceneOps,
   commands,
   createArrowLayer,
@@ -12,19 +15,13 @@ import {
   createPathLayer,
   createRectLayer,
   createScene,
-  createTextLayer,
-  cssFilter,
   ellipseLayerOps,
-  estimateTextWidth,
   layerOps,
   layerRotationCentre,
   lineLayerOps,
-  LINE_HEIGHT_RATIO,
   pathLayerOps,
   rectLayerOps,
-  textLayerOps,
   withLayerRotation,
-  wrapLines,
   IDENTITY,
   type DrawOp,
 } from "@pixen/core";
@@ -106,14 +103,14 @@ describe("line and arrow layers", () => {
     const ops = lineLayerOps(layer);
     expect(kinds(ops)).toEqual(["path", "path"]);
 
-    const inset = layer.stroke.width * ARROW_HEAD_RATIO * 0.8;
+    const inset = lineEndInset("arrow-solid", layer.stroke.width);
     expect(pathOp(ops).commands[1]).toEqual({ op: "line", to: { x: 200 - inset, y: 0 } });
     expect(pathOp(ops, 1).fill).toBe(layer.stroke.color);
   });
 
-  it("puts a head on both ends when asked", () => {
+  it("puts a decoration on both ends when asked", () => {
     const ops = lineLayerOps(
-      createLineLayer({ x: 0, y: 0 }, { x: 200, y: 0 }, { arrowStart: true, arrowEnd: true }),
+      createLineLayer({ x: 0, y: 0 }, { x: 200, y: 0 }, { startStyle: "circle", endStyle: "arrow-solid" }),
     );
     expect(kinds(ops)).toEqual(["path", "path", "path"]);
   });
@@ -124,14 +121,14 @@ describe("line and arrow layers", () => {
     expect((shaft.commands[1] as { to: { x: number } }).to.x).toBeCloseTo(2);
   });
 
-  it("builds a three-point head around the tip", () => {
-    const head = arrowHeadCommands({ x: 100, y: 0 }, 0, 10);
-    expect(kinds([{ op: "path", commands: head }])).toEqual(["path"]);
-    expect(head[0]).toEqual({ op: "move", to: { x: 100, y: 0 } });
-    expect(head).toHaveLength(4);
-    // Both barbs sit behind the tip.
-    expect((head[1] as { to: { x: number } }).to.x).toBeLessThan(100);
-    expect((head[2] as { to: { x: number } }).to.x).toBeLessThan(100);
+  it("stops the shaft at the middle of a short line with two decorations", () => {
+    // Two insets on a line shorter than both of them would leave a shaft
+    // running backwards, which draws as nothing on some engines and as a
+    // stray mark on others.
+    const layer = createLineLayer({ x: 0, y: 0 }, { x: 4, y: 0 }, { startStyle: "circle", endStyle: "arrow-solid" });
+    const shaft = pathOp(lineLayerOps(layer));
+    expect((shaft.commands[0] as { to: { x: number } }).to.x).toBeCloseTo(2);
+    expect((shaft.commands[1] as { to: { x: number } }).to.x).toBeCloseTo(2);
   });
 });
 
@@ -173,61 +170,6 @@ describe("path layer", () => {
 
   it("emits nothing for an empty path", () => {
     expect(pathLayerOps(createPathLayer([]))).toEqual([]);
-  });
-});
-
-describe("text layout", () => {
-  it("keeps explicit newlines and ignores wrapping without a max width", () => {
-    expect(wrapLines("one\ntwo", null, "20px sans", measure)).toEqual(["one", "two"]);
-  });
-
-  it("wraps greedily at the max width", () => {
-    expect(wrapLines("aaa bbb ccc", 70, "20px sans", measure)).toEqual(["aaa bbb", "ccc"]);
-  });
-
-  it("never drops a word that cannot fit on its own", () => {
-    expect(wrapLines("supercalifragilistic", 10, "20px sans", measure)).toEqual(["supercalifragilistic"]);
-  });
-
-  it("wraps each paragraph independently", () => {
-    expect(wrapLines("aaa bbb\nccc ddd", 70, "20px sans", measure)).toEqual(["aaa bbb", "ccc ddd"]);
-  });
-
-  it("places a left-aligned block at its own position", () => {
-    const ops = textLayerOps(createTextLayer({ x: 100, y: 50 }, "hey", { fontSize: 40 }), measure);
-    expect(ops[0]).toMatchObject({
-      op: "text",
-      origin: { x: 100, y: 50 },
-      lineHeight: 40 * LINE_HEIGHT_RATIO,
-      align: "left",
-    });
-  });
-
-  it("moves the anchor to the middle when centred", () => {
-    const ops = textLayerOps(createTextLayer({ x: 0, y: 0 }, "abcd", { align: "center" }), measure);
-    // Four characters at ten units each; the anchor sits at half the width.
-    expect(ops[0]).toMatchObject({ origin: { x: 20 } });
-  });
-
-  it("moves the anchor to the end when right aligned", () => {
-    const ops = textLayerOps(createTextLayer({ x: 0, y: 0 }, "abcd", { align: "right" }), measure);
-    expect(ops[0]).toMatchObject({ origin: { x: 40 } });
-  });
-
-  it("pads a background box around the widest line", () => {
-    const ops = textLayerOps(
-      createTextLayer({ x: 0, y: 0 }, "ab\nabcd", { fontSize: 10, backgroundColor: "#000" }),
-      measure,
-    );
-    const op = ops[0] as Extract<DrawOp, { op: "text" }>;
-    expect(op.background).toEqual({
-      color: "#000",
-      rect: { x: -2, y: -2, width: 44, height: 29 },
-    });
-  });
-
-  it("estimates a width when no measurer is available", () => {
-    expect(estimateTextWidth("abcd", "20px sans")).toBeCloseTo(4 * 20 * 0.55);
   });
 });
 
@@ -296,7 +238,27 @@ describe("buildSceneOps", () => {
   it("paints a background under the image when one is set", () => {
     const withBackground = createScene(commands.setOutput(document(), { background: "#fff" }), { source });
     const ops = buildSceneOps(withBackground, { measureText: measure });
-    expect(kinds(ops).slice(0, 2)).toEqual(["clear", "fill-viewport"]);
+    expect(kinds(ops).slice(0, 2)).toEqual(["clear", "fill-under"]);
+  });
+
+  it("paints it under the picture rather than over the canvas", () => {
+    // On an export those are the same rectangle. In the editor the second one
+    // paints the whole workspace the colour a host chose for the file's
+    // transparency — which is what it did.
+    const withBackground = commands.setOutput(document(), { background: "#fff" });
+    const view = compose(translation(700, 450), scaling(0.5), translation(-500, -250));
+    const scene = createScene(withBackground, { source }, {
+      region: "stage",
+      target: { width: 1400, height: 900 },
+      fit: "none",
+      transform: view,
+    });
+
+    const fill = buildSceneOps(scene, { measureText: measure }).find(
+      (candidate) => candidate.op === "fill-under",
+    ) as { rect: Rect };
+    expect(fill.rect).toEqual(scene.regionInTarget);
+    expect(fill.rect.width).toBeLessThan(1400);
   });
 
   it("wraps the image draw in a filter when the engine supports one", () => {
@@ -350,6 +312,25 @@ describe("the pixel fallback", () => {
     const order = kinds(ops);
     expect(order.indexOf("vignette")).toBeGreaterThan(order.indexOf("image"));
     expect(order.indexOf("vignette")).toBeLessThan(order.lastIndexOf("path"));
+  });
+
+  it("darkens the picture's corners rather than the canvas's", () => {
+    // On an export the picture *is* the target, so this only ever showed up in
+    // the editor: the darkening was centred on the viewport and its corners
+    // fell outside the photograph, which is the one place a vignette belongs.
+    const vignetted = commands.setAdjustments(document(), { vignette: 0.5 });
+    const view = compose(translation(700, 450), scaling(0.5), translation(-500, -250));
+    const scene = createScene(vignetted, { source }, {
+      region: "stage",
+      target: { width: 1400, height: 900 },
+      fit: "none",
+      transform: view,
+    });
+
+    const op = buildSceneOps(scene).find((candidate) => candidate.op === "vignette") as { rect: Rect };
+    expect(op.rect).toEqual(scene.regionInTarget);
+    // Which is the picture, not the canvas it floats in.
+    expect(op.rect.width).toBeLessThan(1400);
   });
 
   it("leaves the vignette out when it is neutral", () => {

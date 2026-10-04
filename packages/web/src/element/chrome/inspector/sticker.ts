@@ -1,4 +1,4 @@
-import { button, hint } from "../../dom/index.js";
+import { hint, textButton } from "../../dom/index.js";
 import type { ChromeContext } from "../context.js";
 
 /**
@@ -14,10 +14,8 @@ export function buildStickerControls(context: ChromeContext): Node[] {
   if (stickers.length === 0) return [hint(strings.stickerHint)];
 
   return stickers.map((sticker) =>
-    button({
-      label: sticker.label,
+    textButton({
       text: sticker.label,
-      className: "text",
       onClick: () => actions.placeSticker(sticker),
     }),
   );

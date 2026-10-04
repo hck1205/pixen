@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ARROW_VECTORS, nudgeDistance, resolveKeyboardAction, type KeyboardContext } from "../src/element/input/keyboard.js";
 import { DEFAULT_TOOLS } from "../src/tools/index.js";
-import { NUDGE_FAST_MULTIPLIER, NUDGE_FRACTION } from "../src/element/constants.js";
+import { NUDGE_FAST_MULTIPLIER, NUDGE_FRACTION } from "../src/element/input/keyboard.js";
 
 const context = (overrides: Partial<KeyboardContext> = {}): KeyboardContext => ({
   tools: DEFAULT_TOOLS,
@@ -100,6 +100,12 @@ describe("tool shortcuts", () => {
     const limited = context({ tools: [{ id: "crop" }] });
     expect(resolveKeyboardAction({ key: "t" }, limited)).toBeNull();
     expect(resolveKeyboardAction({ key: "c" }, limited)?.action).toEqual({ kind: "select-tool", tool: "crop" });
+  });
+
+  it("does nothing with no picture open, since the rail's buttons are disabled too", () => {
+    // A shortcut arming a tool the rail says is unavailable is the two
+    // disagreeing about the same thing.
+    expect(resolveKeyboardAction({ key: "c" }, context({ ready: false }))).toBeNull();
   });
 
   it("leaves the key alone so a host shortcut can still use it", () => {

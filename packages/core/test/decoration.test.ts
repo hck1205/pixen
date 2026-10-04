@@ -5,9 +5,10 @@ import {
   createDocument,
   createScene,
   createTextWatermarkLayer,
+  createWatermarkLayer,
   DEFAULT_FRAME,
   DEFAULT_TEXT_WATERMARK_SCALE,
-  frameOp,
+  frameOps,
   isErr,
   isOk,
   layerBounds,
@@ -17,6 +18,7 @@ import {
   SCHEMA_VERSION,
   stickerFrame,
   validators,
+  type TextMeasurer,
 } from "@pixen/core";
 
 const source = { width: 1000, height: 500 } as unknown as CanvasImageSource;
@@ -95,6 +97,24 @@ describe("createTextWatermarkLayer", () => {
     expect(bounds.y + bounds.height).toBeCloseTo(500 - 20, 0);
   });
 
+  /**
+   * The margin is the whole promise of a corner position, and it is kept only
+   * if the box the layer is placed by is the box its letters are drawn in. It
+   * used to be placed by the estimate and drawn by a measurement, so a long
+   * mark of wide letters overhung the edge it was supposed to sit inside.
+   */
+  it("keeps the margin against the width the renderer will actually use", () => {
+    const measure: TextMeasurer = (text, font) => text.length * Number.parseFloat(font) * 1.4;
+    const layer = createTextWatermarkLayer(
+      image,
+      { text: "WWWWWWWW", position: "bottom-right", margin: 0.02 },
+      measure,
+    );
+    const bounds = layerBounds(layer, measure);
+    expect(bounds.x + bounds.width).toBeCloseTo(1000 - 20, 0);
+    expect(bounds.width).toBeCloseTo(8 * layer.fontSize * 1.4, 5);
+  });
+
   it("is a text layer, so it edits and exports like any other", () => {
     const layer = createTextWatermarkLayer(image, { text: "© Pixen", colour: "#ff0000", opacity: 0.4 });
     expect(layer.type).toBe("text");
@@ -135,6 +155,7 @@ describe("frames", () => {
         type: "rect",
         visible: true,
         locked: false,
+        space: "image",
         opacity: 1,
         rotation: 0,
         frame: { x: 0, y: 0, width: 10, height: 10 },
@@ -146,20 +167,25 @@ describe("frames", () => {
     );
     // A frame under an annotation would be a frame the annotation could cover.
     const order = kinds(buildSceneOps(createScene(withLayer, { source })));
-    expect(order[order.length - 1]).toBe("frame");
+    // The frame is paths now, in target space, so the identity transform in
+    // front of them is what says "from here on, the canvas rather than the
+    // picture" — and the paths after it are the last thing drawn.
+    expect(order.slice(-2)).toEqual(["transform", "path"]);
   });
 
   it("resolve their fractions against the region they are drawn around", () => {
     const region = { x: 0, y: 0, width: 2000, height: 1000 };
-    const op = frameOp({ ...DEFAULT_FRAME, width: 0.01, radius: 0.02, inset: 0.03 }, region);
-    // One setting has to suit a thumbnail and a 6000px export alike.
-    expect(op.width).toBeCloseTo(20);
-    expect(op.radius).toBeCloseTo(40);
-    expect(op.inset).toBeCloseTo(60);
+    const [op] = frameOps({ ...DEFAULT_FRAME, style: "inset", width: 0.01, inset: 0.03 }, region);
+    // One setting has to suit a thumbnail and a 6000px export alike: a 20px
+    // stroke, sitting 60px in, on a region whose longest edge is 2000.
+    expect((op as { stroke: { width: number } }).stroke.width).toBeCloseTo(20);
+    const rect = ((op as { commands: Array<{ rect: { x: number } }> }).commands[0]!).rect;
+    expect(rect.x).toBeCloseTo(60 + 10);
   });
 
   it("never resolve to a hairline that would vanish", () => {
-    expect(frameOp({ ...DEFAULT_FRAME, width: 0 }, { x: 0, y: 0, width: 100, height: 100 }).width).toBe(1);
+    const [op] = frameOps({ ...DEFAULT_FRAME, width: 0 }, { x: 0, y: 0, width: 100, height: 100 });
+    expect((op as { stroke: { width: number } }).stroke.width).toBe(1);
   });
 
   it("go around the picture, not around the canvas the picture floats in", () => {
@@ -171,12 +197,18 @@ describe("frames", () => {
       { source },
       { region: "stage", target: { width: 1400, height: 900 }, fit: "none" },
     );
-    const op = buildSceneOps(viewport).find((candidate) => candidate.op === "frame")!;
-    expect(op).toMatchObject({ rect: { width: 1000, height: 500 } });
+    // The last path in the list is the frame; the picture is 1000 x 500 inside
+    // a 1400 x 900 canvas, and the frame follows the picture.
+    const ops = buildSceneOps(viewport);
+    const op = ops[ops.length - 1] as { commands: Array<{ rect: { width: number; height: number } }> };
+    const rect = op.commands[0]!.rect;
+    expect(rect.width).toBeCloseTo(1000 - DEFAULT_FRAME.width * 1000);
+    expect(rect.height).toBeCloseTo(500 - DEFAULT_FRAME.width * 1000);
 
-    const exported = createScene(framed, { source }, { region: "crop" });
-    const exportedOp = buildSceneOps(exported).find((candidate) => candidate.op === "frame")!;
-    expect(exportedOp).toMatchObject({ rect: { x: 0, y: 0, width: 1000, height: 500 } });
+    // On an export the picture *is* the target, so the frame sits at the edge.
+    const exported = buildSceneOps(createScene(framed, { source }, { region: "crop" }));
+    const exportedOp = exported[exported.length - 1] as { commands: Array<{ rect: { x: number } }> };
+    expect(exportedOp.commands[0]!.rect.x).toBeCloseTo((DEFAULT_FRAME.width * 1000) / 2);
   });
 });
 
@@ -205,5 +237,33 @@ describe("frame validation and migration", () => {
     });
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
     expect(migrated.frame).toBeNull();
+  });
+});
+
+/**
+ * A watermark that turns away with the picture is a watermark in the wrong
+ * place. `space` lets a mark belong to the exported frame instead — and its
+ * position and scale are then fractions of *that*, because a corner mark on a
+ * heavily cropped photograph would otherwise land outside it.
+ */
+describe("which frame a watermark belongs to", () => {
+  it("stays the picture's own unless asked otherwise", () => {
+    expect(createTextWatermarkLayer(image, { text: "©" }).space).toBe("image");
+    expect(createWatermarkLayer(image, { resourceId: "mark", size: { width: 10, height: 10 } }).space).toBe("image");
+  });
+
+  it("belongs to the exported frame when asked", () => {
+    expect(createTextWatermarkLayer(image, { text: "©", space: "output" }).space).toBe("output");
+    expect(
+      createWatermarkLayer(image, { resourceId: "mark", size: { width: 10, height: 10 }, space: "output" }).space,
+    ).toBe("output");
+  });
+
+  it("is measured against the frame it is placed in", () => {
+    // The same margin against two different frames is two different distances,
+    // which is the reason the frame has to be the right one.
+    const wide = createTextWatermarkLayer({ width: 1000, height: 500 }, { text: "©", position: "bottom-right" });
+    const narrow = createTextWatermarkLayer({ width: 200, height: 100 }, { text: "©", position: "bottom-right" });
+    expect(layerBounds(wide).x).toBeGreaterThan(layerBounds(narrow).x);
   });
 });

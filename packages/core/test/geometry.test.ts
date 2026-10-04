@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  type Rect,
+  fitWithinPixels,
   applyToPoint,
-  compose,
   fitAspectRatio,
   imageToOutput,
   imageToStage,
   invert,
-  matrixEquals,
   multiply,
-  rotation,
+  boundsOf,
+  longestEdge,
+  resolveSize,
   rotatedBounds,
   scaling,
   stageSizeFor,
@@ -17,7 +19,6 @@ import {
   translation,
   transformBounds,
   zoomToFit,
-  IDENTITY,
 } from "@pixen/core";
 
 const HALF_TURN = Math.PI;
@@ -32,11 +33,6 @@ describe("matrix", () => {
   it("applies the right-hand matrix first", () => {
     const m = multiply(translation(10, 0), scaling(2));
     closeTo(applyToPoint(m, { x: 3, y: 4 }), { x: 16, y: 8 });
-  });
-
-  it("inverts back to the identity", () => {
-    const m = compose(translation(12, -4), rotation(0.7), scaling(2, 3));
-    expect(matrixEquals(multiply(m, invert(m)), IDENTITY, 1e-9)).toBe(true);
   });
 
   it("rejects singular matrices instead of producing NaN", () => {
@@ -136,5 +132,132 @@ describe("fitting helpers", () => {
   it("computes a fit zoom with padding", () => {
     expect(zoomToFit({ width: 1000, height: 500 }, { width: 500, height: 500 }, 0)).toBeCloseTo(0.5);
     expect(zoomToFit({ width: 1000, height: 500 }, { width: 600, height: 600 }, 50)).toBeCloseTo(0.5);
+  });
+});
+
+describe("resolveSize fit", () => {
+  const landscape = { width: 1600, height: 800 };
+  const box = { width: 400, height: 400 };
+
+  it("reads a width and height pair literally by default", () => {
+    // Two boxes filled in by hand usually mean exactly those numbers.
+    expect(resolveSize(landscape, { ...box })).toEqual(box);
+  });
+
+  it("fits inside the box when asked to contain", () => {
+    expect(resolveSize(landscape, { ...box, fit: "contain" })).toEqual({ width: 400, height: 200 });
+  });
+
+  it("fills the box when asked to cover, and lets the picture overflow", () => {
+    expect(resolveSize(landscape, { ...box, fit: "cover", preventUpscale: false })).toEqual({
+      width: 800,
+      height: 400,
+    });
+  });
+
+  it("still refuses to enlarge unless told it may", () => {
+    const small = { width: 100, height: 50 };
+    expect(resolveSize(small, { width: 400, height: 400, fit: "contain" })).toEqual(small);
+    expect(resolveSize(small, { width: 400, height: 400, fit: "contain", preventUpscale: false })).toEqual({
+      width: 400,
+      height: 200,
+    });
+  });
+
+  it("ignores the fit when only one edge is given, which already keeps the ratio", () => {
+    expect(resolveSize(landscape, { width: 400, fit: "cover" })).toEqual({ width: 400, height: 200 });
+  });
+});
+
+describe("boundsOf", () => {
+  it("boxes a set of points", () => {
+    expect(boundsOf([{ x: 10, y: 40 }, { x: -5, y: 12 }, { x: 3, y: 90 }])).toEqual({
+      x: -5,
+      y: 12,
+      width: 15,
+      height: 78,
+    });
+  });
+
+  it("gives a single point a box with no size", () => {
+    expect(boundsOf([{ x: 7, y: 9 }])).toEqual({ x: 7, y: 9, width: 0, height: 0 });
+  });
+
+  it("calls an empty set the zero rect, which is what every caller means by it", () => {
+    expect(boundsOf([])).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+  });
+});
+
+describe("fitWithinPixels", () => {
+  const MEGAPIXEL = 1_000_000;
+
+  it("leaves a size that already fits exactly as it is", () => {
+    expect(fitWithinPixels({ width: 800, height: 600 }, MEGAPIXEL)).toEqual({ width: 800, height: 600 });
+  });
+
+  it("keeps the shape when it has to shrink", () => {
+    const fitted = fitWithinPixels({ width: 8000, height: 6000 }, 4 * MEGAPIXEL);
+    expect(fitted.width / fitted.height).toBeCloseTo(8000 / 6000, 2);
+  });
+
+  it("spends the budget it was given rather than undershooting it", () => {
+    // A host that says "four megapixels" wants four, not the half a megapixel
+    // that scaling each axis by the pixel ratio — rather than by its square
+    // root — would hand back.
+    const fitted = fitWithinPixels({ width: 8000, height: 6000 }, 4 * MEGAPIXEL);
+    expect(fitted.width * fitted.height).toBeGreaterThan(0.98 * 4 * MEGAPIXEL);
+    expect(fitted.width * fitted.height).toBeLessThanOrEqual(4 * MEGAPIXEL);
+  });
+
+  it("never comes back over the budget, which is the only thing it promises", () => {
+    // Sizes chosen to land awkwardly on the rounding: a budget is a real
+    // allocation, and one pixel past it is a blank picture on the phones this
+    // exists for.
+    const awkward = [
+      { width: 4001, height: 3001 },
+      { width: 1999, height: 999 },
+      { width: 65_535, height: 3 },
+      { width: 7, height: 65_535 },
+    ];
+    for (const size of awkward) {
+      for (const budget of [1, 17, 1000, 999_983, 4 * MEGAPIXEL]) {
+        const fitted = fitWithinPixels(size, budget);
+        expect(fitted.width * fitted.height, `${size.width}x${size.height} under ${budget}`).toBeLessThanOrEqual(
+          budget,
+        );
+        expect(fitted.width).toBeGreaterThanOrEqual(1);
+        expect(fitted.height).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it("gives up the shape rather than the budget when the shape cannot fit", () => {
+    // A strip 40,000 pixels tall cannot be one pixel wide and under 100 pixels
+    // at the same time, so the budget wins and the picture is squat.
+    const fitted = fitWithinPixels({ width: 1, height: 40_000 }, 100);
+    expect(fitted.width * fitted.height).toBeLessThanOrEqual(100);
+  });
+
+  it("treats a budget that is not a number as no budget at all", () => {
+    const size = { width: 4000, height: 3000 };
+    expect(fitWithinPixels(size, Number.POSITIVE_INFINITY)).toEqual(size);
+    expect(fitWithinPixels(size, Number.NaN)).toEqual(size);
+    expect(fitWithinPixels(size, 0)).toEqual(size);
+  });
+});
+
+describe("longestEdge", () => {
+  it("is the longer side, whichever it is", () => {
+    expect(longestEdge({ width: 1600, height: 1067 })).toBe(1600);
+    expect(longestEdge({ width: 900, height: 1600 })).toBe(1600);
+  });
+
+  it("is that side for a square too", () => {
+    expect(longestEdge({ width: 512, height: 512 })).toBe(512);
+  });
+
+  it("reads a rect as the size it is, since every fraction is against the longer edge", () => {
+    const rect: Rect = { x: 40, y: 90, width: 30, height: 80 };
+    expect(longestEdge(rect)).toBe(80);
   });
 });

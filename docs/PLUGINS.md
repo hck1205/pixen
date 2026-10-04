@@ -42,6 +42,7 @@ API that already exists.
 | `strings` | The active locale's strings, so a plugin can match the interface |
 | `addAction(action)` | A button beside undo, redo and export. Returns a remover |
 | `addInspectorSection(section)` | Controls in the inspector. Returns a remover |
+| `addStrings(locales)` | The plugin's own translations. Returns the reader for them |
 
 ### `addAction`
 
@@ -75,6 +76,50 @@ controls: after what the tool needs, before what the viewport needs. `build`
 returns DOM nodes — plugins are first-party code, so what they build is trusted
 the way the host's own code is.
 
+### `addStrings`
+
+A plugin shipped as its own package has labels of its own, and two bad options
+without this: ship English to everybody, or paste its strings into the editor's
+table, where a key collision is one release away.
+
+```ts
+const text = context.addStrings({
+  en: { start: "Start", end: "End" },   // required: the fallback for everything else
+  ko: { start: "시작", end: "끝" },
+  ja: { start: "開始" },                 // partial is fine — see below
+});
+
+text("start");   // "시작" when the element is on `ko` or `ko-KR`
+```
+
+The keys are the plugin's own, so two plugins cannot collide with each other or
+with Pixen. The reader looks the locale up each time it is called, so a plugin
+that registered once still follows the element when the language changes; a tag
+matches its base language the way the editor's own strings do; a language the
+plugin does not carry falls back to `en` **per key**, not per table; and a key
+with no translation anywhere reads as the key, so a developer can search for it.
+
+`@pixen/video`'s trim strip is the first customer, and the reason this exists.
+
+### Naming a plugin's undo step
+
+The undo button says what it will undo, and the editor's own steps are named
+rather than worded — `StepName` — so a locale can translate them. A plugin's
+step is not in that list, so word it yourself and it is shown exactly as given:
+
+```ts
+editor.dispatch({
+  kind: "transform",
+  reason: "background-removal",
+  label: text("removeBackground"),   // your own string, in your own locale
+  transform: (document) => document,
+});
+```
+
+Reading it back through `addStrings` is the point: the label lands in the undo
+button beside the editor's own verb, so a plugin that translates its labels puts
+a whole sentence in the reader's language rather than half of one.
+
 ## Lifecycle
 
 `use()` calls the plugin immediately and remembers the teardown. Every teardown
@@ -84,6 +129,31 @@ others: this is cleanup, and half-cleanup is worse than the error.
 A plugin that adds and removes controls as state changes can call the removers
 itself; removing something twice is a no-op.
 
+## Shape rules
+
+`editor.shapeProcessors` is a chain each layer goes through on its way to being
+drawn. A rule returns `undefined` to pass, or the layers to draw in its place —
+none, itself, or several.
+
+```ts
+editor.shapeProcessors.push((layer, { preview }) =>
+  layer.type === "text" && layer.name === "draft" && !preview ? [] : undefined,
+);
+```
+
+It is not a render hook: a rule never sees a canvas and cannot draw. It is a
+rule *about shapes* — snap this rectangle to a grid, give every layer carrying a
+marker the house style, expand one annotation into a callout of three, keep a
+placeholder on screen and out of the file.
+
+Two things make it safe to hand out. It runs over a copy on the way to the
+renderer, so the stored document is untouched and undo still means what it said.
+And it is told whether this is the preview or the file, because "not in the
+export" and "not on screen" are both things a host wants to say.
+
+The chain runs each rule over what the last one produced, not all of them over
+the original — otherwise two rules matching the same shape would double it.
+
 ## What is deliberately not here
 
 - **Custom tools and gestures.** A tool is a rail button, an inspector, a
@@ -92,7 +162,8 @@ itself; removing something twice is a no-op.
 - **Custom layer types.** The document schema is a stored contract with a
   migration path; a plugin adding a layer type would produce documents Pixen
   itself could not read back.
-- **Render hooks.** The scene is a draw list precisely so a different renderer
+- **Render hooks.** A shape rule is not one — it decides what to draw, never how.
+  The scene is a draw list precisely so a different renderer
   can execute it later. Letting plugins draw into the Canvas2D executor would
   make that change breaking.
 

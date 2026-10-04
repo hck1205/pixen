@@ -27,6 +27,10 @@ export function err<E>(error: E): Err<E> {
   return { ok: false, error };
 }
 
+/**
+ * Narrowing that reads as the question. Used across the test suites, where a
+ * `Result` has to be unwrapped before anything can be asserted about it.
+ */
 export function isOk<T, E>(result: Result<T, E>): result is Ok<T> {
   return result.ok;
 }
@@ -39,17 +43,9 @@ export function map<T, U, E>(result: Result<T, E>, transform: (value: T) => U): 
   return result.ok ? ok(transform(result.value)) : result;
 }
 
-export function mapError<T, E, F>(result: Result<T, E>, transform: (error: E) => F): Result<T, F> {
-  return result.ok ? result : err(transform(result.error));
-}
-
 /** Chains a fallible step; the first failure short-circuits. */
 export function flatMap<T, U, E>(result: Result<T, E>, next: (value: T) => Result<U, E>): Result<U, E> {
   return result.ok ? next(result.value) : result;
-}
-
-export function unwrapOr<T, E>(result: Result<T, E>, fallback: T): T {
-  return result.ok ? result.value : fallback;
 }
 
 /** Crosses the boundary back into exception-land, at exactly one place per call site. */

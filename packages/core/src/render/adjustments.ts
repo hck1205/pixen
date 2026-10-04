@@ -1,40 +1,33 @@
-import type { Adjustments } from "../model/types.js";
-import type { Canvas2D } from "../image/canvas.js";
+import { clamp } from "../fp/function.js";
+import { ADJUSTMENT_KEYS, type Adjustments } from "../model/types.js";
 
 /**
- * Canvas2D `filter` is unavailable on older Safari, so it is feature-detected —
- * per context, cached in a WeakMap rather than a module-level flag, so a test or
- * a second canvas can never inherit another one's answer.
- */
-const filterSupport = new WeakMap<object, boolean>();
-
-export function supportsContextFilter(context: Canvas2D): boolean {
-  const cached = filterSupport.get(context);
-  if (cached !== undefined) return cached;
-
-  let supported = false;
-  try {
-    const previous = context.filter;
-    context.filter = "brightness(1.5)";
-    supported = context.filter !== "none" && context.filter !== "";
-    context.filter = previous ?? "none";
-  } catch {
-    supported = false;
-  }
-  filterSupport.set(context, supported);
-  return supported;
-}
-
-/**
- * Pixel fallback for the CSS filter chain, for browsers without `ctx.filter`.
+ * The CSS filter chain, done a pixel at a time.
  *
- * The order here is the order `cssFilter` emits, because filters do not
- * commute: sepia after saturate is not saturate after sepia. An export must not
- * look different from the preview just because the browser lacks canvas
- * filters, so the two stay deliberately in step.
+ * Returns whether it changed anything, so a caller that would otherwise write
+ * the pixels straight back can skip that too.
+ *
+ * This is what a browser without `ctx.filter` gets, and it has to reach the same
+ * picture: an export must not differ from the preview because of the engine it
+ * ran in. The order here is the order `cssFilter` emits, because filters do not
+ * commute — sepia after saturate is not saturate after sepia — so the two stay
+ * deliberately in step.
+ *
+ * Every matrix is written out from the W3C **Filter Effects Module Level 1**
+ * definitions rather than copied from anywhere; see `docs/PROVENANCE.md`.
  */
+
 /** Largest value a colour channel can hold. */
 const CHANNEL_MAX = 255;
+
+/**
+ * How far a full white-balance swing moves a channel.
+ *
+ * A third: enough to correct an indoor cast, not enough to turn a photograph
+ * into a colour wash at the end of the slider. Chosen by eye against this
+ * project's own sample, like the presets next door.
+ */
+const WHITE_BALANCE_GAIN = 0.3;
 
 /**
  * Luminance coefficients from the `saturate()` colour matrix in the W3C Filter
@@ -51,25 +44,34 @@ const SEPIA_MATRIX = [
   [0.272, 0.534, 0.131],
 ] as const;
 
-export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments: Adjustments): void {
+/**
+ * The adjustments this pass applies: all of them but the vignette, which is
+ * drawn over the picture rather than filtered into it.
+ */
+const PASS_KEYS = ADJUSTMENT_KEYS.filter((key) => key !== "vignette");
+
+export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments: Adjustments): boolean {
   const brightness = (1 + adjustments.brightness) * 2 ** adjustments.exposure;
   const contrast = 1 + adjustments.contrast;
   const saturation = 1 + adjustments.saturation;
-  const { hue, grayscale, sepia, invert } = adjustments;
-  if (
-    brightness === 1 &&
-    contrast === 1 &&
-    saturation === 1 &&
-    hue === 0 &&
-    grayscale === 0 &&
-    sepia === 0 &&
-    invert === 0
-  ) {
-    return;
-  }
+  const { hue, grayscale, sepia, invert, gamma, temperature, tint } = adjustments;
+  // A pass over every pixel of a 48-megapixel photograph is not something to do
+  // for nothing, and neither is writing the same pixels back — which is why the
+  // answer comes back rather than being kept quiet. Derived from the key list
+  // rather than written out: the hand-written version was a second copy of what
+  // the loop below reads, and the tenth adjustment would have reached one of them.
+  if (PASS_KEYS.every((key) => adjustments[key] === 0)) return false;
 
   const contrastOffset = 127.5 * (1 - contrast);
   const hueMatrix = hue === 0 ? null : hueRotationMatrix((hue * Math.PI) / 180);
+  // Stored as an exponent so its neutral is zero; the curve wants the number.
+  const gammaExponent = gamma === 0 ? 1 : 1 / 2 ** gamma;
+  // White balance as channel gains. Amber lifts red and drops blue; magenta
+  // drops green and lifts the other two by half as much, which is the axis a
+  // green cast runs along.
+  const redGain = 1 + temperature * WHITE_BALANCE_GAIN + tint * WHITE_BALANCE_GAIN * 0.5;
+  const greenGain = 1 - tint * WHITE_BALANCE_GAIN;
+  const blueGain = 1 - temperature * WHITE_BALANCE_GAIN + tint * WHITE_BALANCE_GAIN * 0.5;
 
   for (let i = 0; i < data.length; i += 4) {
     let r = (data[i] ?? 0) * brightness;
@@ -114,10 +116,26 @@ export function applyAdjustmentsToImageData(data: Uint8ClampedArray, adjustments
       b += (CHANNEL_MAX - b - b) * invert;
     }
 
+    // Last, and last in the filter path too: when the browser has `ctx.filter`
+    // these run as a second pass over what it produced, so applying them here
+    // in any other order would make the two engines disagree.
+    if (gamma !== 0) {
+      r = CHANNEL_MAX * (clamp255(r) / CHANNEL_MAX) ** gammaExponent;
+      g = CHANNEL_MAX * (clamp255(g) / CHANNEL_MAX) ** gammaExponent;
+      b = CHANNEL_MAX * (clamp255(b) / CHANNEL_MAX) ** gammaExponent;
+    }
+
+    if (temperature !== 0 || tint !== 0) {
+      r *= redGain;
+      g *= greenGain;
+      b *= blueGain;
+    }
+
     data[i] = clamp255(r);
     data[i + 1] = clamp255(g);
     data[i + 2] = clamp255(b);
   }
+  return true;
 }
 
 type ColourMatrix = readonly (readonly [number, number, number])[];
@@ -158,4 +176,92 @@ function hueRotationMatrix(radians: number): ColourMatrix {
 
 function clamp255(value: number): number {
   return value < 0 ? 0 : value > CHANNEL_MAX ? CHANNEL_MAX : value;
+}
+
+/**
+ * Maps the document's adjustments onto a CSS filter string.
+ *
+ * Canvas2D filters are the pragmatic choice: the browser applies them to the
+ * preview and the export through one code path, at no per-pixel cost of ours.
+ * That is also the boundary of what this version adjusts — an adjustment the
+ * platform cannot express as a filter would need a pixel pass on every frame,
+ * which a slider drag on a large image cannot afford.
+ *
+ * The vignette is the one exception, and it is drawn rather than filtered.
+ */
+export function cssFilter(adjustments: Adjustments): string {
+  const parts: string[] = [];
+  // Exposure is photographic: one stop doubles the light, so it multiplies
+  // where brightness only shifts.
+  if (adjustments.exposure !== 0) parts.push(`brightness(${clampFactor(2 ** adjustments.exposure)})`);
+  if (adjustments.brightness !== 0) parts.push(`brightness(${clampFactor(1 + adjustments.brightness)})`);
+  if (adjustments.contrast !== 0) parts.push(`contrast(${clampFactor(1 + adjustments.contrast)})`);
+  if (adjustments.saturation !== 0) parts.push(`saturate(${clampFactor(1 + adjustments.saturation)})`);
+  if (adjustments.hue !== 0) parts.push(`hue-rotate(${Math.round(adjustments.hue)}deg)`);
+  if (adjustments.grayscale !== 0) parts.push(`grayscale(${clampAmount(adjustments.grayscale)})`);
+  if (adjustments.sepia !== 0) parts.push(`sepia(${clampAmount(adjustments.sepia)})`);
+  if (adjustments.invert !== 0) parts.push(`invert(${clampAmount(adjustments.invert)})`);
+  return parts.join(" ");
+}
+
+/** Filters are clamped so an absurd adjustment cannot blow out the image. */
+const MAX_FILTER_FACTOR = 4;
+const FILTER_PRECISION = 1000;
+
+function clampFactor(value: number): number {
+  const clamped = clamp(value, 0, MAX_FILTER_FACTOR);
+  return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
+}
+
+function clampAmount(value: number): number {
+  const clamped = Math.min(1, Math.max(0, value));
+  return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
+}
+
+/**
+ * The three a canvas filter cannot express.
+ *
+ * Not an oversight in the CSS specification and not a gap in the browsers: a
+ * filter chain is a fixed set of functions, and a gamma curve and a channel
+ * gain are not among them. So these cost a pass over every pixel whatever
+ * engine is drawing — which is exactly why they are named rather than mixed in.
+ */
+export const PIXEL_ONLY_ADJUSTMENTS = ["gamma", "temperature", "tint"] as const;
+
+export interface AdjustmentPlan {
+  /** The CSS filter chain, or "" when the engine is not using one. */
+  filter: string;
+  /** The adjustments to run per pixel afterwards, or null when there are none. */
+  pixels: Adjustments | null;
+}
+
+/**
+ * What each engine has to do to reach the same picture.
+ *
+ * With a filter the browser does most of the work and the three above run as a
+ * second pass; without one everything runs per pixel. Both paths must produce
+ * the same file — an export that differs from the preview because of the engine
+ * it ran in is the bug this whole arrangement exists to prevent — so the
+ * decision is made once, here, rather than in the two builders.
+ */
+export function adjustmentPlan(adjustments: Adjustments, canUseFilter: boolean): AdjustmentPlan {
+  // Derived here rather than passed in: the string and the values it came from
+  // are the same fact twice, and a caller holding both can hand over a pair
+  // that disagree — which is the one thing this function exists to prevent.
+  const filter = cssFilter(adjustments);
+  const pixelOnly = PIXEL_ONLY_ADJUSTMENTS.some((key) => adjustments[key] !== 0);
+
+  if (!canUseFilter) {
+    // One pass over everything, or nothing at all if there is nothing to do.
+    return { filter: "", pixels: filter !== "" || pixelOnly ? adjustments : null };
+  }
+
+  if (!pixelOnly) return { filter, pixels: null };
+
+  // The filter did the ones it can express, so the pass must not do them again.
+  const pixels = { ...adjustments };
+  for (const key of Object.keys(pixels) as Array<keyof Adjustments>) {
+    if (!PIXEL_ONLY_ADJUSTMENTS.includes(key as (typeof PIXEL_ONLY_ADJUSTMENTS)[number])) pixels[key] = 0;
+  }
+  return { filter, pixels };
 }

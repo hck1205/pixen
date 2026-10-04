@@ -1,7 +1,13 @@
-import type { Point, Rect } from "../geometry/types.js";
-import { DEFAULT_QUALITY } from "./defaults.js";
+import type { SourceTransform } from "../geometry/spaces.js";
+import type { Rect } from "../geometry/types.js";
+import type { EditorLayer } from "./annotations.js";
+import type { ClipSelection } from "./clip.js";
+import type { LineEnd } from "./line.js";
 
-export const SCHEMA_VERSION = 4;
+export type { LineEnd };
+export { LINE_ENDS } from "./line.js";
+
+export const SCHEMA_VERSION = 14;
 
 /**
  * Every format Pixen encodes, as the list rather than as a union — the same
@@ -12,112 +18,24 @@ export const IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type ImageFormat = (typeof IMAGE_FORMATS)[number];
 
-export interface Stroke {
-  color: string;
-  width: number;
-  /** Dash pattern in image-space units; empty means solid. */
-  dash?: number[];
-}
-
-interface LayerBase {
-  id: string;
-  name?: string;
-  visible: boolean;
-  locked: boolean;
-  opacity: number;
-  /** Rotation of the layer itself, radians, around its own centre. */
-  rotation: number;
-}
-
-/** Every layer stores its geometry in image space, so rotate/flip never rewrites it. */
-export interface RectLayer extends LayerBase {
-  type: "rect";
-  frame: Rect;
-  stroke: Stroke | null;
-  fill: string | null;
-  cornerRadius: number;
-}
-
-export interface EllipseLayer extends LayerBase {
-  type: "ellipse";
-  frame: Rect;
-  stroke: Stroke | null;
-  fill: string | null;
-}
-
-export interface LineLayer extends LayerBase {
-  type: "line";
-  from: Point;
-  to: Point;
-  stroke: Stroke;
-  arrowStart: boolean;
-  arrowEnd: boolean;
-}
-
-export interface PathLayer extends LayerBase {
-  type: "path";
-  points: Point[];
-  stroke: Stroke;
-  closed: boolean;
-}
-
-export interface TextLayer extends LayerBase {
-  type: "text";
-  position: Point;
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  color: string;
-  align: "left" | "center" | "right";
-  backgroundColor: string | null;
-  /** Wrapping width in image space; null lets the line run. */
-  maxWidth: number | null;
-}
-
-/**
- * A bitmap placed on the image: a sticker, a logo, a watermark.
- *
- * Like the source image, the pixels live in the `ResourceManager` and the layer
- * carries only an id — so a document with ten stickers is still small JSON, and
- * the same bitmap placed twice is decoded once.
- */
-export interface ImageLayer extends LayerBase {
-  type: "image";
-  resourceId: string;
-  frame: Rect;
-  /** Tiles the bitmap across the frame instead of stretching it once. */
-  repeat: boolean;
-}
-
-/**
- * How a redaction hides what is underneath.
- *
- * `solid` is the only mode that removes information outright, which is why it is
- * the default; `blur` and `pixelate` obscure, and the difference matters when
- * the content is sensitive. See docs/SECURITY.md.
- */
-export const REDACTION_MODES = ["solid", "blur", "pixelate"] as const;
-export type RedactionMode = (typeof REDACTION_MODES)[number];
-
-export interface RedactLayer extends LayerBase {
-  type: "redact";
-  frame: Rect;
-  mode: RedactionMode;
-  /** Blur radius, or pixel block size, as a fraction of the image's longest edge. */
-  strength: number;
-  /** Fill used by `solid`, and as the fallback when pixels cannot be read back. */
-  colour: string;
-}
-
-export type EditorLayer =
-  | RectLayer
-  | EllipseLayer
-  | LineLayer
-  | PathLayer
-  | TextLayer
-  | ImageLayer
-  | RedactLayer;
-export type LayerType = EditorLayer["type"];
+export {
+  isFramedLayer,
+  LAYER_SPACES,
+  REDACTION_MODES,
+  type EditorLayer,
+  type EllipseLayer,
+  type ImageLayer,
+  type LayerSpace,
+  type LayerType,
+  type RedactionMode,
+  type LineLayer,
+  type PathLayer,
+  type RectLayer,
+  type RedactLayer,
+  type RetouchLayer,
+  type Stroke,
+  type TextLayer,
+} from "./annotations.js";
 
 export interface SourceDescriptor {
   resourceId: string;
@@ -126,13 +44,14 @@ export interface SourceDescriptor {
   /** Best-effort provenance, useful for filenames on export. */
   name?: string;
   mimeType?: string;
-}
-
-export interface DocumentTransform {
-  /** Clockwise rotation in radians. */
-  rotation: number;
-  flipX: boolean;
-  flipY: boolean;
+  /**
+   * Seconds, for a source that runs rather than sits still.
+   *
+   * Absent for a photograph, which is the case this package was built for. It
+   * lives beside `width` and `height` because it is the same kind of fact: how
+   * far the source extends in one of its dimensions.
+   */
+  duration?: number;
 }
 
 /**
@@ -153,6 +72,11 @@ export const ADJUSTMENT_KEYS = [
   "sepia",
   "invert",
   "vignette",
+  // The three a canvas filter cannot express, and the reason there is still a
+  // per-pixel pass when the browser *has* a filter. See `adjustmentPlan`.
+  "gamma",
+  "temperature",
+  "tint",
 ] as const;
 
 export type AdjustmentKey = (typeof ADJUSTMENT_KEYS)[number];
@@ -167,7 +91,16 @@ export type Adjustments = Record<AdjustmentKey, number>;
  * drag, it belongs to the output the way the background colour does — and
  * keeping it out of `layers` means it cannot be reordered under an annotation.
  */
-export const FRAME_STYLES = ["solid", "inset", "rounded"] as const;
+/**
+ * The treatments a frame can take.
+ *
+ * Six, and they divide into two kinds: `solid`, `inset` and `rounded` are one
+ * rectangle drawn differently, while `hook`, `line` and `edge` are not
+ * rectangles at all — corner brackets, a set of parallel lines, and one line
+ * per side drawn short of the corners. That is why the frame stopped being a
+ * single executor with a switch in it and became a list of paths decided here.
+ */
+export const FRAME_STYLES = ["solid", "inset", "rounded", "hook", "line", "edge"] as const;
 export type FrameStyle = (typeof FRAME_STYLES)[number];
 
 export interface FrameSettings {
@@ -177,8 +110,17 @@ export interface FrameSettings {
   colour: string;
   /** Corner radius as a fraction of the longest edge; `rounded` only. */
   radius: number;
-  /** Distance from the edge, as a fraction of the longest edge; `inset` only. */
+  /** Distance from the edge, as a fraction of the longest edge. */
   inset: number;
+  /**
+   * Distance between the lines of a `line` frame, and how far an `edge` line is
+   * drawn from the corner it starts at. A fraction of the longest edge.
+   */
+  offset: number;
+  /** How many parallel lines a `line` frame draws. */
+  count: number;
+  /** Length of a corner bracket's arms, as a fraction of the longest edge. */
+  armLength: number;
 }
 
 export interface OutputSettings {
@@ -186,20 +128,90 @@ export interface OutputSettings {
   width: number | null;
   height: number | null;
   format: ImageFormat | null;
-  quality: number;
+  /**
+   * Lossy quality, or null for "whatever suits the format".
+   *
+   * Nullable because the format is not known when a document is created: a
+   * single stored number is one answer to a question two encoders ask
+   * differently. See `resolveQuality`.
+   */
+  quality: number | null;
   /** Painted under the image; needed when exporting transparency to JPEG. */
   background: string | null;
+  /**
+   * A registered bitmap painted under the picture, over `background`.
+   *
+   * Scaled to cover the exported frame and centred, the way a backdrop behaves
+   * — a picture that showed letterboxing would be a picture with a border, and
+   * a border is what `frame` is for.
+   *
+   * A resource id rather than a source, like an image layer's, because a
+   * document is JSON: bitmaps belong to the `ResourceManager`, keyed by id.
+   */
+  backgroundImage: string | null;
+  /**
+   * Whether the adjustments reach the backdrop as well as the picture.
+   *
+   * Off, because the backdrop is usually the host's own furniture — a studio
+   * sweep, a brand panel — and desaturating the photograph is not a reason to
+   * desaturate the wall behind it. On, it is treated as part of the picture.
+   */
+  backgroundFilter: boolean;
+  /**
+   * Whether a target larger than the source may enlarge the picture.
+   *
+   * Off, because enlarging is a thing to ask for rather than a thing to be
+   * given: a host that types 4000 into a width field for a 1600-pixel photograph
+   * almost always means "no larger than 4000". `resolveSize` has refused by
+   * default since it was written and `outputSize` did not, so the same request
+   * produced 1600 pixels one way and 4000 the other, depending on whether it
+   * came through the panel or the batch call.
+   *
+   * When it is on, the target is honoured exactly, which is what an export at
+   * 2× for a retina asset needs.
+   */
+  upscale: boolean;
 }
 
 export interface EditorDocument {
   schemaVersion: number;
   source: SourceDescriptor;
-  transform: DocumentTransform;
+  transform: SourceTransform;
   /** Stage-space crop region. Absent means "the whole stage". */
   crop: Rect | null;
+  /**
+   * Whether the crop has to stay inside the picture.
+   *
+   * True, which is what a crop usually means: take a piece out of this
+   * photograph. False lets the crop hang off the edges, so a square can be cut
+   * from a panorama without losing its ends and a rotated picture keeps its
+   * corners instead of being zoomed in to hide them. What lies outside is
+   * whatever `output.background` and `output.backgroundImage` put there.
+   *
+   * The bound is the stage rect — the picture's own rectangle after its
+   * rotation and flips — because that is the rectangle a crop is measured
+   * against everywhere else.
+   */
+  cropWithinImage: boolean;
+  /**
+   * The kept parts of a moving source, in seconds — in order and never
+   * overlapping. Absent means all of it, and is what a still picture always
+   * has. See `model/clip.ts`.
+   */
+  clip: ClipSelection | null;
   /** Locked crop ratio, kept in the document so a resumed session behaves the same. */
   aspectRatio: number | null;
   adjustments: Adjustments;
+  /**
+   * A colour transform the host wrote, applied after the named adjustments.
+   *
+   * The twelve adjustments are a vocabulary — sliders a person understands. A
+   * brand look is not in it, and a product that only offers the words we
+   * thought of is one somebody has to fork. Twenty numbers, four rows of five,
+   * in the order the platform's own colour matrices use. Null for none, which
+   * is what every document has until a host says otherwise.
+   */
+  colourMatrix: readonly number[] | null;
   /** A border drawn over everything, or null for none. */
   frame: FrameSettings | null;
   layers: EditorLayer[];
@@ -216,6 +228,12 @@ export const DEFAULT_OUTPUT: Readonly<OutputSettings> = Object.freeze({
   width: null,
   height: null,
   format: null,
-  quality: DEFAULT_QUALITY,
+  quality: null,
   background: null,
+  backgroundImage: null,
+  backgroundFilter: false,
+  upscale: false,
 });
+
+/** A crop is a piece of the picture unless a host says otherwise. */
+export const DEFAULT_CROP_WITHIN_IMAGE = true;

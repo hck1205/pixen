@@ -40,6 +40,42 @@ describe("duplicate blocks", () => {
     expect(findings[0].length).toBeGreaterThan(10);
   });
 
+  it("does not call three identical import lists a clone", () => {
+    // Three packages binding to the same engine name the same types. There is
+    // no module an import statement can be factored into, so calling it a
+    // duplicate would only teach a reader to ignore the scan.
+    const source = [
+      "import type {",
+      "  AbortReason,",
+      "  Editor,",
+      "  ProgressReport,",
+      '} from "@pixen/core";',
+      "export const value = 1;",
+    ].join("\n");
+    expect(
+      scanDuplicateBlocks(root, {
+        files: ["a.ts", "b.ts", "c.ts"].map((name) => ({ file: name, source })),
+      }),
+    ).toEqual([]);
+  });
+
+  it("still sees a clone that sits under an import list", () => {
+    const source = [
+      'import { thing } from "./thing.js";',
+      "export function planted(value: number): number {",
+      "  const a = value + 1;",
+      "  const b = a * 2;",
+      "  const c = b - thing;",
+      "  return c;",
+      "}",
+    ].join("\n");
+    expect(
+      scanDuplicateBlocks(root, {
+        files: ["a.ts", "b.ts", "c.ts"].map((name) => ({ file: name, source })),
+      }),
+    ).toHaveLength(1);
+  });
+
   it("does not report two copies", () => {
     const source = "export const a = 1;\nexport const b = 2;\nexport const c = 3;\nexport const d = 4;\n";
     expect(

@@ -1,6 +1,6 @@
 import type { EditorDocument, ImagePolicy, PresetName } from "@pixen/core";
 import type { PixenImageEditorElement } from "../element/index.js";
-import type { AspectRatioOption } from "../element/constants.js";
+import type { AspectRatioOption } from "../element/ratios.js";
 import type { StickerDefinition, ToolInput } from "../tools/index.js";
 
 /**
@@ -68,6 +68,7 @@ export function applyProperty<K extends keyof PixenElementProperties>(
 export function applyProperties(element: PixenImageEditorElement, props: PixenElementProperties): void {
   applyProperty(element, "tools", props.tools);
   applyProperty(element, "aspectRatios", props.aspectRatios);
+  applyProperty(element, "stickers", props.stickers);
   applyProperty(element, "policy", props.policy);
   applyProperty(element, "document", props.document);
   // Last, so the freshly configured element is what decodes the image.

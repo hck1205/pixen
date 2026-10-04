@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/coverage.js";
+import { ROOT, browserTestFiles, storyNames, unitTestFiles } from "./evidence-files.js";
+import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/coverage/index.js";
 
 /**
  * The coverage page claims things. This checks the claims can be followed.
@@ -10,34 +11,10 @@ import { COVERAGE, coverageCount, evidenceLabel } from "../../apps/stories/src/c
  * becomes something nobody trusts. So every file and every story named there
  * has to exist, and every capability has to name something.
  */
-const ROOT = new URL("../../", import.meta.url).pathname;
-
-/** Where a unit test may live: any package's suite, or the root suite. */
-function unitTestFiles(): Set<string> {
-  const files = new Set(readdirSync(`${ROOT}tests/unit`));
-  for (const pkg of readdirSync(`${ROOT}packages`)) {
-    const directory = `${ROOT}packages/${pkg}/test`;
-    if (!existsSync(directory)) continue;
-    for (const file of readdirSync(directory)) files.add(file);
-  }
-  return files;
-}
-
-/** Every story the browser can actually show, by its exported name. */
-function storyNames(): Set<string> {
-  const directory = `${ROOT}apps/stories/src`;
-  const names = new Set<string>();
-  for (const file of readdirSync(directory)) {
-    if (!file.endsWith(".stories.tsx")) continue;
-    const source = readFileSync(`${directory}/${file}`, "utf8");
-    for (const match of source.matchAll(/^export const (\w+): Story/gm)) names.add(match[1]!);
-  }
-  return names;
-}
 
 const units = unitTestFiles();
 const stories = storyNames();
-const browserTests = new Set(readdirSync(`${ROOT}tests/browser`));
+const browserTests = browserTestFiles();
 const entries = COVERAGE.flatMap((group) => group.entries);
 
 describe("the coverage page", () => {

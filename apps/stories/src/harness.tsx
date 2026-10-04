@@ -6,13 +6,19 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { PixenImageEditor, type PixenImageEditorHandle } from "@pixen/react";
 import type { Editor } from "@pixen/core";
 import type { PanelId, PixenImageEditorElement, ToolId } from "@pixen/web";
 import "@pixen/web";
+import { registerBundledLocales } from "@pixen/web";
 import { createSampleImage, type SampleOptions } from "./fixtures.js";
 import { note, panelTitle, statRow } from "./styles.js";
+
+// Every language, because a demo is where you go to see them. A product would
+// import only the ones it ships — see `docs/FRAMEWORKS.md`.
+registerBundledLocales();
 
 /** Loads a generated sample once per set of options. */
 export function useSampleImage(options: SampleOptions = {}): Blob | null {
@@ -33,18 +39,46 @@ export function useSampleImage(options: SampleOptions = {}): Blob | null {
   return image;
 }
 
-export function useBlob(factory: () => Promise<Blob>, deps: unknown[] = []): Blob | null {
-  const [blob, setBlob] = useState<Blob | null>(null);
+/**
+ * A value produced once, asynchronously, with the late arrival dropped.
+ *
+ * Every story that measures something — eight input kinds, five hook calls, the
+ * codecs this browser will write — is this shape: run it, hold the result, and
+ * do not set state into a story the reader has already navigated away from.
+ * There were five copies before the duplication scan counted them.
+ */
+export function useAsync<T>(factory: () => Promise<T>, deps: unknown[] = []): T | null {
+  const [value, setValue] = useState<T | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void factory().then((value) => {
-      if (!cancelled) setBlob(value);
+    void factory().then((result) => {
+      if (!cancelled) setValue(result);
     });
     return () => {
       cancelled = true;
     };
   }, deps);
-  return blob;
+  return value;
+}
+
+/**
+ * A blob to show, and the URL to show it with.
+ *
+ * The blob is the state; the URL is derived from it and released when it stops
+ * being current. Both preview panels used to revoke inside a `setState`
+ * updater, which React may call more than once and which is supposed to be
+ * pure — and neither released the last one when the story unmounted.
+ */
+export function usePreviewBlob(): [string | null, (blob: Blob) => void] {
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
+  useEffect(
+    () => () => {
+      if (url) URL.revokeObjectURL(url);
+    },
+    [url],
+  );
+  return [url, setBlob];
 }
 
 export interface StageProps {
@@ -137,6 +171,12 @@ export interface SeededEditorProps {
   image: Blob | null;
   /** Runs once the image is loaded, with the engine behind the element. */
   seed: (editor: Editor) => void;
+  /**
+   * A ref the story keeps, for the stories that seed the document *and* drive
+   * the editor themselves. Without one the wiring is identical either way, and
+   * a story that needed the handle used to copy the whole element out.
+   */
+  handle?: RefObject<PixenImageEditorHandle | null>;
   /** Tool to switch to after seeding, for stories about a particular tool. */
   tool?: ToolId;
   /** Inspector panel to open, for stories about a panel rather than a tool. */
@@ -150,17 +190,18 @@ export interface SeededEditorProps {
  * Several stories differ only in what they seed, so the wiring — ref, load
  * callback, null guard — lives here rather than being repeated in each of them.
  */
-export function SeededEditor({ image, seed, tool, panel, height = "100%" }: SeededEditorProps) {
-  const handle = useRef<PixenImageEditorHandle>(null);
+export function SeededEditor({ image, seed, handle, tool, panel, height = "100%" }: SeededEditorProps) {
+  const own = useRef<PixenImageEditorHandle>(null);
+  const ref = handle ?? own;
   return (
     <PixenImageEditor
-      ref={handle}
+      ref={ref}
       src={image}
       onLoad={() => {
-        const editor = handle.current?.editor;
+        const editor = ref.current?.editor;
         if (editor) seed(editor);
-        if (tool) handle.current?.setTool(tool);
-        if (panel && handle.current?.element) handle.current.element.panel = panel;
+        if (tool) ref.current?.setTool(tool);
+        if (panel && ref.current?.element) ref.current.element.panel = panel;
       }}
       style={{ height }}
     />

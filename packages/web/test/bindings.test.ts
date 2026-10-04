@@ -35,7 +35,21 @@ function fakeElement() {
 describe("event names", () => {
   it("namespaces the bare names for the DOM", () => {
     expect(eventTypeFor("export")).toBe("pixen-export");
-    expect(PIXEN_EVENTS).toEqual(["ready", "load", "change", "history", "export", "error"]);
+    expect(PIXEN_EVENTS).toEqual([
+      "ready",
+      "load-start",
+      "load-progress",
+      "load-abort",
+      "load",
+      "change",
+      "history",
+      "preview",
+      "export-start",
+      "export-progress",
+      "export-abort",
+      "export",
+      "error",
+    ]);
   });
 });
 
@@ -131,5 +145,32 @@ describe("applyProperties", () => {
     const { element, calls } = fakeElement();
     applyProperties(element, {});
     expect(calls).toEqual([]);
+  });
+
+  /**
+   * The shared path has to carry every property `applyProperty` knows about, or
+   * a wrapper that uses it gets a prop that silently does nothing.
+   *
+   * That is not hypothetical: `stickers` was handled by `applyProperty` and
+   * never reached from here, so a Svelte host — which only ever calls this —
+   * passed stickers and got an empty panel with nothing to debug. Vue lost the
+   * initial value for the same reason and recovered on the next change. React
+   * was fine only because it lists all six itself and bypasses this.
+   */
+  it("carries every property the single-property path handles", () => {
+    const { element } = fakeElement();
+    applyProperties(element, {
+      src: "/photo.jpg",
+      tools: ["crop"],
+      aspectRatios: [1],
+      stickers: ["/star.svg"],
+      policy: "profile",
+      document: null,
+    });
+
+    expect(element.tools).toEqual(["crop"]);
+    expect(element.aspectRatios).toEqual([1]);
+    expect(element.stickers).toEqual(["/star.svg"]);
+    expect(element.policy).toBe("profile");
   });
 });

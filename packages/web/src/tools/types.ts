@@ -8,7 +8,8 @@ export type ToolId =
   | "draw"
   | "text"
   | "sticker"
-  | "redact";
+  | "redact"
+  | "retouch";
 
 export interface ToolDefinition {
   id: ToolId;
@@ -28,7 +29,10 @@ export type ToolInput = ToolId | ToolDefinition | { type: ToolId; options?: Reco
 export interface CropToolOptions {
   /** Selectable ratios. `null` is the freeform entry. */
   ratios?: (number | null)[];
-  /** Ratio applied on load. */
+  /**
+   * The ratio a freshly loaded picture is locked to. `null` is freeform, which
+   * is also what a host that says nothing gets.
+   */
   defaultRatio?: number | null;
   minSize?: number;
 }

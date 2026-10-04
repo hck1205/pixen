@@ -1,3 +1,5 @@
+import { PixenError } from "../errors/index.js";
+
 /**
  * An abort controller that also fires when someone else's signal does.
  *
@@ -14,4 +16,20 @@ export function chainAbort(external?: AbortSignal): AbortController {
   else external.addEventListener("abort", () => controller.abort(external.reason), { once: true });
 
   return controller;
+}
+
+/**
+ * Stops here if the caller has called it off.
+ *
+ * Cancellation is checked between steps rather than inside them, because none of
+ * the steps can be interrupted — no browser lets you stop a decode or an encode
+ * part way. So every long operation is a sequence of checks around work that
+ * runs to completion, and what "cancelled" buys is that the result is thrown
+ * away rather than handed to someone who said they no longer wanted it.
+ *
+ * `what` names the operation, because an abort reaches a host as an event and
+ * "Export was aborted" is more use there than "aborted".
+ */
+export function throwIfAborted(signal: AbortSignal | undefined, what: string): void {
+  if (signal?.aborted) throw new PixenError("ABORTED", `${what} was aborted`);
 }

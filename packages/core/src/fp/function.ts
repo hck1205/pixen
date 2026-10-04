@@ -1,26 +1,12 @@
-/** Left-to-right application: `pipe(x, f, g)` is `g(f(x))`. */
-export function pipe<A>(value: A): A;
-export function pipe<A, B>(value: A, ab: (a: A) => B): B;
-export function pipe<A, B, C>(value: A, ab: (a: A) => B, bc: (b: B) => C): C;
-export function pipe<A, B, C, D>(value: A, ab: (a: A) => B, bc: (b: B) => C, cd: (c: C) => D): D;
-export function pipe<A, B, C, D, E>(
-  value: A,
-  ab: (a: A) => B,
-  bc: (b: B) => C,
-  cd: (c: C) => D,
-  de: (d: D) => E,
-): E;
-export function pipe(value: unknown, ...fns: Array<(input: unknown) => unknown>): unknown {
-  return fns.reduce((acc, fn) => fn(acc), value);
-}
-
-/** Builds a reusable pipeline of same-typed steps — how document commands compose. */
-export function flow<T>(...steps: ReadonlyArray<(value: T) => T>): (value: T) => T {
-  return (value) => steps.reduce((acc, step) => step(acc), value);
-}
-
-export function identity<T>(value: T): T {
-  return value;
+/**
+ * Holds `value` between `low` and `high`.
+ *
+ * Six places wrote `Math.min(high, Math.max(low, value))` out by hand, which is
+ * two calls whose order has to be right and reads as neither of the two words
+ * it means. It is one line either way; the difference is that this one says so.
+ */
+export function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value));
 }
 
 /**
@@ -32,15 +18,9 @@ export function last<T>(items: readonly T[]): T | undefined {
   return items.length === 0 ? undefined : items[items.length - 1];
 }
 
-/** Applies `transform` to the element at `index`, returning a new array. */
-export function updateAt<T>(items: readonly T[], index: number, transform: (item: T) => T): T[] {
-  if (index < 0 || index >= items.length) return [...items];
-  return items.map((item, i) => (i === index ? transform(item) : item));
-}
-
 /** Inserts `item` at `index`, clamping the index into range. */
 export function insertAt<T>(items: readonly T[], index: number, item: T): T[] {
-  const at = Math.min(Math.max(index, 0), items.length);
+  const at = clamp(index, 0, items.length);
   return [...items.slice(0, at), item, ...items.slice(at)];
 }
 

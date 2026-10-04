@@ -1,19 +1,18 @@
 import {
   applyToPoint,
   compose,
+  contextMeasurer,
   createId,
-  createScene,
-  CROP_HANDLES,
   Editor,
-  invert,
-  layerHandlePosition,
+  imageToStage,
+  longestEdge,
   renderScene,
   scaling,
   stageToView,
   type Matrix,
   type Point,
-  type Rect,
   type Size,
+  type TextMeasurer,
 } from "@pixen/core";
 import {
   beginGesture,
@@ -23,8 +22,6 @@ import {
   hitLayer,
   IDLE,
   moveGesture,
-  pinchFrom,
-  pinchStep,
   screenToImage as toImage,
   screenToStage as toStage,
   wheelZoomFactor,
@@ -32,21 +29,23 @@ import {
   type GestureEffect,
   type GestureOutcome,
   type GestureState,
-  type PinchState,
 } from "./gestures/index.js";
 // Straight from the module rather than the barrel: these are the gesture's own
 // tuning, and the barrel deliberately keeps tuning out of the package's API.
-import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/constants.js";
-import { projectRect } from "./overlay.js";
-import {
-  drawCropFrame,
-  drawCropScrim,
-  drawLayerSelection,
-  readOverlayPalette,
-  SELECTION_CORNERS,
-} from "./chrome.js";
+import { ABSOLUTE_MIN_CROP_SIZE, DEFAULT_MIN_CROP_SIZE } from "./gestures/tuning.js";
+import { drawOverlay, planOverlay, readOverlayPalette } from "./overlay/index.js";
+import { PINCH_POINTERS, TouchPoints } from "./touch.js";
 import { DEFAULT_STYLE, type AnnotationStyle, type ToolId } from "../tools/index.js";
-import { clampZoom, fitView, insetsFor, insetsFromChrome, MAX_ZOOM, MIN_ZOOM, type EdgeBox } from "./view.js";
+import {
+  fitView,
+  type ViewFit,
+  insetsFor,
+  insetsFromChrome,
+  renderScale,
+  viewportScene,
+  zoomAt,
+  type EdgeBox,
+} from "./view.js";
 
 /** One label for the whole of "someone edited a text layer". */
 const TEXT_EDIT_LABEL = "Text";
@@ -59,8 +58,13 @@ export interface ViewportCallbacks {
   /**
    * Fired when a text layer should be edited: after one is created, and when an
    * existing one is double-clicked.
+   *
+   * The viewport has already opened the transaction the edit belongs to, so a
+   * host that cannot open an editor must say so by returning `false` — nothing
+   * else would ever close it. Returning nothing means it opened, which is what
+   * a host that simply shows its own editor does.
    */
-  onEditText?: (layerId: string) => void;
+  onEditText?: (layerId: string) => void | boolean;
   /**
    * The chrome as it currently measures, for fitting.
    *
@@ -75,7 +79,7 @@ export interface ViewportCallbacks {
  * The canvas shell: what the user sees, and the plumbing that turns DOM events
  * into gestures.
  *
- * Every decision about what a pointer means lives in `gestures.ts`; this class
+ * Every decision about what a pointer means lives in `gestures/`; this class
  * owns the canvas, the render loop, and the view transform. View state (zoom and
  * pan) stays here rather than in the document on purpose — it is per-viewer, not
  * per-image, and putting it in the document would make every wheel tick a change
@@ -84,6 +88,12 @@ export interface ViewportCallbacks {
 export class Viewport {
   readonly canvas: HTMLCanvasElement;
   #context: CanvasRenderingContext2D;
+  /**
+   * The same measurer the renderer uses, over the same context, so the box a
+   * caption is selected by is the box its letters are drawn in. Reading the
+   * font is not destructive — every text operation sets its own before drawing.
+   */
+  #measure: TextMeasurer;
   #editor: Editor;
   #callbacks: ViewportCallbacks;
 
@@ -95,8 +105,7 @@ export class Viewport {
   #minCropSize = DEFAULT_MIN_CROP_SIZE;
 
   #gesture: GestureState = IDLE;
-  #pointers = new Map<number, Point>();
-  #pinch: PinchState | null = null;
+  readonly #touch = new TouchPoints();
   #frame = 0;
   #observer: ResizeObserver | null = null;
   #unsubscribe: Array<() => void> = [];
@@ -107,7 +116,11 @@ export class Viewport {
     if (!context) throw new Error("Pixen: could not acquire a 2D context for the viewport");
     this.canvas = canvas;
     this.#context = context;
+    this.#measure = contextMeasurer(context);
     this.#editor = editor;
+    // The engine estimates captions until something with a canvas tells it
+    // better; this is that something, and it is the renderer's own measurer.
+    editor.measureText = this.#measure;
     this.#callbacks = callbacks;
 
     this.#unsubscribe.push(editor.on("change", () => this.invalidate()));
@@ -164,12 +177,7 @@ export class Viewport {
     const size = this.#cssSize();
     const measured = this.#callbacks.measureChrome?.();
     const insets = measured ? insetsFromChrome(measured.host, measured.chrome) : insetsFor(size);
-    const fitted = fitView(this.#editor.stageSize, size, insets);
-    this.#zoom = fitted.zoom;
-    this.#pan = fitted.pan;
-    this.#autoFit = true;
-    this.invalidate();
-    this.#callbacks.onViewChange?.();
+    this.#moveView(fitView(this.#editor.stageSize, size, insets), true);
   }
 
   /**
@@ -184,28 +192,33 @@ export class Viewport {
   }
 
   zoomBy(factor: number, anchor?: Point): void {
-    const next = clampZoom(this.#zoom * factor);
-    if (next === this.#zoom) return;
+    // The arithmetic is `zoomAt`; this is what it takes effect on.
+    const view = zoomAt(this.#editor.stageSize, this.#cssSize(), { zoom: this.#zoom, pan: this.#pan }, factor, anchor);
+    if (view.zoom === this.#zoom) return;
 
-    if (anchor) {
-      // Keep the stage point under the cursor pinned while the scale changes.
-      const stagePoint = this.screenToStage(anchor);
-      this.#zoom = next;
-      this.#autoFit = false;
-      const after = this.stageToScreen(stagePoint);
-      this.#pan = { x: this.#pan.x + (anchor.x - after.x), y: this.#pan.y + (anchor.y - after.y) };
-    } else {
-      this.#zoom = next;
-      this.#autoFit = false;
-    }
-    this.invalidate();
-    this.#callbacks.onViewChange?.();
+    this.#moveView(view, false);
   }
 
   panBy(delta: Point): void {
-    this.#pan = { x: this.#pan.x + delta.x, y: this.#pan.y + delta.y };
-    this.#autoFit = false;
+    this.#moveView({ zoom: this.#zoom, pan: { x: this.#pan.x + delta.x, y: this.#pan.y + delta.y } }, false);
+  }
+
+  /**
+   * Everything a change of view does, in the one place that does it.
+   *
+   * Written out three times before, and the third — `panBy` — left the host
+   * unannounced, while `onViewChange` says on the line above it that it fires
+   * for zoom *and* pan. Nothing in Pixen's own chrome noticed, because a pan
+   * moves no readout; what it cost is a host that draws its own overlay through
+   * the exported `Viewport`, which missed every pan and saw a pinch as a zoom
+   * carrying the pan of the step before it.
+   */
+  #moveView(view: ViewFit, autoFit: boolean): void {
+    this.#zoom = view.zoom;
+    this.#pan = view.pan;
+    this.#autoFit = autoFit;
     this.invalidate();
+    this.#callbacks.onViewChange?.();
   }
 
   // --- coordinates ---------------------------------------------------------
@@ -226,26 +239,29 @@ export class Viewport {
     return {
       tool: this.#tool,
       crop: this.#editor.cropRect,
-      stage: this.#editor.stageRect,
       layers: document.layers,
       selectedId: this.#editor.selectedLayer?.id ?? null,
       viewMatrix: this.#viewMatrix(),
-      stageFromImage: invert(this.#imageFromStage()),
-      imageLongestEdge: Math.max(document.source.width, document.source.height),
+      stageFromImage: this.#stageFromImage(),
+      imageLongestEdge: longestEdge(document.source),
+      measure: this.#measure,
       style: this.#style,
       minCropSize: this.#minCropSize,
       createId,
     };
   }
 
-  /** stage -> image, the inverse of the document's own transform. */
-  #imageFromStage(): Matrix {
-    const scene = createScene(
-      this.#editor.document,
-      { source: this.#editor.resource.source },
-      { region: "stage", fit: "none" },
-    );
-    return invert(scene.image.matrix);
+  /**
+   * image -> stage, the document's own transform.
+   *
+   * This used to build a whole scene and invert the matrix out of it, which
+   * every caller then inverted back — two inversions and a full projection of
+   * the document, on every pointer move. The scene's own image matrix *is*
+   * `imageToStage` for a stage-region render, so the conversion comes from
+   * `spaces.ts` like every other one.
+   */
+  #stageFromImage(): Matrix {
+    return imageToStage(this.#editor.document.source, this.#editor.document.transform);
   }
 
   screenToStage(point: Point): Point {
@@ -258,14 +274,15 @@ export class Viewport {
 
   /** image space -> CSS pixels on the canvas, for chrome placed over a layer. */
   imageToScreen(): Matrix {
-    return compose(this.#viewMatrix(), invert(this.#imageFromStage()));
+    return compose(this.#viewMatrix(), this.#stageFromImage());
   }
 
   screenToImage(point: Point): Point {
     return toImage(this.#gestureContext(), point);
   }
 
-  #eventPoint(event: PointerEvent | WheelEvent): Point {
+  /** `MouseEvent`, because pointer, wheel and double-click all are one. */
+  #eventPoint(event: MouseEvent): Point {
     const rect = this.canvas.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
@@ -282,7 +299,7 @@ export class Viewport {
 
   render(): void {
     if (this.#destroyed) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const dpr = renderScale(window.devicePixelRatio);
     const css = this.#cssSize();
     const width = Math.round(css.width * dpr);
     const height = Math.round(css.height * dpr);
@@ -296,57 +313,26 @@ export class Viewport {
     context.clearRect(0, 0, width, height);
     if (!this.#editor.ready) return;
 
-    const document = this.#editor.document;
-    const preview = this.#editor.resources.getPreview(document.source.resourceId);
     const deviceMatrix = compose(scaling(dpr), this.#viewMatrix());
-
-    renderScene(
-      context,
-      createScene(
-        document,
-        { source: preview.source, sourceScale: preview.scale, resolveResource: this.#editor.resources.resolve },
-        { region: "stage", target: { width, height }, fit: "none", transform: deviceMatrix },
-      ),
-      { clear: false },
-    );
+    renderScene(context, viewportScene(this.#editor, { width, height }, deviceMatrix), { clear: false });
 
     context.setTransform(1, 0, 0, 1, 0, 0);
     this.#drawOverlay(context, deviceMatrix, dpr);
   }
 
   #drawOverlay(context: CanvasRenderingContext2D, matrix: Matrix, dpr: number): void {
-    const palette = readOverlayPalette(getComputedStyle(this.canvas));
-
-    if (this.#tool === "crop") {
-      const crop = this.#editor.cropRect;
-      drawCropScrim(context, { stage: this.#editor.stageRect, crop, matrix, colour: palette.scrim });
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      drawCropFrame(context, { rect: this.#toScreenRect(crop, dpr), palette, dpr });
-      return;
-    }
-
-    const selected = this.#editor.selectedLayer;
-    if (!selected) return;
-
-    // Handles are image space; everything drawn here is device pixels.
-    const stageFromImage = invert(this.#imageFromStage());
-    const project = (point: Point): Point => {
-      const screen = this.stageToScreen(applyToPoint(stageFromImage, point));
-      return { x: screen.x * dpr, y: screen.y * dpr };
-    };
-
-    drawLayerSelection(context, {
-      quad: SELECTION_CORNERS.map((handle) => project(layerHandlePosition(selected, handle))),
-      handles: selected.locked ? [] : CROP_HANDLES.map((handle) => project(layerHandlePosition(selected, handle))),
-      rotate: selected.locked ? null : project(layerHandlePosition(selected, "rotate")),
-      colour: palette.selection,
+    drawOverlay(context, {
+      plan: planOverlay(this.#tool, this.#editor.selectedLayer),
+      selected: this.#editor.selectedLayer,
+      crop: this.#editor.cropRect,
+      stage: this.#editor.stageRect,
+      stageFromImage: this.#stageFromImage(),
+      stageToScreen: (point) => this.stageToScreen(point),
+      measure: this.#measure,
+      palette: readOverlayPalette(getComputedStyle(this.canvas)),
+      matrix,
       dpr,
     });
-  }
-
-  /** stage rect -> device pixels, through the current view transform. */
-  #toScreenRect(rect: Rect, dpr: number): Rect {
-    return projectRect(rect, (point) => this.stageToScreen(point), dpr);
   }
 
   // --- pointer input -------------------------------------------------------
@@ -364,30 +350,43 @@ export class Viewport {
       case "view-pan":
         this.panBy(effect.delta);
         break;
-      case "view-zoom":
-        this.zoomBy(effect.factor, effect.anchor);
-        break;
       case "select-tool":
         this.tool = effect.tool;
         break;
       case "focus-text":
-        this.#callbacks.onEditText?.(effect.layerId);
+        this.#handOverTextEdit(effect.layerId);
         break;
     }
+  }
+
+  /**
+   * Hands an open transaction to whoever edits the text, or takes it back.
+   *
+   * Both openers — the text tool and the double-click — begin the transaction
+   * before asking for an editor, so that creating a layer and typing into it
+   * are one undo step. That leaves the transaction stranded if no editor
+   * appears: `onEditText` is optional, and the editor that Pixen ships declines
+   * when there is no view matrix yet. A stranded transaction is not a small
+   * thing — the next gesture cannot begin one, and rolling *its* one back tears
+   * up the edit that opened this one.
+   */
+  #handOverTextEdit(layerId: string): void {
+    const opened = this.#callbacks.onEditText?.(layerId);
+    if (opened === false || this.#callbacks.onEditText === undefined) this.#editor.rollbackTransaction();
   }
 
   #onPointerDown = (event: PointerEvent): void => {
     if (!this.#editor.ready) return;
     this.canvas.setPointerCapture(event.pointerId);
     const point = this.#eventPoint(event);
-    this.#pointers.set(event.pointerId, point);
+    this.#touch.down(event.pointerId, point);
 
-    if (this.#pointers.size === 2) {
+    if (this.#touch.count === PINCH_POINTERS) {
       this.#apply(cancelGesture(this.#gesture));
-      this.#startPinch();
+      this.#touch.beginPinch();
       return;
     }
-    if (this.#pointers.size > 2) return;
+    if (this.#touch.count > PINCH_POINTERS) return;
 
     event.preventDefault();
     this.#apply(
@@ -399,10 +398,14 @@ export class Viewport {
   #onPointerMove = (event: PointerEvent): void => {
     if (!this.#editor.ready) return;
     const point = this.#eventPoint(event);
-    if (this.#pointers.has(event.pointerId)) this.#pointers.set(event.pointerId, point);
+    this.#touch.move(event.pointerId, point);
 
-    if (this.#pinch) {
-      this.#updatePinch();
+    if (this.#touch.pinching) {
+      const step = this.#touch.step();
+      if (step) {
+        this.zoomBy(step.factor, step.centre);
+        this.panBy(step.delta);
+      }
       return;
     }
     if (this.#gesture.kind === "idle") {
@@ -415,51 +418,31 @@ export class Viewport {
   };
 
   #onPointerUp = (event: PointerEvent): void => {
-    this.#pointers.delete(event.pointerId);
+    this.#touch.up(event.pointerId);
     if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
-    if (this.#pointers.size < 2) this.#pinch = null;
     if (this.#gesture.kind === "idle") return;
 
     this.#apply(endGesture(this.#gesture, this.#gestureContext()));
     this.#callbacks.onChange?.();
   };
 
-  #onPointerCancel = (event: PointerEvent): void => {
-    this.#pointers.delete(event.pointerId);
-    this.#pinch = null;
+  #onPointerCancel = (): void => {
+    this.#touch.cancel();
     this.#apply(cancelGesture(this.#gesture));
   };
-
-  #startPinch(): void {
-    const [a, b] = [...this.#pointers.values()];
-    if (a && b) this.#pinch = pinchFrom(a, b);
-  }
-
-  #updatePinch(): void {
-    const previous = this.#pinch;
-    if (!previous) return;
-    const [a, b] = [...this.#pointers.values()];
-    if (!a || !b) return;
-
-    const current = pinchFrom(a, b);
-    const { factor, delta } = pinchStep(previous, current);
-    this.zoomBy(factor, current.centre);
-    this.panBy(delta);
-    this.#pinch = current;
-  }
 
   /** Double-clicking text edits it, which is where anyone would look first. */
   #onDoubleClick = (event: MouseEvent): void => {
     if (!this.#editor.ready) return;
     const context = this.#gestureContext();
-    const hit = hitLayer(context, toImage(context, this.#eventPoint(event as unknown as PointerEvent)));
+    const hit = hitLayer(context, toImage(context, this.#eventPoint(event)));
     if (hit?.type !== "text") return;
     event.preventDefault();
     this.#editor.select(hit.id);
     // Opened here for the same reason the text tool opens it: the editor closes
     // whatever was opened for it, and transactions do not nest.
     this.#editor.beginTransaction(TEXT_EDIT_LABEL);
-    this.#callbacks.onEditText?.(hit.id);
+    this.#handOverTextEdit(hit.id);
   };
 
   #onWheel = (event: WheelEvent): void => {
@@ -477,6 +460,7 @@ export class Viewport {
     this.canvas.removeEventListener("pointerup", this.#onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.#onPointerCancel);
     this.canvas.removeEventListener("wheel", this.#onWheel);
+    this.canvas.removeEventListener("dblclick", this.#onDoubleClick);
     for (const off of this.#unsubscribe) off();
     this.#unsubscribe = [];
   }

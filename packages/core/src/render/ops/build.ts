@@ -1,8 +1,10 @@
-import type { Rect, Size } from "../../geometry/types.js";
-import type { FrameSettings } from "../../model/types.js";
+import { IDENTITY } from "../../geometry/matrix.js";
+import { longestEdge } from "../../geometry/rect.js";
 import type { Scene } from "../scene.js";
+import { adjustmentPlan } from "../adjustments.js";
+import { frameOps } from "./frames.js";
 import { layerOps } from "./layers.js";
-import { estimateTextWidth } from "./text.js";
+import { estimateTextWidth } from "../../model/text-layout.js";
 import type { BuildOptions, DrawOp } from "./types.js";
 
 /**
@@ -14,25 +16,6 @@ import type { BuildOptions, DrawOp } from "./types.js";
  */
 
 /**
- * Resolves a frame's fractions against the target it is drawn on.
- *
- * Stored as fractions so one setting suits a thumbnail and a 6000px export;
- * resolved here so the executor only ever sees pixels.
- */
-export function frameOp(frame: FrameSettings, region: Rect): Extract<DrawOp, { op: "frame" }> {
-  const longestEdge = Math.max(region.width, region.height);
-  return {
-    op: "frame",
-    rect: region,
-    style: frame.style,
-    width: Math.max(1, frame.width * longestEdge),
-    radius: Math.max(0, frame.radius * longestEdge),
-    inset: Math.max(0, frame.inset * longestEdge),
-    colour: frame.colour,
-  };
-}
-
-/**
  * The whole frame as a list of operations, in draw order.
  *
  * Colour adjustment takes the canvas `filter` when the engine has one and the
@@ -41,22 +24,35 @@ export function frameOp(frame: FrameSettings, region: Rect): Extract<DrawOp, { o
  */
 export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[] {
   const measure = options.measureText ?? estimateTextWidth;
-  const useFilter = scene.filter !== "" && options.contextFilter !== false;
+  // What this engine has to do to reach the same picture as the other one.
+  const plan = adjustmentPlan(scene.adjustments, options.contextFilter !== false);
+  const useFilter = plan.filter !== "";
   const ops: DrawOp[] = [];
 
   if (options.clear !== false) {
     ops.push({ op: "clear", width: scene.target.width, height: scene.target.height });
   }
   if (scene.background) {
-    ops.push({
-      op: "fill-viewport",
-      color: scene.background,
-      width: scene.target.width,
-      height: scene.target.height,
-    });
+    // Under the picture, not over the canvas. On an export those are the same
+    // rectangle; in the editor the second one paints the whole workspace the
+    // colour a host chose for the file's transparency.
+    ops.push({ op: "fill-under", color: scene.background, rect: scene.regionInTarget });
   }
 
-  if (useFilter) ops.push({ op: "filter", value: scene.filter });
+  if (scene.backdrop) {
+    // Over the flat colour and under the picture. Filtered only when the
+    // document says so: the backdrop is usually the host's own furniture, and
+    // desaturating the photograph is not a reason to desaturate the wall.
+    if (useFilter && scene.backdrop.filtered) ops.push({ op: "filter", value: plan.filter });
+    ops.push(
+      { op: "alpha", value: 1 },
+      { op: "transform", matrix: IDENTITY },
+      { op: "backdrop", source: scene.backdrop.source, rect: scene.backdrop.rect, clip: scene.regionInTarget },
+    );
+    if (useFilter && scene.backdrop.filtered) ops.push({ op: "filter", value: "none" });
+  }
+
+  if (useFilter) ops.push({ op: "filter", value: plan.filter });
   ops.push(
     { op: "alpha", value: 1 },
     { op: "transform", matrix: scene.image.matrix },
@@ -64,10 +60,22 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   );
   if (useFilter) ops.push({ op: "filter", value: "none" });
 
-  if (!useFilter && scene.filter !== "") {
+  if (plan.pixels) {
     ops.push({
       op: "adjust-pixels",
-      adjustments: scene.adjustments,
+      adjustments: plan.pixels,
+      width: scene.target.width,
+      height: scene.target.height,
+    });
+  }
+
+  // After the named adjustments and before the vignette: a house grade is
+  // applied to a corrected picture, and the vignette is a shape drawn on the
+  // result rather than a colour the grade should have a say in.
+  if (scene.colourMatrix) {
+    ops.push({
+      op: "colour-matrix",
+      matrix: scene.colourMatrix,
       width: scene.target.width,
       height: scene.target.height,
     });
@@ -76,9 +84,15 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   if (scene.adjustments.vignette > 0) {
     // Over the image and under the annotations: the vignette is part of the
     // picture, and an arrow drawn on top should not be dimmed by it.
+    //
+    // Around the picture rather than around the canvas, for the same reason the
+    // frame is — and it was around the canvas. On an export those are the same
+    // rectangle, so the file was right and only the editor was wrong: the
+    // darkening was centred on the viewport and its corners fell outside the
+    // photograph, which is the one place a vignette is supposed to be.
     ops.push({
       op: "vignette",
-      rect: { x: 0, y: 0, width: scene.target.width, height: scene.target.height },
+      rect: scene.regionInTarget,
       strength: scene.adjustments.vignette,
     });
   }
@@ -86,12 +100,16 @@ export function buildSceneOps(scene: Scene, options: BuildOptions = {}): DrawOp[
   if (options.skipLayers !== true) {
     // Redaction strengths are fractions of the image, so the builder needs to
     // know how big the image is.
-    const longestEdge = Math.max(scene.image.size.width, scene.image.size.height);
-    for (const node of scene.layers) ops.push(...layerOps(node, measure, longestEdge));
+    const edge = longestEdge(scene.image.size);
+    for (const node of scene.layers) ops.push(...layerOps(node, measure, edge));
   }
 
   // Around the picture, not around the canvas: in the viewport those differ.
-  if (scene.frame) ops.push(frameOp(scene.frame, scene.regionInTarget));
+  // In target space, which the identity transform says out loud rather than
+  // leaving the executor to reset it on the frame's behalf.
+  if (scene.frame) {
+    ops.push({ op: "transform", matrix: IDENTITY }, ...frameOps(scene.frame, scene.regionInTarget));
+  }
 
   return ops;
 }

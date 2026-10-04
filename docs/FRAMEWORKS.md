@@ -30,10 +30,36 @@ dance is needed. See [BROWSER-SUPPORT.md](BROWSER-SUPPORT.md#server-side-renderi
    message over the picture while a round trip runs, and `disabled` blocks
    input without hiding anything. Both are properties; `disabled` also reflects
    to an attribute so CSS can see it.
-2. **Events are DOM `CustomEvent`s** named `pixen-load`, `pixen-change`,
-   `pixen-history`, `pixen-export`, `pixen-error` and `pixen-ready`. Each detail
-   is on `event.detail`. Frameworks with their own event syntax need their usual
-   escape hatch for custom events, shown below.
+2. **Events are DOM `CustomEvent`s.** Each detail is on `event.detail`.
+   Frameworks with their own event syntax need their usual escape hatch for
+   custom events, shown below.
+
+   | Event | Detail | When |
+   | --- | --- | --- |
+   | `pixen-ready` | `{ editor }` | The element is connected and the engine exists |
+   | `pixen-load-start` | `{ replace }` | A load began; `replace` is true for `replaceSource` |
+   | `pixen-load-progress` | `ProgressReport` | A step of the load reported itself |
+   | `pixen-load-abort` | `{ reason }` | The load was called off — `"cancelled"` or `"superseded"` |
+   | `pixen-load` | `{ document }` | The picture is loaded and the element's attributes are applied |
+   | `pixen-change` | `{ document, reason, transient }` | Any state change, including mid-gesture ones |
+   | `pixen-history` | `HistorySummary` | Undo or redo availability changed |
+   | `pixen-export-start` | `{ format }` | An export began, in the format it will produce |
+   | `pixen-export-progress` | `ProgressReport` | A step of the export reported itself |
+   | `pixen-export-abort` | `{ reason }` | The export was called off |
+   | `pixen-export` | `ExportResult` | A file was produced |
+   | `pixen-error` | `{ error }` | Something failed. A cancellation is not a failure and never arrives here |
+
+   Every start is followed by exactly one of its completion, its abort or an
+   error, so a host can turn a busy state on at the start and be certain
+   something turns it off.
+
+3. **Progress is counted or it is null.** `ProgressReport` carries
+   `{ task, stage, loaded, total, ratio }`. `ratio` is `null` whenever the step
+   has nothing countable in it — a decode is one call into the browser, and a
+   render is one pass over the scene. It is a real fraction where something was
+   genuinely measured: bytes arriving over the network, re-encode attempts under
+   a `maxBytes` budget, and files in a multi-size export. Bind a determinate bar
+   to `ratio` and fall back to a spinner when it is null; nothing here estimates.
 
 ## React
 
@@ -146,14 +172,27 @@ import "@pixen/web";
       (pixen-export)="onExport($event)"></pixen-image-editor>
   `,
 })
-export class AvatarEditor {
+export class AvatarEditor implements OnDestroy {
+  @ViewChild("editor") editor!: ElementRef<PixenImageEditorElement>;
+
   tools = ["crop", "redact"];
   onExport(event: CustomEvent) { this.upload(event.detail.blob); }
+
+  // The one thing Angular will not do for you. Removing the element from the
+  // DOM does not release the decoded bitmaps — the editor holds them until it
+  // is told to let go — so without this a route change leaks the
+  // full-resolution image and every sticker with it. It is the whole reason
+  // `@pixen/react`, `@pixen/vue` and `@pixen/svelte` exist as packages at all.
+  ngOnDestroy() {
+    this.editor.nativeElement.destroy();
+  }
 }
 ```
 
 `[tools]` sets the property and `(pixen-export)` listens for the DOM event —
-both are standard Angular bindings, so no wrapper is required.
+both are standard Angular bindings, so there is no wrapper package and none is
+needed. What the other three wrappers add over this is the teardown above and
+nothing else, which is why they are twenty lines each.
 
 ## Solid, Preact, Lit, Qwik, Astro
 
@@ -212,6 +251,229 @@ editor.crop({ aspectRatio: 1 }).resize({ width: 1024 });
 const { blob } = await editor.export({ format: "image/webp" });
 ```
 
+## Styling it, and replacing its chrome
+
+The element is a shadow root, so a page's stylesheet does not reach inside it.
+Two named surfaces are how it is meant to be reached instead, and both are API:
+renaming one is a breaking change, and a browser test pins the list.
+
+**Parts** are styled from outside with `::part()`:
+
+| Part | What it is |
+| --- | --- |
+| `root` | The whole editor box |
+| `canvas` | The picture itself |
+| `tool-rail` | The row of tools |
+| `actions` | Undo, redo, export — the buttons that act on the picture |
+| `inspector` | The panel of options for whatever is selected |
+| `busy` | The status pill shown while something is loading or exporting |
+| `empty` | The empty state, before an image is loaded |
+| `dropzone` | The overlay shown while a file is dragged over the editor |
+| `text-input` | The field a caption is typed into, over the canvas |
+
+```css
+pixen-image-editor::part(tool-rail) {
+  border-radius: 0;
+}
+```
+
+**Slots** replace a piece of chrome entirely with your own:
+
+| Slot | Replaces |
+| --- | --- |
+| `tools` | The tool rail |
+| `actions` | The action buttons |
+| `inspector` | The options panel |
+
+```html
+<pixen-image-editor>
+  <div slot="actions">
+    <button onclick="save()">Save to library</button>
+  </div>
+</pixen-image-editor>
+```
+
+A slot with nothing in it keeps Pixen's own chrome, so you replace only what you
+mean to. For adding to the chrome rather than replacing it, see
+[PLUGINS.md](PLUGINS.md) — a plugin contributes buttons and inspector sections
+without taking over the panel they sit in.
+
+## Bending the way in and the way out
+
+Two places an application usually has to change something, and neither should
+mean forking the library.
+
+**Reading.** `load` takes decode options. `headers` go on the request for a URL
+source, and `beforeDecode` runs before anything tries to decode, which is where
+a format no browser reads gets converted:
+
+```js
+await editor.load(file, {
+  headers: { "X-Tenant": "acme" },
+  beforeDecode: async (blob) => (isHeic(blob) ? await toJpeg(blob) : blob),
+});
+```
+
+Pixen ships no HEIC decoder. Every recent iPhone produces the format and no
+browser reads it, but bundling a decoder would put a megabyte in the build of
+every application that never sees one. The hook is where a host puts its own.
+
+`afterDecode` is the other side of it: `beforeDecode` takes bytes no browser
+reads, and this takes the decoded pixels before anyone edits them — a colour
+profile the browser ignored, a denoiser or upscaler compiled to WebAssembly, a
+white background composited under a transparent PNG. Going through
+`beforeDecode` for any of that would mean decoding and re-encoding to reach the
+pixels, which is slower and, for a lossy format, lossy.
+
+```js
+await editor.load(file, {
+  afterDecode: (image) => denoise(image.source, image.width, image.height),
+});
+```
+
+The picture arrives upright, so a hook never has to think about EXIF. Draw onto
+the surface you were handed and return it and nothing is copied; return a
+different one and the old is released for you.
+
+**Through the element**, set them once rather than per call:
+
+```js
+editorElement.decodeOptions = { beforeDecode: heicToJpeg };
+```
+
+That matters more than it looks. A format no browser reads arrives by being
+dropped or pasted far more often than through a `load()` you wrote, and every
+one of those paths — the file picker, a drop, a paste, the `src` attribute —
+goes through this. Options passed to `element.load(input, options)` win over it
+for that one call.
+
+**Writing.** `export` takes `hooks`, at the five points an export has:
+
+| Hook | Gets | For |
+| --- | --- | --- |
+| `document` | the document about to be drawn | a stamp, a watermark only the export carries, placeholder text filled in |
+| `resample` | the source, and the size to shrink it to | your own downscaler, on a large reduction |
+| `pixels` | the drawn `CanvasSurface`, in place | a mask, a LUT, anything a canvas can draw |
+| `bytes` | the encoded `Blob` | a format the browser cannot write |
+| `filename` | the suggested name | whatever the storage layer dictates |
+
+```js
+const { blob, filename } = await editor.export({
+  format: "image/png",
+  hooks: {
+    pixels: (surface, size) => {
+      const context = surface.context;
+      context.globalCompositeOperation = "destination-in";
+      context.beginPath();
+      context.arc(size.width / 2, size.height / 2, size.width / 2, 0, Math.PI * 2);
+      context.fill();
+    },
+    filename: (suggested) => `avatar-${suggested}`,
+  },
+});
+```
+
+`pixels` is handed the surface rather than a copy of the pixels. An `ImageData`
+round trip costs two full-size allocations and gives you an array to loop over;
+a canvas gives you every drawing primitive the platform has, for nothing.
+
+`resample` is the one hook that is only sometimes called: it runs when the
+export is a large reduction of the crop, and not otherwise. It exists because
+Pixen deliberately lets the browser do that downscale — measured on Chromium,
+halving in steps first lands no closer to the true area average and adds about
+half a second to a 24-megapixel export, so the cost is not imposed on everyone.
+If you have measured otherwise on the engines you ship to, or you want a filter
+the platform does not have, this is where it goes:
+
+```js
+import { drawResized, createSurface } from "@pixen/core";
+
+await editor.export({
+  width: 400,
+  hooks: {
+    resample: (source, from, to) => {
+      const surface = createSurface(to.width, to.height);
+      drawResized(surface.context, source, from, to);
+      return surface.canvas;
+    },
+  },
+});
+```
+
+Note what it is asked for: the whole bitmap shrunk by the factor the *crop*
+needs, not the export's own size. The scene still has to place the crop, the
+straightening and every annotation against that bitmap, so one shrunk to the
+export size would arrive already too small. Returning a different size than `to`
+is safe — the picture lands in the same place regardless — it only changes the
+resolution the resampling happened at. See
+[BROWSER-SUPPORT.md](BROWSER-SUPPORT.md) for the measurement.
+
+**A ceiling on the pixels.** Some devices refuse a canvas well below what the
+specification allows, and do it by handing back a blank one rather than by
+throwing. If you know what your target can allocate, say so and an over-large
+export is scaled to fit instead:
+
+```js
+const { blob, width, height } = await editor.export({ maxPixels: 16_777_216 });
+```
+
+It keeps the picture's shape, and `width`/`height` in the result are what you
+actually got — which may be smaller than what you asked for. See
+[BROWSER-SUPPORT.md](BROWSER-SUPPORT.md).
+
+**Metadata.** A re-encode loses the camera's own record of the picture, which for
+an archive is a real loss and for a shared photograph is usually the point. It is
+stripped by default; ask for it and it comes across:
+
+```js
+const { blob } = await editor.export({ format: "image/jpeg", metadata: "copy" });
+```
+
+What arrives is the source's EXIF minus three things: the orientation (already
+spent — the pixels were turned upright at decode), the location, and the embedded
+thumbnail, which is a copy of the picture from before it was edited. JPEG to JPEG
+only. [SECURITY.md](SECURITY.md) has the reasoning and the limits.
+
+**Delivery.** `exportTo` draws, encodes and uploads as one task, so
+`pixen-export-progress` covers all three and one cancel calls off whichever is
+running. The bytes on the wire are the one step whose length a server declares,
+so that part of the bar is real:
+
+```js
+const { status, body } = await editor.exportTo(
+  { url: "/api/photos", headers: { Authorization: token } },
+  { format: "image/jpeg", quality: 0.82 },
+);
+```
+
+By default the file goes as multipart under `file`, named after the export.
+`fields` replaces that with whatever your endpoint wants.
+
+**Sizing.** `resize` and the export's `width`/`height` accept `fit` when both
+edges are given: `force` (the default — the numbers are meant literally),
+`contain` (fit inside the box, keeping the ratio), or `cover` (fill it and let
+the picture overflow). `preventUpscale` applies last and defaults to on.
+
+**Pixels without a file.** `renderToCanvas()` returns the drawn surface, for a
+texture upload, an `ImageData` read, or an encoder of your own.
+
+**Masks.** `renderMask()` returns the annotations alone, in two flat colours,
+with the photograph taken out — what a model outside the browser needs in order
+to work on part of an image:
+
+```js
+const mask = await maskBlob(editor.document, editor.resources, {
+  include: (layer) => layer.type === "rect",
+  padding: 0.01,
+});
+```
+
+It is built by recolouring the same draw-op list the editor renders, so the
+crop, the output size and every layer's rotation are already resolved. An
+outlined shape marks what it encloses rather than its outline, and `padding`
+grows every mark — inpainting wants a margin, or a halo of the original is left
+behind.
+
 ## Server rendering checklist
 
 | Framework | What to do |
@@ -222,3 +484,96 @@ const { blob } = await editor.export({ format: "image/webp" });
 | Remix / React Router | Import normally |
 | Astro | Use a `client:*` directive on the island that renders the editor |
 | Angular Universal | Import normally; the element's own registration is a no-op on the server |
+
+## Starting without a picture
+
+A poster, a diagram, a caption card, a screenshot annotated onto nothing:
+
+```js
+editor.createBlank({ width: 1080, height: 1080, background: "#ffffff" });
+```
+
+Transparent unless a colour is asked for, which is what blank means in a format
+that can carry it. The sheet is registered like any other picture, so every
+tool, the export and a saved document work on it without knowing it started
+empty — and a sheet larger than the platform can draw is refused when it is
+asked for rather than at the first export.
+
+## Languages
+
+English is in the bundle. The other eight are imported when they are wanted:
+
+```js
+import { registerLocale } from "@pixen/web";
+import { ko } from "@pixen/web/locale/ko";
+
+registerLocale("ko", ko);
+```
+
+They used to be imported into the registry, all nine, which put every one of
+them in every host's bundle. Measured on this package: 198,734 bytes minified
+and 63,485 gzipped before, 161,893 and 53,441 after — **10 KB of every
+download, about a sixth of it**, for eight languages a host that ships one will
+never show.
+
+Fourteen languages ship: Arabic, Chinese, Dutch, English, French, German,
+Hindi, Italian, Japanese, Korean, Norwegian, Portuguese, Russian, Spanish,
+Swedish.
+
+**Six of them have not been read by a native speaker.** Hindi, Italian,
+Norwegian, Dutch, Russian and Swedish were written from the English reference by
+a machine, and are marked as such at the top of their own files. They are better
+than English-for-everyone and they are not a substitute for review before a
+release that promises them. Correcting one is a line, not a fork, because
+`registerLocale` merges per key:
+
+```js
+registerLocale("nl", { crop: "Uitsnijden" });   // everything else stays
+```
+
+`registerBundledLocales()` is the one line back to having all of them, and
+costs what it always did:
+
+```js
+import { registerBundledLocales } from "@pixen/web";
+registerBundledLocales();
+```
+
+Asking for a language nobody registered renders English and says so once, in
+the console, naming the import — because a missing translation and a missing
+*import* look identical on screen, and only one of them is a one-line fix.
+
+A locale is data, so a host can ship its own without waiting for a release, and
+a partial one is completed from English per key rather than per table:
+
+```js
+registerLocale("nl", { crop: "Bijsnijden", undo: "Ongedaan maken" });
+```
+
+Writing direction does not depend on any of this: `directionFor("he")` is
+`"rtl"` whether or not Hebrew strings were ever imported.
+
+## A page with no bundler
+
+`@pixen/web` publishes ES modules with bare specifiers, which a browser cannot
+resolve on its own. That is right for an application with a build step and
+useless to everyone else — a Rails template, a Django page, a WordPress plugin,
+a Cordova shell. For those there is one self-contained file:
+
+```html
+<pixen-image-editor id="editor"></pixen-image-editor>
+<script type="module">
+  import { registerLocale } from "https://unpkg.com/@pixen/web/dist/standalone/pixen.js";
+  document.querySelector("#editor").editor.load("photo.jpg");
+</script>
+```
+
+Everything is inlined, so there is nothing to resolve and no import map to
+write. One artefact rather than three: a modern browser has had modules since
+2017, and the older shapes buy compatibility with browsers that fall below the
+floor in `docs/BROWSER-SUPPORT.md` anyway — a build nobody can run the rest of
+the editor in would be a kindness that lies.
+
+It is built from the module output, so it is the same code, and there is a
+browser test that loads it on a page with none of this repository's machinery
+and exports a real file from it.

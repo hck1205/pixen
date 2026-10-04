@@ -1,0 +1,202 @@
+/**
+ * The surface a person touches and a host integrates against.
+ *
+ * One slice of the verification matrix. See `verification/claim.ts` for what a
+ * verdict is allowed to mean.
+ */
+import { browser, doc, list, required, story, unit, visual, type ClaimGroup } from "../claim.js";
+import { availableLocales, OBSERVED_ATTRIBUTES, PIXEN_EVENTS } from "@pixen/web";
+
+const LOCALES = availableLocales();
+
+export const SURFACE_CLAIMS: ClaimGroup[] = [
+  {
+    title: "The element",
+    summary: "One custom element, and the contract around it that a host may rely on.",
+    claims: [
+      {
+        capability: "Attributes",
+        pixen: list(OBSERVED_ATTRIBUTES),
+        verdict: "unmeasured",
+        evidence: [unit("attributes.test.ts"), story("Playground"), browser("editor.spec.ts")],
+      },
+      {
+        capability: "Events",
+        pixen: list(PIXEN_EVENTS.map((name) => `pixen-${name}`)),
+        verdict: "met",
+        market: required(
+          "image events",
+          "Start, progress, abort, error and finish for both the load and the export, plus one for every " +
+          "change to the edit state",
+        ),
+        evidence: [unit("observe.test.ts"), story("EventLog"), browser("editor.spec.ts")],
+        note:
+          "Twelve of theirs map onto twelve of ours, `preview` included; `ready` and `history` are ours " +
+          "alone. `change` carries the whole document rather than only saying it changed. The one shape " +
+          "difference is the error channel — one rather than one per phase — which has its own row",
+      },
+      {
+        capability: "Which task an error belongs to",
+        pixen: "One `error` event, carrying a `PixenError` with a machine-readable code and a cause",
+        verdict: "open",
+        market: required("image events", "A failed load and a failed process are announced as two different events"),
+        evidence: [unit("observe.test.ts"), story("EventLog")],
+        note:
+          "The code often says — `DECODE_FAILED` is a load, `ENCODE_FAILED` an export — but not always: " +
+          "a memory limit, a CORS refusal or an abort can come from either, and a refused edit arrives " +
+          "on the same channel. A host with one listener that has to re-enable the right button is " +
+          "left inferring the phase from the code, and the inference has holes. A `task` field on the " +
+          "detail closes them without a second event type",
+      },
+      {
+        capability: "Stopping a task from the element",
+        pixen: "`cancelLoad` and `cancelExport` are on the engine, reachable as `element.editor`",
+        verdict: "open",
+        market: required("image methods", "Aborting the load and aborting the process are editor methods"),
+        evidence: [browser("editor.spec.ts")],
+        note:
+          "Not a missing capability but a missing pass-through, and the one that matters: a cancel " +
+          "button is written against the element like every other button, and this is the only common " +
+          "action that makes a host reach past it",
+      },
+      {
+        capability: "State a host can read",
+        pixen: "Loading and exporting are announced as events, with progress, and `busy` says whether either is running",
+        verdict: "open",
+        market: required(
+          "image properties",
+          "The load state and the process state are readable properties, not only events",
+        ),
+        evidence: [browser("editor.spec.ts"), unit("task-runner.test.ts")],
+        note:
+          "A host that mounts the editor after a load has begun has nothing to read, and one that " +
+          "re-renders from props has to keep its own copy of what the events said. `busy` is the " +
+          "boolean half of the answer; which stage, and how far, is only in the event",
+      },
+      {
+        capability: "Slots and parts",
+        pixen:
+          "The actions, the tool rail and the inspector are each a slot with a default inside it — replace " +
+          "one and keep the others — and nine `part` names for styling from outside the shadow root",
+        verdict: "unmeasured",
+        evidence: [story("Slots"), story("Theming"), browser("editor.spec.ts")],
+      },
+      {
+        capability: "Theming",
+        pixen:
+          "Custom properties for surface, text, accent, border, radius and the canvas chrome; a light " +
+          "theme that redefines them rather than a second stylesheet",
+        verdict: "unmeasured",
+        evidence: [story("Themes"), story("Tokens"), visual("visual.spec.ts")],
+      },
+      {
+        capability: "No framework required",
+        pixen: "The element is plain DOM; the wrappers are thin and optional",
+        verdict: "unmeasured",
+        evidence: [unit("ssr.test.ts"), story("Slots"), doc("docs/FRAMEWORKS.md")],
+      },
+    ],
+  },
+  {
+    title: "Reach",
+    summary: "Who can use it, in which language, on which browser.",
+    claims: [
+      {
+        capability: "Locales",
+        pixen: `${LOCALES.length} — ${list(LOCALES)}`,
+        verdict: "unmeasured",
+        evidence: [unit("i18n.test.ts"), story("Locales"), visual("visual.spec.ts")],
+        note: "Every string in every locale, checked by a test that fails on a key present in one and missing in another",
+      },
+      {
+        capability: "Right to left",
+        pixen: "The layout mirrors for Arabic, driven by the locale rather than by a separate flag",
+        verdict: "unmeasured",
+        evidence: [unit("i18n.test.ts"), story("Locales"), visual("visual.spec.ts")],
+      },
+      {
+        capability: "Keyboard",
+        pixen:
+          "Undo, redo, fit, delete, escape, arrow-key nudges, Enter to edit text, and a letter per tool — " +
+          "resolved by a pure function, so what a keystroke means is answerable in a test",
+        verdict: "unmeasured",
+        evidence: [unit("keyboard.test.ts"), browser("editor.spec.ts")],
+      },
+      {
+        capability: "Accessibility",
+        pixen:
+          "Roles, accessible names, pressed state, live-region announcements, focus restored after the " +
+          "canvas takes a pointer, and reduced-motion honoured",
+        verdict: "unmeasured",
+        evidence: [unit("labels.test.ts"), unit("availability.test.ts"), browser("editor.spec.ts")],
+        note: "The story browser runs an accessibility addon over every story, which is where regressions surface first",
+      },
+      {
+        capability: "Browser support",
+        pixen:
+          "A stated floor, and a capability report a host can read at runtime — every optional API has a " +
+          "written fallback rather than a broken screen",
+        verdict: "unmeasured",
+        evidence: [unit("support.test.ts"), story("SupportReport"), doc("docs/BROWSER-SUPPORT.md")],
+      },
+      {
+        capability: "Framework bindings",
+        pixen: "React, Vue and Svelte, each a wrapper over the same element, plus plain HTML",
+        verdict: "unmeasured",
+        evidence: [unit("bindings.test.ts"), unit("ssr.test.ts"), story("ExportFlow"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
+        capability: "A page with no bundler",
+        pixen:
+          "One self-contained module file, built from the module output so it is the same code. " +
+          "Everything is inlined, so there is nothing to resolve and no import map to write",
+        verdict: "met",
+        market: required("package", "Builds for pages without a module bundler"),
+        evidence: [browser("standalone.spec.ts"), doc("docs/FRAMEWORKS.md")],
+        note:
+          "One artefact rather than three. The older shapes buy compatibility with browsers below " +
+          "the floor in docs/BROWSER-SUPPORT.md anyway, and a build nobody can run the rest of the " +
+          "editor in would be a kindness that lies",
+      },
+      {
+        capability: "Paying for the languages you ship",
+        pixen:
+          "English is in the bundle and the rest are subpath imports — measured, 10 KB of every " +
+          "download, about a sixth of it. Asking for a language nobody registered renders English and " +
+          "says so once, naming the import",
+        verdict: "met",
+        market: required("package", "Locale files importable one at a time"),
+        evidence: [unit("i18n.test.ts"), doc("docs/FRAMEWORKS.md")],
+      },
+      {
+        capability: "How many languages",
+        pixen:
+          "Fourteen: Arabic, Chinese, Dutch, English, French, German, Hindi, Italian, Japanese, " +
+          "Korean, Norwegian, Portuguese, Russian, Spanish, Swedish",
+        verdict: "met",
+        market: required("package", "Fourteen languages in the package"),
+        evidence: [unit("i18n.test.ts"), unit("labels.test.ts"), doc("docs/FRAMEWORKS.md")],
+        note:
+          "Six of them — Hindi, Italian, Norwegian, Dutch, Russian, Swedish — are machine-authored " +
+          "from the English reference and have not been read by a native speaker. Marked as such in " +
+          "their own files and in the documentation: better than English-for-everyone, and not a " +
+          "substitute for review before a release that promises them",
+      },
+      {
+        capability: "Angular",
+        pixen:
+          "No wrapper package, because none is needed: `CUSTOM_ELEMENTS_SCHEMA` plus property and " +
+          "event bindings is standard Angular, and the documentation carries the teardown the other " +
+          "three wrappers exist for",
+        verdict: "declined",
+        market: required("package and installation", "An Angular component package"),
+        evidence: [doc("docs/FRAMEWORKS.md")],
+        note:
+          "Shipping one would mean an Angular dependency and an Angular build in a repository that " +
+          "has neither, for twenty lines that Angular already does. Not measured in a real Angular " +
+          "application — this repository runs no Angular in CI, and the claim is about what the " +
+          "framework does rather than about what we tested",
+      },
+    ],
+  },
+];

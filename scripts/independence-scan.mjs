@@ -15,7 +15,7 @@
  * honest between reviews.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 
 /**
@@ -62,8 +62,34 @@ const NAME_SCAN_EXCLUDES = [
 
 const BINARY_OR_GENERATED = /\.(png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|zip|pdf)$/i;
 
-/** Published packages: everything under packages/ that is not marked private. */
-const PUBLISHED_PACKAGES = ["packages/core", "packages/web", "packages/react"];
+/**
+ * Published packages: everything under `packages/` that is not marked private.
+ *
+ * Read from the tree rather than listed, because a list of packages is a list
+ * that goes out of date the first time someone adds one — which is exactly what
+ * happened. `@pixen/vue` and `@pixen/svelte` shipped without this check ever
+ * looking at them, and `@pixen/video` would have been the third.
+ */
+function publishedPackages(root) {
+  const packages = join(root, "packages");
+  let entries;
+  try {
+    entries = readdirSync(packages, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => posix.join("packages", entry.name))
+    .filter((dir) => {
+      try {
+        return JSON.parse(readFileSync(join(root, dir, "package.json"), "utf8")).private !== true;
+      } catch {
+        return false;
+      }
+    })
+    .sort();
+}
 
 /** The only runtime dependencies a published package may declare. */
 const ALLOWED_RUNTIME_PREFIXES = ["@pixen/"];
@@ -107,7 +133,7 @@ function scanNames(root, files) {
 function scanDependencies(root) {
   const findings = [];
 
-  for (const packageDir of PUBLISHED_PACKAGES) {
+  for (const packageDir of publishedPackages(root)) {
     const manifestPath = join(root, packageDir, "package.json");
     let manifest;
     try {

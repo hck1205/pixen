@@ -1,9 +1,10 @@
-import { compose, IDENTITY, meanScale, scaling, translation } from "../geometry/matrix.js";
-import { transformBounds } from "../geometry/rect.js";
-import { imageToStage, stageToOutput } from "../geometry/spaces.js";
+import { compose, IDENTITY, meanScale, translation } from "../geometry/matrix.js";
+import { roundedSize, transformBounds } from "../geometry/rect.js";
+import { imageToStage, outputToStage, stageToOutput } from "../geometry/spaces.js";
 import type { Matrix, Rect, Size } from "../geometry/types.js";
 import { effectiveCrop, outputSize, stageRect } from "../model/document.js";
 import type { Adjustments, EditorDocument, EditorLayer, FrameSettings } from "../model/types.js";
+import { preprocessLayers, type ShapeProcessor } from "./preprocess.js";
 
 export type SceneRegion = "crop" | "stage";
 
@@ -32,10 +33,17 @@ export interface Scene {
   /** Pixel size of the render target. */
   target: Size;
   background: string | null;
-  /** CSS filter string, empty when nothing in the chain is active. */
-  filter: string;
-  /** The values behind that string, for the renderer's pixel fallback. */
+  /**
+   * The bitmap painted under the picture, already placed.
+   *
+   * Covering the region and centred, which is why the rect can hang outside it:
+   * a backdrop that letterboxed would be a border, and a border is `frame`.
+   */
+  backdrop: { source: CanvasImageSource; rect: Rect; filtered: boolean } | null;
+  /** The colour adjustments to apply, in the document's own units. */
   adjustments: Adjustments;
+  /** The host's own colour transform, applied after the named adjustments. */
+  colourMatrix: readonly number[] | null;
   /** The border drawn over everything, or null for none. */
   frame: FrameSettings | null;
   /**
@@ -53,9 +61,23 @@ export interface Scene {
 }
 
 export interface SceneInput {
+  /**
+   * Whatever is standing in for the picture: the bitmap itself, a downscaled
+   * proxy, a frame of a video, or something the host swapped in.
+   *
+   * Its own size is not asked for and does not matter. The scene says where the
+   * picture goes in image space and the executor stretches whatever it is given
+   * into that box, so a proxy of any size lands in the same place at a
+   * different resolution. There used to be a `sourceScale` here saying how big
+   * the stand-in was; it cancelled itself out of the drawing and was read for
+   * one thing it should never have decided — see `image.size` below.
+   */
   source: CanvasImageSource;
-  /** Pixels of `source` per image pixel. 1 for the full-resolution bitmap. */
-  sourceScale?: number;
+  /**
+   * The host's chance to rewrite each shape before it is drawn. See
+   * `preprocessLayers`; an empty list, which is the default, is a no-op.
+   */
+  preprocess?: readonly ShapeProcessor[];
   /**
    * Resolves an image layer's bitmap. Layers reference resources by id, and only
    * the caller knows which manager holds them.
@@ -97,7 +119,12 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     fit === "stretch" ? stageToOutput(sourceRect, target) : translation(-sourceRect.x, -sourceRect.y);
   const imageToTarget = compose(view, regionMatrix, stageMatrix);
 
-  const sourceScale = input.sourceScale ?? 1;
+  // A layer in output space is measured in the exported image's own pixels
+  // from its own top-left, so it stops at the region rather than going on
+  // through the image's rotation and flips. That is the whole difference
+  // between a caption written on the picture and one written on the frame.
+  const outputToTarget = compose(view, regionMatrix, outputToStage(effectiveCrop(document), outputSize(document)));
+
   const scale = fit === "stretch" ? (target.width / sourceRect.width) * meanScale(view) : meanScale(view);
   const layerScale = Math.abs(scale);
 
@@ -106,71 +133,92 @@ export function createScene(document: EditorDocument, input: SceneInput, options
     sourceRect,
     target,
     background: document.output.background,
-    filter: cssFilter(document.adjustments),
+    backdrop: backdropFor(document, input, transformBounds(compose(view, regionMatrix), sourceRect)),
     adjustments: document.adjustments,
+    colourMatrix: document.colourMatrix,
     frame: document.frame,
     regionInTarget: transformBounds(compose(view, regionMatrix), sourceRect),
     image: {
       source: input.source,
-      size: {
-        width: document.source.width * sourceScale,
-        height: document.source.height * sourceScale,
-      },
-      // The preview bitmap is smaller than the image, so undo its scale first.
-      matrix: compose(imageToTarget, scaling(1 / sourceScale)),
+      // The picture's own size, always — never the stand-in's. The executor
+      // stretches whatever bitmap it is given into this box, so a proxy needs
+      // no arithmetic; and this is also what a redaction's strength is a
+      // fraction of, which is the reason it must not be the stand-in's size.
+      // It was, and a blur measured against a quarter-size proxy came out four
+      // times too small on screen while the exported file was right.
+      size: { width: document.source.width, height: document.source.height },
+      matrix: imageToTarget,
     },
-    layers: document.layers
+    // Preprocessed first, then filtered: a processor may hide a layer by
+    // returning it invisible, or produce one, and the visibility rule should
+    // read the same either way.
+    layers: preprocessLayers(document.layers, input.preprocess ?? [], {
+      preview: options.region === "stage",
+      transform: document.transform,
+      scale: layerScale,
+    })
       .filter((layer) => layer.visible && layer.opacity > 0)
       .map((layer) => {
         const resource = layer.type === "image" ? input.resolveResource?.(layer.resourceId) : null;
+        const output = layer.space === "output";
         // An image layer whose bitmap is missing renders as nothing rather than
         // as an error: a document can outlive the sticker it referenced.
-        return { layer, matrix: imageToTarget, scale: layerScale, ...(resource ? { resource } : {}) };
+        return {
+          layer,
+          matrix: output ? outputToTarget : imageToTarget,
+          // Stroke widths and type sizes are in the layer's own space, so the
+          // scale that turns them into target pixels is its own too.
+          scale: output ? Math.abs(meanScale(outputToTarget)) : layerScale,
+          ...(resource ? { resource } : {}),
+        };
       }),
     scale,
   };
 }
 
-function sizeOf(rect: Rect): Size {
-  return { width: Math.max(1, Math.round(rect.width)), height: Math.max(1, Math.round(rect.height)) };
-}
-
 /**
- * Maps the document's adjustments onto a CSS filter string.
+ * Where the backdrop lands, or null when there is not one.
  *
- * Canvas2D filters are the pragmatic choice: the browser applies them to the
- * preview and the export through one code path, at no per-pixel cost of ours.
- * That is also the boundary of what this version adjusts — an adjustment the
- * platform cannot express as a filter would need a pixel pass on every frame,
- * which a slider drag on a large image cannot afford.
- *
- * The vignette is the one exception, and it is drawn rather than filtered.
+ * `cover` rather than `contain`: a backdrop exists to leave no gap, so the axis
+ * that would have left one is the axis that overflows.
  */
-export function cssFilter(adjustments: Adjustments): string {
-  const parts: string[] = [];
-  // Exposure is photographic: one stop doubles the light, so it multiplies
-  // where brightness only shifts.
-  if (adjustments.exposure !== 0) parts.push(`brightness(${clampFactor(2 ** adjustments.exposure)})`);
-  if (adjustments.brightness !== 0) parts.push(`brightness(${clampFactor(1 + adjustments.brightness)})`);
-  if (adjustments.contrast !== 0) parts.push(`contrast(${clampFactor(1 + adjustments.contrast)})`);
-  if (adjustments.saturation !== 0) parts.push(`saturate(${clampFactor(1 + adjustments.saturation)})`);
-  if (adjustments.hue !== 0) parts.push(`hue-rotate(${Math.round(adjustments.hue)}deg)`);
-  if (adjustments.grayscale !== 0) parts.push(`grayscale(${clampAmount(adjustments.grayscale)})`);
-  if (adjustments.sepia !== 0) parts.push(`sepia(${clampAmount(adjustments.sepia)})`);
-  if (adjustments.invert !== 0) parts.push(`invert(${clampAmount(adjustments.invert)})`);
-  return parts.join(" ");
+function backdropFor(
+  document: EditorDocument,
+  input: SceneInput,
+  region: Rect,
+): Scene["backdrop"] {
+  const id = document.output.backgroundImage;
+  if (!id) return null;
+  const source = input.resolveResource?.(id);
+  // A document can outlive the backdrop it referenced, and a missing bitmap
+  // renders as nothing rather than as an error — the same rule as an image
+  // layer's.
+  if (!source) return null;
+
+  const natural = naturalSize(source);
+  const scale = Math.max(region.width / natural.width, region.height / natural.height);
+  const width = natural.width * scale;
+  const height = natural.height * scale;
+  return {
+    source,
+    rect: {
+      x: region.x + (region.width - width) / 2,
+      y: region.y + (region.height - height) / 2,
+      width,
+      height,
+    },
+    filtered: document.output.backgroundFilter,
+  };
 }
 
-/** Filters are clamped so an absurd adjustment cannot blow out the image. */
-const MAX_FILTER_FACTOR = 4;
-const FILTER_PRECISION = 1000;
-
-function clampFactor(value: number): number {
-  const clamped = Math.min(MAX_FILTER_FACTOR, Math.max(0, value));
-  return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
+/** What a drawable is, in its own pixels, whichever kind of drawable it is. */
+function naturalSize(source: CanvasImageSource): Size {
+  const measured = source as { width?: number; height?: number; videoWidth?: number; videoHeight?: number };
+  const width = measured.videoWidth || measured.width || 1;
+  const height = measured.videoHeight || measured.height || 1;
+  return { width, height };
 }
 
-function clampAmount(value: number): number {
-  const clamped = Math.min(1, Math.max(0, value));
-  return Math.round(clamped * FILTER_PRECISION) / FILTER_PRECISION;
+function sizeOf(rect: Rect): Size {
+  return roundedSize(rect.width, rect.height);
 }

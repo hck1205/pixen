@@ -4,10 +4,21 @@ Four suites, each answering a different question.
 
 | Command | Answers |
 | --- | --- |
-| `pnpm test` | Do the pure functions decide correctly? Also runs the four scans below |
+| `pnpm typecheck` | Does everything still agree about the types — the packages, **the unit suites**, the stories and the playground? |
+| `pnpm test` | Do the pure functions decide correctly? Also runs the six scans below |
 | `pnpm test:browser` | Does the real bundle behave, in a real engine, driven by a real pointer? |
 | `pnpm test:visual` | Does it still *look* the same? Opt-in; see below |
 | `pnpm stories` | What does it look like now — for a person, not an assertion. Its *Coverage* story is the feature list, checked by `pnpm test` |
+
+The typecheck covers the unit suites as well as the source, and that is
+deliberate rather than tidy. `pnpm build` compiles `src` and stops, so a test
+could name an operation the renderer no longer has and stay green forever —
+which one did: `mask.test.ts` listed a draw op that had been deleted a week
+earlier, and passed, because it only ever asserted that the op was *dropped*.
+
+The browser suite is left out of it. Playwright compiles that with its own
+resolution and no package paths, so typechecking it from here reports fifty
+disagreements that exist only inside this repository's view of the world.
 
 ## Unit tests
 
@@ -28,7 +39,7 @@ layout bugs this project has actually shipped were invisible to unit tests.
 
 ## The scans
 
-Four checks run inside `pnpm test`, each turning a rule from the working
+Six checks run inside `pnpm test`, each turning a rule from the working
 agreement into a failing test rather than a good intention:
 
 | Scan | Fails on |
@@ -36,7 +47,9 @@ agreement into a failing test rather than a good intention:
 | `check:independence` | A third-party name, dependency or vendored code |
 | `check:exports` | An export nothing imports |
 | `check:duplication` | The same four meaningful lines in three places |
-| `check:size` | A source file past 300 lines with no recorded reason |
+| `check:size` | A source file past 300 lines with no recorded reason, or an exemption the file has since shrunk well below |
+| `check:surface` | A `@pixen/*` export that `docs/PUBLIC-API.md` does not record |
+| `check:paths` | A file the documentation names in backticks that is not in the tree |
 
 ### Why four lines, and why three copies
 
@@ -59,11 +72,14 @@ point is not the number — it is that "this one is fine" stops being a private
 judgement and becomes a recorded one the next reader can disagree with.
 
 An exemption is pinned to the size it was written at, so a file that is exempt
-still cannot grow without someone deciding again.
+still cannot grow without someone deciding again. It ratchets the other way too:
+split an exempt file and the scan asks for the entry to come down to the new
+size, give or take `EXEMPT_SLACK` lines of room for ordinary editing. Otherwise
+every split quietly buys headroom to grow back into.
 
 ## The coverage page
 
-`apps/stories/src/coverage.ts` lists every capability, what it is today, and
+`apps/stories/src/coverage/` lists every capability, what it is today, and
 what proves it. It is not prose: where a capability is a set of things — tools,
 formats, adjustment presets, locales — the description is generated from the
 export that defines them, so deleting a preset deletes it from the page. The

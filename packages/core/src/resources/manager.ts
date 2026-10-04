@@ -1,18 +1,9 @@
-import { PixenError } from "../errors/index.js";
-import { scaleToFit } from "../geometry/rect.js";
 import type { Size } from "../geometry/types.js";
-import { createSurface, releaseSurface } from "../image/canvas.js";
-import { decodeImage, disposeImageSource, type DecodeOptions, type ImageInput } from "../image/decode.js";
-import { drawResized } from "../image/resize.js";
+import { PixenError } from "../errors/index.js";
+import { disposeImageSource, releaseSurface } from "../image/canvas.js";
+import { decodeImage, type DecodeOptions, type ImageInput } from "../image/decode.js";
 import { createId } from "../util/id.js";
-
-export interface PreviewBitmap {
-  source: CanvasImageSource;
-  width: number;
-  height: number;
-  /** preview pixels per source pixel */
-  scale: number;
-}
+import { BYTES_PER_PIXEL, PreviewProxy, type PreviewBitmap } from "./preview.js";
 
 export interface ImageResource {
   readonly id: string;
@@ -21,6 +12,14 @@ export interface ImageResource {
   /** Full-resolution, upright, drawable. */
   readonly source: CanvasImageSource;
   readonly blob: Blob | null;
+  /**
+   * Seconds, for a source that runs rather than sits still.
+   *
+   * Also the flag that it does. A resource with a duration is never proxied
+   * into a preview bitmap: a downscaled copy of a moving picture is one frame
+   * of it, held forever.
+   */
+  readonly duration?: number;
   readonly mimeType: string;
   readonly name?: string;
   readonly byteSize: number;
@@ -29,9 +28,9 @@ export interface ImageResource {
 interface ResourceEntry {
   resource: ImageResource;
   refCount: number;
-  preview: PreviewBitmap | null;
-  previewLimit: number;
-  released: boolean;
+  preview: PreviewProxy;
+  /** The adopter's own teardown, run once when the entry is let go. */
+  dispose?: () => void;
 }
 
 /**
@@ -92,6 +91,18 @@ export class ResourceManager {
     mimeType?: string;
     name?: string;
     id?: string;
+    /** Seconds, for a source that runs. See `ImageResource.duration`. */
+    duration?: number;
+    /**
+     * Undoes whatever the caller set up, when the resource is let go.
+     *
+     * `disposeImageSource` can close an `ImageBitmap` and hand a canvas back to
+     * the pool, because it can recognise those. It cannot know that a source is
+     * a `<video>` reading from an object URL, or a texture on a context it has
+     * never heard of — so a caller that adopted something with a tail says so
+     * here, and the manager calls it exactly once.
+     */
+    dispose?: () => void;
   }): ImageResource {
     const resource: ImageResource = {
       id: input.id ?? createId("res"),
@@ -101,14 +112,14 @@ export class ResourceManager {
       blob: input.blob ?? null,
       mimeType: input.mimeType ?? "",
       ...(input.name ? { name: input.name } : {}),
-      byteSize: input.blob?.size ?? input.width * input.height * 4,
+      ...(input.duration === undefined ? {} : { duration: input.duration }),
+      byteSize: input.blob?.size ?? input.width * input.height * BYTES_PER_PIXEL,
     };
     this.#entries.set(resource.id, {
       resource,
       refCount: 1,
-      preview: null,
-      previewLimit: this.#previewMaxSize,
-      released: false,
+      preview: new PreviewProxy(resource.source, { width: resource.width, height: resource.height }, resource.duration !== undefined),
+      ...(input.dispose ? { dispose: input.dispose } : {}),
     });
     return resource;
   }
@@ -131,23 +142,32 @@ export class ResourceManager {
    */
   resolve = (id: string): CanvasImageSource | null => this.#entries.get(id)?.resource.source ?? null;
 
-  /** Like `get`, but states which invariant broke instead of returning undefined. */
-  require(id: string): ImageResource {
+  /**
+   * The entry behind an id, or the reason there is not one.
+   *
+   * Three callers wanted this and each threw its own copy of the same message.
+   *
+   * There used to be a second branch here for an entry that had been released,
+   * raising a friendlier `RESOURCE_RELEASED`. It could never fire: `dispose`
+   * deletes the entry in the line after it sets the flag, so a released id is
+   * an absent id by the time anybody looks. A disposed resource says
+   * `RESOURCE_MISSING`, which is the truth.
+   */
+  #entry(id: string): ResourceEntry {
     const entry = this.#entries.get(id);
     if (!entry) {
       throw new PixenError("RESOURCE_MISSING", `No resource registered for id "${id}"`, { details: { id } });
     }
-    if (entry.released) {
-      throw new PixenError("RESOURCE_RELEASED", `Resource "${id}" has already been released`, { details: { id } });
-    }
-    return entry.resource;
+    return entry;
+  }
+
+  /** Like `get`, but states which invariant broke instead of returning undefined. */
+  require(id: string): ImageResource {
+    return this.#entry(id).resource;
   }
 
   retain(id: string): ImageResource {
-    const entry = this.#entries.get(id);
-    if (!entry) {
-      throw new PixenError("RESOURCE_MISSING", `No resource registered for id "${id}"`, { details: { id } });
-    }
+    const entry = this.#entry(id);
     entry.refCount += 1;
     return entry.resource;
   }
@@ -161,69 +181,38 @@ export class ResourceManager {
   }
 
   /**
-   * A downscaled bitmap for interactive rendering. Editing at preview resolution
-   * and exporting at full resolution is deliberate: a 48 MP source stays
-   * responsive without ever degrading the exported pixels.
+   * A downscaled bitmap for interactive rendering. Editing at preview
+   * resolution and exporting at full resolution is deliberate: a 48 MP source
+   * stays responsive without ever degrading the exported pixels.
    */
   getPreview(id: string, maxSize = this.#previewMaxSize): PreviewBitmap {
-    const entry = this.#entries.get(id);
-    if (!entry || entry.released) {
-      throw new PixenError("RESOURCE_MISSING", `No resource registered for id "${id}"`, { details: { id } });
-    }
-
-    if (entry.preview && entry.previewLimit >= maxSize) return entry.preview;
-
-    const { resource } = entry;
-    const limit: Size = { width: maxSize, height: maxSize };
-    const target = scaleToFit({ width: resource.width, height: resource.height }, limit);
-
-    if (target.width === resource.width && target.height === resource.height) {
-      const preview: PreviewBitmap = {
-        source: resource.source,
-        width: resource.width,
-        height: resource.height,
-        scale: 1,
-      };
-      entry.preview = preview;
-      entry.previewLimit = maxSize;
-      return preview;
-    }
-
-    if (entry.preview) this.#disposePreview(entry);
-
-    const surface = createSurface(target.width, target.height);
-    drawResized(
-      surface.context,
-      resource.source,
-      { width: resource.width, height: resource.height },
-      target,
-    );
-
-    const preview: PreviewBitmap = {
-      source: surface.canvas,
-      width: target.width,
-      height: target.height,
-      scale: target.width / resource.width,
-    };
-    entry.preview = preview;
-    entry.previewLimit = maxSize;
-    return preview;
+    return this.#entry(id).preview.get(maxSize);
   }
 
-  #disposePreview(entry: ResourceEntry): void {
-    if (entry.preview && entry.preview.source !== entry.resource.source) {
-      disposeImageSource(entry.preview.source);
-    }
-    entry.preview = null;
+  /**
+   * Puts the host's own picture on screen without touching the source.
+   *
+   * See `PreviewProxy.replace`. The size is the replacement's own, measured by
+   * the caller, because only it knows what it drew.
+   */
+  replacePreview(id: string, source: CanvasImageSource, size: Size): void {
+    this.#entry(id).preview.replace(source, size);
   }
 
   /** Frees a resource regardless of its reference count. */
   dispose(id: string): void {
     const entry = this.#entries.get(id);
     if (!entry) return;
-    this.#disposePreview(entry);
+    entry.preview.dispose();
     disposeImageSource(entry.resource.source);
-    entry.released = true;
+    // The caller's own teardown runs after ours and cannot stop the rest of the
+    // release: a host that throws in here would otherwise leak the entry it was
+    // trying to clean up after.
+    try {
+      entry.dispose?.();
+    } catch {
+      // Nothing useful to do with it, and nothing left that depends on it.
+    }
     this.#entries.delete(id);
   }
 
@@ -235,10 +224,8 @@ export class ResourceManager {
   stats(): { count: number; approximateBytes: number } {
     let approximateBytes = 0;
     for (const entry of this.#entries.values()) {
-      approximateBytes += entry.resource.width * entry.resource.height * 4;
-      if (entry.preview && entry.preview.source !== entry.resource.source) {
-        approximateBytes += entry.preview.width * entry.preview.height * 4;
-      }
+      approximateBytes += entry.resource.width * entry.resource.height * BYTES_PER_PIXEL;
+      approximateBytes += entry.preview.bytes();
     }
     return { count: this.#entries.size, approximateBytes };
   }

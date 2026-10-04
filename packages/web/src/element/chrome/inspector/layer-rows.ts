@@ -49,6 +49,7 @@ const LAYER_APPEARANCE: Record<EditorLayer["type"], LayerAppearance> = {
   text: { labelKey: "text", icon: "text" },
   image: { labelKey: "sticker", icon: "sticker" },
   redact: { labelKey: "redact", icon: "redact" },
+  retouch: { labelKey: "retouch", icon: "retouch" },
 };
 
 /**

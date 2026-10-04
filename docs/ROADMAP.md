@@ -41,12 +41,15 @@ unit tests and a browser suite driving the real bundle.
 
 - [x] Filters and presets beyond brightness / contrast / saturation
       (exposure, hue, grayscale, sepia, invert, vignette, nine presets)
-- [ ] Adjustments needing a per-pixel pass — gamma, white balance — which wait
-      for a GPU renderer
+- [x] Adjustments needing a per-pixel pass — gamma, and white balance on both
+      axes. A filter chain is a fixed set of functions and neither a gamma curve
+      nor a channel gain is among them, so these cost a pass whatever engine is
+      drawing; `adjustmentPlan` is what keeps the two engines agreeing
 - [x] Blur and pixelate redaction modes
 - [x] Image watermarks: corner, edge, centre or tiled, with opacity
 - [x] Text watermarks (a text layer plus the same placement maths)
-- [x] Frames: solid, inset and rounded, drawn over the finished picture
+- [x] Frames: six treatments — solid, inset, rounded, corner hooks, parallel lines
+      and floating edges — drawn over the finished picture
 - [x] Vue wrapper (`@pixen/vue`)
 - [x] Svelte bindings (`@pixen/svelte`): an action, with no Svelte dependency
 - [ ] Angular: no package planned. The element binds with Angular's own property
@@ -64,9 +67,46 @@ unit tests and a browser suite driving the real bundle.
 - [ ] Smart crop, background removal, upscale via those adapters
 - [ ] Enterprise policy engine: shared, versioned output rules
 
+## Phase 5 — video · started
+
+Sold and shipped separately, as `@pixen/video`, because it is a different
+product with different costs — not because the editor could not carry it. It
+turned out that it could, and cheaply: an `HTMLVideoElement` is already a
+drawable source, so a clip goes through the same scene as a photograph and the
+crop, the straightening, the adjustments and every annotation reach each frame
+without one of them learning that the picture moves.
+
+- [x] A clip range in the document, stored the way a crop is — absolute seconds
+      against a source that states its own duration ([DOCUMENT-SCHEMA.md](DOCUMENT-SCHEMA.md))
+- [x] Open a moving source, and never proxy it into a preview bitmap
+- [x] Export the trimmed clip, with a seam for a host's own encoder
+- [x] Timeline UI for the trim handles, shipped as a plugin in the extension package
+- [x] A plugin surface that can carry its own locale strings, which an extension
+      shipped as a separate package needs — `addStrings`, whose first customer is
+      the trim strip
+- [x] The costs and the limits written down for someone deciding whether to buy
+      it ([VIDEO.md](VIDEO.md))
+- [x] Undo step names in the reader's own language: the engine names its steps,
+      every shipped locale words them, and a host's own label is left as given
+
+Two costs, both measured rather than assumed. Recording runs at wall-clock speed
+— a thirty-second clip takes thirty seconds — because `MediaRecorder` samples a
+canvas as it is painted. And it writes WebM. Measured in the
+Chromium this repository tests against, VP8, VP9 and bare WebM are all accepted;
+a bare `video/mp4` request is accepted as well, while an explicit H.264 one is
+refused; and `VideoEncoder` is absent, so WebCodecs is what a host reaches for
+through the encoder seam rather than something Pixen can depend on. That surface
+differs by browser build — another Chromium on this same machine reports
+`VideoEncoder` present — which is why the story browser asks the browser in front
+of you instead of repeating a number measured somewhere else.
+
 ## Deliberately out of scope for now
 
-Video editing, generative fill, a full multi-layer compositing system, camera
-raw and layered-source formats, advanced typography, real-time collaboration,
-WebGPU, and native mobile SDKs. Each is a product of its own, and none of them
-is what makes the first release useful.
+Generative fill, a full multi-layer compositing system, camera raw and
+layered-source formats, advanced typography, real-time collaboration, WebGPU,
+and native mobile SDKs. Each is a product of its own, and none of them is what
+makes the first release useful.
+
+Video editing was on this list until it was not. What moved it was measuring the
+cost rather than assuming it: trimming and re-encoding a clip needed one new
+concept in the document and three files in a package of its own.

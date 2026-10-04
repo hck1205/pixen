@@ -9,6 +9,15 @@ export interface CanvasSurface {
   context: Canvas2D;
 }
 
+/** Intrinsic pixel size of any drawable source. */
+export function sourceSize(source: CanvasImageSource): Size {
+  if (typeof HTMLImageElement !== "undefined" && source instanceof HTMLImageElement) {
+    return { width: source.naturalWidth, height: source.naturalHeight };
+  }
+  const candidate = source as unknown as Size;
+  return { width: Number(candidate.width), height: Number(candidate.height) };
+}
+
 /** Guard against decompression bombs and canvases the platform silently refuses. */
 export const MAX_CANVAS_PIXELS = 268_435_456; // 16384 x 16384
 
@@ -62,11 +71,76 @@ export function createSurface(width: number, height: number, alpha = true): Canv
   return { canvas, context };
 }
 
-/** Releases the backing store of a canvas that is about to be dropped. */
+/**
+ * Releases the backing store of a canvas that is about to be dropped.
+ *
+ * Zeroing the dimensions is the only portable way to free canvas memory
+ * immediately, which matters a lot on mobile Safari.
+ */
+function releaseCanvas(canvas: AnyCanvas | null | undefined): void {
+  if (!canvas) return;
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+/** The same, for a surface. The context is not involved either way. */
 export function releaseSurface(surface: CanvasSurface | null | undefined): void {
-  if (!surface) return;
-  // Zeroing the dimensions is the only portable way to free canvas memory
-  // immediately, which matters a lot on mobile Safari.
-  surface.canvas.width = 0;
-  surface.canvas.height = 0;
+  releaseCanvas(surface?.canvas);
+}
+
+/**
+ * A surface with something already drawn on it, released if the drawing throws.
+ *
+ * Four places allocate a surface, paint it and hand it to a caller who owns it
+ * from then on — the mask, the redaction copy, the preview proxy and the canvas
+ * render. In each of them a throw between the allocation and the return dropped
+ * the surface on the floor still holding its backing store, and a canvas is
+ * exactly the thing the note above `releaseCanvas` says the collector will not
+ * hurry over: a failed export of a 48-megapixel photograph left 190MB pinned
+ * while the host showed an error and the user pressed the button again.
+ *
+ * The caller still owns what comes back, and still releases it. This only covers
+ * the window where nobody owns it yet.
+ */
+export function drawnSurface(target: Size, draw: (surface: CanvasSurface) => void, alpha = true): CanvasSurface {
+  const surface = createSurface(target.width, target.height, alpha);
+  try {
+    draw(surface);
+    return surface;
+  } catch (cause) {
+    releaseSurface(surface);
+    throw cause;
+  }
+}
+
+/**
+ * Lets a drawable go.
+ *
+ * The three kinds hold memory the garbage collector will not hurry over: an
+ * `ImageBitmap` owns pixels outside the heap, and a canvas is worth handing back
+ * to the pool rather than reallocating. Anything else — an `<img>`, a video —
+ * is not ours to release.
+ *
+ * Every kind is guarded by a `typeof` because this package runs on the main
+ * thread, in a worker, and in node, and each of those is missing a different
+ * one of them.
+ */
+export function disposeImageSource(source: CanvasImageSource | null | undefined): void {
+  if (!source) return;
+  if (isImageBitmap(source)) {
+    source.close();
+    return;
+  }
+  if (typeof OffscreenCanvas !== "undefined" && source instanceof OffscreenCanvas) {
+    releaseCanvas(source);
+    return;
+  }
+  if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) {
+    releaseCanvas(source);
+  }
+}
+
+/** Narrowing that also survives an environment with no `ImageBitmap` at all. */
+function isImageBitmap(source: CanvasImageSource): source is ImageBitmap {
+  return typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap;
 }

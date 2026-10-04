@@ -103,4 +103,3 @@ const TOKENS = [
 
 
 
-const td: React.CSSProperties = { padding: "8px 12px", borderBottom: "1px solid rgba(127,140,170,0.18)" };

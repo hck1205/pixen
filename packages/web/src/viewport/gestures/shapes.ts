@@ -1,14 +1,17 @@
 import {
   createArrowLayer,
+  distance,
   createEllipseLayer,
   createRectLayer,
   createRedactLayer,
+  createRetouchLayer,
+  isFramedLayer,
   type EditorLayer,
   type Point,
   type Rect,
 } from "@pixen/core";
 import { strokeFor } from "../../tools/index.js";
-import { DEGENERATE_RATIO } from "./constants.js";
+import { DEGENERATE_RATIO } from "./tuning.js";
 import type { GestureContext, ShapeTool } from "./types.js";
 
 /**
@@ -35,14 +38,16 @@ export function shapeLayerFor(tool: ShapeTool, origin: Point, context: GestureCo
         mode: context.style.redactionMode,
         strength: context.style.redactionStrength,
       });
+    case "retouch":
+      return createRetouchLayer(frame, { id: context.createId("retouch") });
     case "ellipse":
       return createEllipseLayer(frame, { id: context.createId("ellipse"), stroke, fill: context.style.fill });
     case "arrow":
       return createArrowLayer(origin, origin, {
         id: context.createId("line"),
         stroke,
-        arrowStart: context.style.arrowStart,
-        arrowEnd: context.style.arrowEnd,
+        startStyle: context.style.startStyle,
+        endStyle: context.style.endStyle,
       });
   }
 }
@@ -73,14 +78,11 @@ export function frameFrom(origin: Point, point: Point, square: boolean): Rect {
 /** True for the zero-sized layer a tap with a shape tool leaves behind. */
 export function isDegenerate(layer: EditorLayer, imageLongestEdge: number): boolean {
   const minimum = imageLongestEdge * DEGENERATE_RATIO;
+  if (isFramedLayer(layer)) return layer.frame.width < minimum && layer.frame.height < minimum;
+
   switch (layer.type) {
-    case "rect":
-    case "ellipse":
-    case "redact":
-    case "image":
-      return layer.frame.width < minimum && layer.frame.height < minimum;
     case "line":
-      return Math.hypot(layer.to.x - layer.from.x, layer.to.y - layer.from.y) < minimum;
+      return distance(layer.from, layer.to) < minimum;
     case "path":
       return layer.points.length < 2;
     default:
@@ -94,4 +96,5 @@ export const SHAPE_TOOLS: Readonly<Record<string, ShapeTool>> = {
   ellipse: "ellipse",
   arrow: "arrow",
   redact: "redact",
+  retouch: "retouch",
 };

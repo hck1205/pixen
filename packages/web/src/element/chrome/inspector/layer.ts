@@ -1,6 +1,6 @@
 import { normaliseAngle, toDegrees, toRadians, type EditorLayer } from "@pixen/core";
 import { button, divider, field, input } from "../../dom/index.js";
-import { OPACITY_RANGE, ROTATION_RANGE } from "../../constants.js";
+import { OPACITY_RANGE, ROTATION_RANGE } from "../../sliders.js";
 import type { ChromeContext } from "../context.js";
 import { buildStyleControls } from "./style.js";
 

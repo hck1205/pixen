@@ -6,7 +6,7 @@ import {
   type RedactLayer,
 } from "@pixen/core";
 import type { PixenStrings } from "../../../i18n/index.js";
-import { button } from "../../dom/index.js";
+import { textButton } from "../../dom/index.js";
 import type { ChromeContext } from "../context.js";
 import { transactedSlider } from "./slider.js";
 import { styleWriter } from "./style-writer.js";
@@ -15,13 +15,16 @@ import { styleWriter } from "./style-writer.js";
  * How a redaction hides its region.
  *
  * The modes are offered in order of how much they actually guarantee: `solid`
- * removes the pixels, while `blur` and `pixelate` only obscure them. The wording
- * in the UI stays plain for the same reason — see docs/SECURITY.md.
+ * removes the pixels; `blur` only softens them and can be partly undone;
+ * `pixelate` averages each block away but leaves the arrangement; `scramble`
+ * takes the arrangement too. The wording in the UI stays plain for the same
+ * reason — see docs/SECURITY.md.
  */
 const MODE_STRING_KEYS = {
   solid: "redactSolid",
   blur: "redactBlur",
   pixelate: "redactPixelate",
+  scramble: "redactScramble",
 } as const satisfies Record<RedactionMode, keyof PixenStrings>;
 
 /** Strength is a fraction of the longest edge, so the step is small. */
@@ -37,10 +40,8 @@ export function buildRedactionControls(context: ChromeContext, selected: RedactL
 
   const nodes: Node[] = REDACTION_MODES.map((candidate) => {
     const label = strings[MODE_STRING_KEYS[candidate]];
-    return button({
-      label,
+    return textButton({
       text: label,
-      className: "text",
       active: mode === candidate,
       onClick: () => apply({ redactionMode: candidate }, { mode: candidate }),
     });

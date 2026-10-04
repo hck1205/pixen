@@ -67,17 +67,6 @@ export function meanScale(m: Matrix): number {
   return (sx + sy) / 2;
 }
 
-export function matrixEquals(a: Matrix, b: Matrix, epsilon = 1e-9): boolean {
-  return (
-    Math.abs(a.a - b.a) <= epsilon &&
-    Math.abs(a.b - b.b) <= epsilon &&
-    Math.abs(a.c - b.c) <= epsilon &&
-    Math.abs(a.d - b.d) <= epsilon &&
-    Math.abs(a.e - b.e) <= epsilon &&
-    Math.abs(a.f - b.f) <= epsilon
-  );
-}
-
 /** Serializes to the argument order of `CanvasRenderingContext2D.setTransform`. */
 export function toArray(m: Matrix): [number, number, number, number, number, number] {
   return [m.a, m.b, m.c, m.d, m.e, m.f];

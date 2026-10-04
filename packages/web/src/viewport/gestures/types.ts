@@ -1,4 +1,4 @@
-import type { CropHandle, EditorLayer, Intent, LayerHandle, Matrix, Point, Rect } from "@pixen/core";
+import type { CropHandle, EditorLayer, Intent, LayerHandle, Matrix, Point, Rect, TextMeasurer } from "@pixen/core";
 import type { AnnotationStyle, ToolId } from "../../tools/index.js";
 
 /**
@@ -8,7 +8,7 @@ import type { AnnotationStyle, ToolId } from "../../tools/index.js";
  * State and effects are data, which is what lets every path a drag can take be
  * reachable from a unit test with plain objects.
  */
-export type ShapeTool = "rect" | "ellipse" | "arrow" | "redact";
+export type ShapeTool = "rect" | "ellipse" | "arrow" | "redact" | "retouch";
 
 export type GestureState =
   | { kind: "idle" }
@@ -31,9 +31,8 @@ export interface PointerSample {
 
 export interface GestureContext {
   tool: ToolId;
-  /** Crop rect and stage bounds, both in stage space. */
+  /** The crop rect, in stage space. */
   crop: Rect;
-  stage: Rect;
   layers: readonly EditorLayer[];
   /** The layer wearing the handles, if any. */
   selectedId?: string | null;
@@ -42,6 +41,8 @@ export interface GestureContext {
   /** image space -> stage space. */
   stageFromImage: Matrix;
   imageLongestEdge: number;
+  /** How a caption is measured, so a text layer's box fits its own letters. */
+  measure: TextMeasurer;
   style: AnnotationStyle;
   minCropSize?: number;
   /** Injected so tests get stable layer ids. */
@@ -51,7 +52,6 @@ export interface GestureContext {
 export type GestureEffect =
   | { kind: "intent"; intent: Intent }
   | { kind: "view-pan"; delta: Point }
-  | { kind: "view-zoom"; factor: number; anchor: Point }
   | { kind: "select-tool"; tool: ToolId }
   | { kind: "focus-text"; layerId: string };
 

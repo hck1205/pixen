@@ -1,61 +1,63 @@
-import { PixenError, toPixenError, type PixenErrorCode } from "../errors/index.js";
-import { chainAbort } from "../util/abort.js";
-import * as commands from "./commands.js";
+import { PixenError } from "../errors/index.js";
+import { blankPicture, type BlankSheet } from "../image/index.js";
+import * as commands from "./commands/index.js";
 import type { CropHandle } from "../geometry/crop.js";
 import { straightenAngleOf } from "../geometry/straighten.js";
 import type { Point, Rect, Size } from "../geometry/types.js";
-import type { ResizeIntent } from "../image/resize.js";
+import type { CanvasSurface } from "../image/canvas.js";
+import type { ResizeIntent } from "../image/resize/plan.js";
 import type { DecodeOptions, ImageInput } from "../image/decode.js";
 import { cloneDocument, createDocument, effectiveCrop, outputSize, stageRect, stageSize } from "../model/document.js";
-import { deserializeDocument, serializeDocument } from "../model/serialize.js";
+import { estimateTextWidth, type TextMeasurer } from "../model/text-layout.js";
+
+import { serializeDocument } from "../model/serialize.js";
 import type {
   Adjustments,
   EditorDocument,
   EditorLayer,
   FrameSettings,
   ImageFormat,
+  LayerSpace,
   OutputSettings,
 } from "../model/types.js";
 import { DEFAULT_PREVIEW_MAX_SIZE, ResourceManager, type ImageResource } from "../resources/manager.js";
-import { exportDocument, type ExportOptions, type ExportResult } from "../export/pipeline.js";
-import { exportVariants, type ExportVariant, type VariantSpec } from "../export/variants.js";
+import { sourceFromResource } from "../resources/source.js";
+import type { ExportOptions, ExportResult } from "../export/options.js";
+import type { PictureOptions } from "../export/render.js";
+import type { ShapeProcessor } from "../render/preprocess.js";
+import type { MaskOptions } from "../export/mask.js";
+import type { UploadResponse, UploadTarget } from "../export/upload.js";
+import type { ExportVariant, VariantSpec } from "../export/variants.js";
+import { EditorOutputs } from "./outputs.js";
 import {
+  createStickerLayer,
   createTextWatermarkLayer,
   createWatermarkLayer,
-  stickerFrame,
+  type StickerOptions,
   type TextWatermarkOptions,
   type WatermarkOptions,
-} from "../export/watermark.js";
-import { invert } from "../geometry/matrix.js";
-import { transformBounds } from "../geometry/rect.js";
-import { imageToStage } from "../geometry/spaces.js";
-import { createImageLayer, findLayer } from "../model/layers.js";
+} from "../export/placement.js";
+import { findLayer } from "../model/layers.js";
 import { Emitter, type Unsubscribe } from "../util/emitter.js";
-import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary } from "./history.js";
+import { DEFAULT_HISTORY_LIMIT, summarise, type HistorySummary, type StepLabel } from "./history.js";
 import {
   createSession,
   reduce,
   type Intent,
-  type SessionEvent,
+  type SessionOutcome,
   type SessionState,
 } from "./session/index.js";
-
-export interface EditorEvents {
-  load: { document: EditorDocument; resource: ImageResource };
-  change: { document: EditorDocument; reason: string; transient: boolean };
-  history: HistorySummary;
-  selection: { id: string | null };
-  error: PixenError;
-  /** The image was closed; the editor is back to holding nothing. */
-  close: void;
-  destroy: void;
-}
+import { TaskRunner, tracked } from "./tasks/index.js";
+import { editorEmissions, type EditorEvents } from "./events.js";
+import { missingResource, planRestore, repointSource } from "./restore.js";
 
 export interface EditorOptions {
   /** Share a manager to reuse decoded bitmaps across editors. */
   resources?: ResourceManager;
   historyLimit?: number;
   previewMaxSize?: number;
+  /** The initial `measureText`; see the field. */
+  measureText?: TextMeasurer;
 }
 
 export interface MutateOptions {
@@ -65,32 +67,100 @@ export interface MutateOptions {
   silent?: boolean;
 }
 
+/** However an export is asked for, it fails as the same thing. */
+/** What a sheet started from nothing is called, until a host renames it. */
+const BLANK_NAME = "blank.png";
+
+const EXPORT_FAILURE = { code: "EXPORT_FAILED", message: "The image could not be exported" } as const;
+
 /**
  * The imperative shell around a pure session.
  *
  * This class holds three things a pure function cannot: the current state, the
  * subscribers, and the decoded bitmaps. Every decision it appears to make is
  * delegated to `session.reduce`, so the interesting behaviour is unit-testable
- * without constructing an editor at all — see `engine/session.ts`.
+ * without constructing an editor at all — see `engine/session/`.
  */
 export class Editor {
   readonly resources: ResourceManager;
+  /**
+   * Rules the host applies to each shape on its way to being drawn, in order.
+   *
+   * A list rather than one function, because narrow rules compose and a single
+   * one has to recognise everything. See `preprocessLayers`; pushing to it
+   * takes effect on the next render, and the stored document never changes.
+   */
+  readonly shapeProcessors: ShapeProcessor[] = [];
   readonly #emitter = new Emitter<EditorEvents>();
+  /**
+   * Announces a failure and hands it back to be thrown.
+   *
+   * Every async entry point owes the host the same two things when something
+   * goes wrong: an error on the event channel, for the interface that is
+   * listening, and a rejection, for the caller that is awaiting. Returning the
+   * error rather than throwing it keeps `throw this.#fail(...)` readable at the
+   * call site and makes it the same helper the task runners report through.
+   */
+  readonly #fail = (error: PixenError): PixenError => {
+    this.#emitter.emit("error", error);
+    return error;
+  };
   readonly #historyLimit: number;
   #session: SessionState | null = null;
   #ownsResources: boolean;
   #destroyed = false;
-  /** In-flight work, so a host can call it off. See `cancelLoad`/`cancelExport`. */
-  #loading: AbortController | null = null;
-  #exporting: AbortController | null = null;
+
+  /**
+   * The two long-running tasks, each owning its own cancellation and progress.
+   *
+   * See `TaskRunner`: the editor says what a load or an export *is*, and the
+   * runner says what happens around one.
+   */
+  readonly #loadTask = new TaskRunner<{ replace: boolean }>("load", {
+    start: (detail) => this.#emitter.emit("load-start", detail),
+    progress: (report) => this.#emitter.emit("load-progress", report),
+    abort: (reason) => this.#emitter.emit("load-abort", { reason }),
+    fail: this.#fail,
+  });
+  readonly #exportTask = new TaskRunner<{ format: ImageFormat }>("export", {
+    start: (detail) => this.#emitter.emit("export-start", detail),
+    progress: (report) => this.#emitter.emit("export-progress", report),
+    abort: (reason) => this.#emitter.emit("export-abort", { reason }),
+    fail: this.#fail,
+  });
+
+  /**
+   * How a caption is measured, for everything that needs its box.
+   *
+   * The estimate until a host with a canvas replaces it — a single width ratio
+   * is wrong for every particular string in a proportional font. The viewport
+   * sets it from the context the renderer draws with, so the box a text layer
+   * resizes and turns about is the box its letters occupy.
+   */
+  measureText: TextMeasurer = estimateTextWidth;
 
   constructor(options: EditorOptions = {}) {
+    if (options.measureText) this.measureText = options.measureText;
     this.resources =
       options.resources ??
       new ResourceManager({ previewMaxSize: options.previewMaxSize ?? DEFAULT_PREVIEW_MAX_SIZE });
     this.#ownsResources = !options.resources;
     this.#historyLimit = options.historyLimit ?? DEFAULT_HISTORY_LIMIT;
+    // After `resources`, which it holds: every way a picture leaves the editor
+    // needs the same three things, and this is where they finally exist.
+    this.#outputs = new EditorOutputs({
+      document: () => this.document,
+      resources: this.resources,
+      processors: () => this.shapeProcessors,
+      task: this.#exportTask as unknown as TaskRunner<{ format: string }>,
+      exported: (result) => this.#emitter.emit("export", result),
+      failure: EXPORT_FAILURE,
+      assertAlive: () => this.#assertAlive(),
+    });
   }
+
+  /** Every way a picture leaves the editor. See `EditorOutputs`. */
+  readonly #outputs: EditorOutputs;
 
   // --- state ---------------------------------------------------------------
 
@@ -166,25 +236,6 @@ export class Editor {
     return this.#emitter.on(event, listener);
   }
 
-  /**
-   * Runs asynchronous work, and makes any failure of it an editor error.
-   *
-   * Every async entry point owes the host the same two things when something
-   * goes wrong: an error on the event channel, for the interface that is
-   * listening, and a rejection, for the caller that is awaiting. Five of them
-   * had their own copy of that pair, which is five chances to announce a
-   * failure to only half the audience.
-   */
-  async #attempt<T>(code: PixenErrorCode, message: string, work: () => Promise<T>): Promise<T> {
-    try {
-      return await work();
-    } catch (cause) {
-      const error = toPixenError(cause, code, message);
-      this.#emitter.emit("error", error);
-      throw error;
-    }
-  }
-
   // --- loading -------------------------------------------------------------
 
   /**
@@ -196,26 +247,46 @@ export class Editor {
    */
   async load(input: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     this.#assertAlive();
-    this.#loading?.abort();
-    const attempt = chainAbort(options.signal);
-    this.#loading = attempt;
-
-    try {
-      return await this.#attempt("INVALID_IMAGE", "The image could not be loaded", async () => {
-        const resource = await this.resources.load(input, { ...options, signal: attempt.signal });
+    return this.#loadTask.run(
+      { replace: false },
+      { signal: options.signal, code: "INVALID_IMAGE", message: "The image could not be loaded" },
+      async (attempt) => {
+        const resource = await this.resources.load(input, tracked(options, attempt));
         return this.open(resource);
-      });
-    } finally {
-      if (this.#loading === attempt) this.#loading = null;
-    }
+      },
+    );
+  }
+
+  /**
+   * Starts a document on an empty sheet.
+   *
+   * A poster, a diagram, a caption card, a screenshot annotated onto nothing —
+   * all of them begin without a photograph, and every document points at a
+   * registered bitmap. So the sheet is made and registered like any other
+   * picture, which means every tool, the export and a saved document all work
+   * on it without knowing it started empty.
+   *
+   * Transparent unless a colour is given, which is what "blank" means in a
+   * format that can carry it.
+   */
+  createBlank(sheet: BlankSheet): EditorDocument {
+    this.#assertAlive();
+    // Adopted rather than loaded: the sheet is already pixels, so there is
+    // nothing to decode and no reason to make the caller wait for a promise.
+    const surface = blankPicture(sheet, sheet);
+    const resource = this.resources.adopt({
+      source: surface.canvas,
+      width: surface.canvas.width,
+      height: surface.canvas.height,
+      mimeType: "image/png",
+      name: sheet.name ?? BLANK_NAME,
+    });
+    return this.open(resource);
   }
 
   /** Calls off a load in flight. True when there was one. */
   cancelLoad(): boolean {
-    if (!this.#loading) return false;
-    this.#loading.abort();
-    this.#loading = null;
-    return true;
+    return this.#loadTask.cancel();
   }
 
   /**
@@ -230,27 +301,24 @@ export class Editor {
     this.#assertAlive();
     const previous = this.session.document.source.resourceId;
 
-    return this.#attempt("INVALID_IMAGE", "The image could not be replaced", async () => {
-      const resource = await this.resources.load(input, options);
-      this.dispatch({
-        kind: "transform",
-        reason: "replace-source",
-        label: "Replace image",
-        transform: (document) =>
-          commands.replaceSource(document, {
-            resourceId: resource.id,
-            width: resource.width,
-            height: resource.height,
-            ...(resource.name ? { name: resource.name } : {}),
-            ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-          }),
-      });
+    return this.#loadTask.run(
+      { replace: true },
+      { signal: options.signal, code: "INVALID_IMAGE", message: "The image could not be replaced" },
+      async (attempt) => {
+        const resource = await this.resources.load(input, tracked(options, attempt));
+        this.dispatch({
+          kind: "transform",
+          reason: "replace-source",
+          step: "replaceImage",
+          transform: (document) => commands.replaceSource(document, sourceFromResource(resource)),
+        });
 
-      // Released after the swap, not before: until the document points at the
-      // new bitmap, the old one is still the one being drawn.
-      if (this.document.source.resourceId !== previous) this.resources.release(previous);
-      return this.document;
-    });
+        // Released after the swap, not before: until the document points at the
+        // new bitmap, the old one is still the one being drawn.
+        if (this.document.source.resourceId !== previous) this.resources.release(previous);
+        return this.document;
+      },
+    );
   }
 
   /**
@@ -282,14 +350,7 @@ export class Editor {
    */
   open(resource: ImageResource): EditorDocument {
     this.#assertAlive();
-    const document = createDocument({
-      resourceId: resource.id,
-      width: resource.width,
-      height: resource.height,
-      ...(resource.name ? { name: resource.name } : {}),
-      ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-    });
-    return this.#start(document, resource);
+    return this.#start(createDocument(sourceFromResource(resource)), resource);
   }
 
   /**
@@ -301,34 +362,22 @@ export class Editor {
    */
   async restore(input: unknown, image?: ImageInput, options: DecodeOptions = {}): Promise<EditorDocument> {
     this.#assertAlive();
-    return this.#attempt("INVALID_DOCUMENT", "The document could not be restored", async () => {
-      const document = deserializeDocument(input);
+    // A restore that carries bytes is a load wearing a document: it decodes,
+    // it can be called off, and it ends in the same `load` event. Running it
+    // through the same task is what makes those three true without repeating
+    // the machinery that makes them true.
+    return this.#loadTask.run(
+      { replace: false },
+      { signal: options.signal, code: "INVALID_DOCUMENT", message: "The document could not be restored" },
+      async (attempt) => {
+        const plan = planRestore(input, (id) => this.resources.has(id));
+        if (plan.kind === "ready") return this.#start(plan.document, this.resources.require(plan.resourceId));
+        if (image === undefined) throw missingResource(plan.resourceId);
 
-      if (!this.resources.has(document.source.resourceId)) {
-        if (image === undefined) {
-          throw new PixenError(
-            "RESOURCE_MISSING",
-            `The document references resource "${document.source.resourceId}", which is not registered. Pass the image bytes as the second argument.`,
-            { details: { resourceId: document.source.resourceId } },
-          );
-        }
-        const resource = await this.resources.load(image, options);
-        return this.#start(
-          {
-            ...document,
-            source: {
-              ...document.source,
-              resourceId: resource.id,
-              width: resource.width,
-              height: resource.height,
-            },
-          },
-          resource,
-        );
-      }
-
-      return this.#start(document, this.resources.require(document.source.resourceId));
-    });
+        const resource = await this.resources.load(image, tracked(options, attempt));
+        return this.#start(repointSource(plan.document, resource), resource);
+      },
+    );
   }
 
   #start(document: EditorDocument, resource: ImageResource): EditorDocument {
@@ -346,15 +395,25 @@ export class Editor {
    * intent and hands it here; hosts and plugins can do the same.
    */
   dispatch(intent: Intent): this {
+    this.#dispatchFor(intent);
+    return this;
+  }
+
+  /** `dispatch`, handing back what the reducer decided. See `commitTransaction`. */
+  #dispatchFor(intent: Intent): SessionOutcome {
     this.#assertAlive();
-    const outcome = reduce(this.session, intent);
+    const outcome = reduce(this.session, intent, this.measureText);
     if (!outcome.ok) {
       this.#emitter.emit("error", outcome.error);
       throw outcome.error;
     }
     this.#session = outcome.value.state;
-    this.#emitEvents(outcome.value.events);
-    return this;
+    for (const emission of editorEmissions(outcome.value.events)) {
+      // The union is discriminated on `type`, but TypeScript cannot see that
+      // the payload still matches once the pair is packed into one value.
+      this.#emitter.emit(emission.type, emission.payload as never);
+    }
+    return outcome.value;
   }
 
   /**
@@ -365,35 +424,17 @@ export class Editor {
    * same values the interface would have produced, and gets one undo step for
    * the lot. An empty list does nothing rather than recording an empty step.
    */
-  dispatchAll(intents: readonly Intent[], label = "Apply edits"): this {
+  dispatchAll(intents: readonly Intent[], label?: string): this {
     this.#assertAlive();
     if (intents.length === 0) return this;
     if (intents.length === 1) return this.dispatch(intents[0]!);
 
-    return this.transact(label, () => {
+    // The default is a step name, which a locale can translate; a label the
+    // caller passed is theirs, and is used exactly as given. See `StepLabel`.
+    return this.transact(label ?? "applyEdits", () => {
       for (const intent of intents) this.dispatch(intent);
       return this;
     });
-  }
-
-  #emitEvents(events: readonly SessionEvent[]): void {
-    for (const event of events) {
-      switch (event.type) {
-        case "change":
-          this.#emitter.emit("change", {
-            document: event.document,
-            reason: event.reason,
-            transient: event.transient,
-          });
-          break;
-        case "history":
-          this.#emitter.emit("history", event.summary);
-          break;
-        case "selection":
-          this.#emitter.emit("selection", { id: event.id });
-          break;
-      }
-    }
   }
 
   /** Escape hatch for a command this build's intent union does not model. */
@@ -423,15 +464,21 @@ export class Editor {
    * Opens a transaction. Every change until `commitTransaction` collapses into a
    * single undo step, which is what makes a drag feel like one action.
    */
-  beginTransaction(label: string): this {
-    return this.dispatch({ kind: "begin-transaction", label });
+  beginTransaction(named: StepLabel): this {
+    return this.dispatch({ kind: "begin-transaction", label: named });
   }
 
-  /** Returns whether the gesture actually changed anything. */
+  /**
+   * Closes the gesture. Returns whether it actually changed anything.
+   *
+   * Asked of the reducer, which compares the document against the snapshot the
+   * gesture opened with. Working it out from the history depth instead — as this
+   * did — is wrong once the stack is full: a recorded step then pushes the
+   * oldest one off and the count does not move, so every gesture after the
+   * hundredth reported that nothing had happened.
+   */
   commitTransaction(): boolean {
-    const before = this.historyState.depth;
-    this.dispatch({ kind: "commit-transaction" });
-    return this.historyState.depth > before;
+    return this.#dispatchFor({ kind: "commit-transaction" }).recorded === true;
   }
 
   /** Abandons the gesture and restores the pre-transaction document. */
@@ -440,8 +487,8 @@ export class Editor {
   }
 
   /** Convenience wrapper: rolls back if the body throws. */
-  transact<T>(label: string, body: () => T): T {
-    this.beginTransaction(label);
+  transact<T>(named: StepLabel, body: () => T): T {
+    this.beginTransaction(named);
     try {
       const result = body();
       this.commitTransaction();
@@ -521,6 +568,21 @@ export class Editor {
 
   setCropRect(rect: Rect | null): this {
     return this.dispatch({ kind: "set-crop", rect });
+  }
+
+  /**
+   * Whether the crop has to stay inside the picture. See `cropWithinImage`.
+   *
+   * Turning it back on brings an overhanging crop home, so the document is
+   * never left in a state its own rule forbids.
+   */
+  setCropWithinImage(within: boolean): this {
+    return this.dispatch({ kind: "set-crop-within-image", within });
+  }
+
+  /** The host's own colour transform, applied after the adjustments. */
+  setColourMatrix(matrix: readonly number[] | null): this {
+    return this.dispatch({ kind: "set-colour-matrix", matrix });
   }
 
   setAspectRatio(aspectRatio: number | null): this {
@@ -617,7 +679,7 @@ export class Editor {
    * the resource manager — `resources.load()` puts it there.
    */
   addWatermark(options: WatermarkOptions): this {
-    return this.addLayer(createWatermarkLayer(this.document.source, options), { select: false });
+    return this.addLayer(createWatermarkLayer(this.#markFrame(options.space), options), { select: false });
   }
 
   /**
@@ -626,16 +688,8 @@ export class Editor {
    * Selected on arrival, because the next thing anyone does with a sticker is
    * move or resize it, and its handles are how.
    */
-  addSticker(options: { resourceId: string; size: Size; scale?: number; name?: string }): this {
-    const region = transformBounds(
-      invert(imageToStage(this.document.source, this.document.transform)),
-      effectiveCrop(this.document),
-    );
-    const frame = stickerFrame(region, options.size, options.scale);
-    return this.addLayer(
-      createImageLayer(options.resourceId, frame, { name: options.name ?? "sticker" }),
-      { select: true },
-    );
+  addSticker(options: StickerOptions): this {
+    return this.addLayer(createStickerLayer(this.document, options), { select: true });
   }
 
   /** Sets or clears the border drawn over the finished picture. */
@@ -645,7 +699,19 @@ export class Editor {
 
   /** A text watermark — a credit line — placed by the same arithmetic. */
   addTextWatermark(options: TextWatermarkOptions): this {
-    return this.addLayer(createTextWatermarkLayer(this.document.source, options), { select: false });
+    const frame = this.#markFrame(options.space);
+    return this.addLayer(createTextWatermarkLayer(frame, options, this.measureText), { select: false });
+  }
+
+  /**
+   * The rectangle a mark is placed inside: the picture, or the exported frame.
+   *
+   * A watermark's position and scale are fractions of the frame it belongs to,
+   * so a mark on the output has to be measured against the output — otherwise a
+   * corner mark on a heavily cropped picture lands outside it.
+   */
+  #markFrame(space: LayerSpace | undefined): Size {
+    return space === "output" ? outputSize(this.document) : this.document.source;
   }
 
   select(id: string | null): this {
@@ -655,17 +721,19 @@ export class Editor {
   // --- output --------------------------------------------------------------
 
   async export(options: ExportOptions = {}): Promise<ExportResult> {
-    this.#assertAlive();
-    const attempt = chainAbort(options.signal);
-    this.#exporting = attempt;
+    return this.#outputs.export(options);
+  }
 
-    try {
-      return await this.#attempt("EXPORT_FAILED", "The image could not be exported", () =>
-        exportDocument(this.document, this.resources, { ...options, signal: attempt.signal }),
-      );
-    } finally {
-      if (this.#exporting === attempt) this.#exporting = null;
-    }
+  /**
+   * Exports and hands the file to a server, as one task.
+   *
+   * The upload is where the time goes and the only step whose length anything
+   * declares, so it belongs inside the progress channel rather than after it:
+   * `export-progress` covers drawing, encoding and sending, and one cancel
+   * calls off whichever of them is running.
+   */
+  async exportTo(target: UploadTarget, options: ExportOptions = {}): Promise<UploadResponse> {
+    return this.#outputs.exportTo(target, options);
   }
 
   /**
@@ -675,10 +743,7 @@ export class Editor {
    * and a host that has navigated away should not have to wait for it.
    */
   cancelExport(): boolean {
-    if (!this.#exporting) return false;
-    this.#exporting.abort();
-    this.#exporting = null;
-    return true;
+    return this.#exportTask.cancel();
   }
 
   /**
@@ -688,10 +753,44 @@ export class Editor {
    * rendered — see `planVariants` — so a host can show what it is about to get.
    */
   async exportVariants(specs: readonly VariantSpec[], options: ExportOptions = {}): Promise<ExportVariant[]> {
+    return this.#outputs.variants(specs, options);
+  }
+
+  /**
+   * The edit as pixels, without encoding it. For hosts that want a texture or
+   * an encoder of their own. The caller owns the surface and releases it.
+   */
+  renderToCanvas(options: PictureOptions = {}): CanvasSurface {
+    return this.#outputs.canvas(options);
+  }
+
+  /**
+   * The edit as raw pixels, for somewhere that has no use for a container — a
+   * model's input, a WASM filter, a comparison in a test. Nothing to release:
+   * the pixels are copied out and the surface is let go.
+   */
+  renderToImageData(options: PictureOptions = {}): ImageData {
+    return this.#outputs.pixels(options);
+  }
+
+  /** The marked areas alone, for a model that works on part of a picture. */
+  renderMask(options: MaskOptions = {}): CanvasSurface {
+    return this.#outputs.mask(options);
+  }
+
+  /**
+   * Puts the host's own picture on screen, leaving the source alone.
+   *
+   * The half of a slow round trip that arrives first. An export made before
+   * the other half returns is still the picture that was loaded — which is the
+   * difference between this and `replaceSource`, and the reason both exist.
+   */
+  replacePreview(source: CanvasImageSource, size: Size): this {
     this.#assertAlive();
-    return this.#attempt("EXPORT_FAILED", "The image could not be exported", () =>
-      exportVariants(this.document, this.resources, specs, options),
-    );
+    const id = this.document.source.resourceId;
+    this.resources.replacePreview(id, source, size);
+    this.#emitter.emit("preview", { resourceId: id, host: true });
+    return this;
   }
 
   /** JSON-safe snapshot; pair it with `restore` to resume a session. */
@@ -704,6 +803,10 @@ export class Editor {
   destroy(): void {
     if (this.#destroyed) return;
     this.#destroyed = true;
+    // Both tasks, unlike `close`, which spares an export on purpose: there is
+    // no editor left for a finished export to hand its blob back to.
+    this.#loadTask.cancel();
+    this.#exportTask.cancel();
     if (this.#ownsResources) this.resources.disposeAll();
     else if (this.#session) this.resources.release(this.#session.document.source.resourceId);
     this.#session = null;

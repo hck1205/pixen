@@ -1,4 +1,15 @@
-import { zoomToFit, type Point, type Size } from "@pixen/core";
+import {
+  applyToPoint,
+  createScene,
+  invert,
+  stageToView,
+  zoomToFit,
+  type Editor,
+  type Matrix,
+  type Point,
+  type Scene,
+  type Size,
+} from "@pixen/core";
 
 /**
  * View fitting, kept pure.
@@ -24,9 +35,26 @@ export const CHROME_INSETS: ViewInsets = { top: 60, right: 60, bottom: 80, left:
  */
 export const COMPACT_INSETS: ViewInsets = { top: 52, right: 12, bottom: 132, left: 12 };
 
-/** Matches the container query in `styles.ts`; the two must stay in step. */
+/**
+ * When the editor is small enough that the chrome lies down under the picture.
+ *
+ * The stylesheet interpolates these rather than repeating them, so "the two must
+ * stay in step" is a fact rather than an instruction — which is what the old
+ * comment here asked for and could not enforce. `responsive.ts` records that its
+ * own two hand-written copies of the compact rules had already drifted apart
+ * once; these three numbers were the same hazard, unfixed.
+ */
 export const COMPACT_MAX_WIDTH = 560;
 export const COMPACT_MAX_HEIGHT = 420;
+
+/**
+ * The viewport-width fallback, for an engine with no container queries.
+ *
+ * Wider than the container breakpoint on purpose: a viewport query cannot tell
+ * how much room the editor actually has, so it errs towards the compact layout
+ * on a small screen rather than dressing a 360px editor as a desktop.
+ */
+export const COMPACT_FALLBACK_MAX_WIDTH = 640;
 
 export function isCompactViewport(viewport: Size): boolean {
   return viewport.width <= COMPACT_MAX_WIDTH || viewport.height <= COMPACT_MAX_HEIGHT;
@@ -115,6 +143,24 @@ export function insetsFromChrome(
   return best;
 }
 
+/**
+ * How much backing store a very dense display is allowed to ask for.
+ *
+ * A phone at four times CSS density would otherwise allocate sixteen times the
+ * pixels of a plain one for the same picture, which is where a large image runs
+ * out of memory on the devices least able to spare it. Two and a half is past
+ * the point where more resolution is visible and well short of that.
+ */
+const MAX_DEVICE_PIXEL_RATIO = 2.5;
+
+/** The scale to render at on this display. */
+export function renderScale(devicePixelRatio: number): number {
+  return Math.min(devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+}
+
+/** One press of the zoom buttons. */
+export const ZOOM_STEP = 1.25;
+
 export const MIN_ZOOM = 0.02;
 export const MAX_ZOOM = 12;
 
@@ -153,4 +199,52 @@ export function fitView(stage: Size, viewport: Size, insets: ViewInsets = insets
       ? { x: (insets.left - insets.right) / 2, y: (insets.top - insets.bottom) / 2 }
       : { x: 0, y: 0 },
   };
+}
+
+/**
+ * Zooming about a point, which is the arithmetic a wheel and a pinch share.
+ *
+ * The point under the cursor has to stay under the cursor: scaling about the
+ * middle of the canvas instead makes the picture slide away from the finger,
+ * which reads as the editor fighting you. So the new zoom is applied, the
+ * anchor is asked where it landed, and the pan makes up the difference.
+ *
+ * Pure, and separate from the viewport, because "does the picture stay under
+ * the pointer" is a question about numbers and was previously answerable only
+ * by opening a browser and trying it.
+ */
+export function zoomAt(stage: Size, viewport: Size, view: ViewFit, factor: number, anchor?: Point): ViewFit {
+  const zoom = clampZoom(view.zoom * factor);
+  if (zoom === view.zoom) return view;
+  if (!anchor) return { zoom, pan: view.pan };
+
+  // Where the anchor points to now, and where the same stage point would land
+  // at the new zoom with the pan unchanged.
+  const before = applyToPoint(invert(stageToView(stage, viewport, view.zoom, view.pan)), anchor);
+  const after = applyToPoint(stageToView(stage, viewport, zoom, view.pan), before);
+  return { zoom, pan: { x: view.pan.x + (anchor.x - after.x), y: view.pan.y + (anchor.y - after.y) } };
+}
+
+/**
+ * The scene the viewport draws, which is the same scene the export draws.
+ *
+ * It is spelled out here rather than inline so the resemblance is checkable:
+ * the preview proxy stands in for the source, the host's shape rules are the
+ * ones the file will get, and the region is the stage rather than the crop
+ * because the viewport shows what is outside the crop as well.
+ */
+export function viewportScene(editor: Editor, target: Size, matrix: Matrix): Scene {
+  const document = editor.document;
+  const preview = editor.resources.getPreview(document.source.resourceId);
+  return createScene(
+    document,
+    {
+      source: preview.source,
+      resolveResource: editor.resources.resolve,
+      // The same rules the export will apply, or the picture on screen is not
+      // the picture that comes out.
+      preprocess: editor.shapeProcessors,
+    },
+    { region: "stage", target, fit: "none", transform: matrix },
+  );
 }

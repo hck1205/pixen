@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADJUSTMENT_KEYS,
+  DEFAULT_FRAME,
+  ADJUSTMENT_RANGES,
   DEFAULT_ADJUSTMENTS,
   createDocument,
   deserializeDocument,
@@ -64,7 +67,9 @@ describe("serialisation", () => {
     });
     expect(restored.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
     expect(restored.layers).toEqual([]);
-    expect(restored.output.quality).toBe(0.85);
+    // A v1 document said nothing about quality, so it stays unsaid and the
+    // format answers at export time. See `resolveQuality`.
+    expect(restored.output.quality).toBeNull();
   });
 
   it("rejects a document with a broken shape and says where", () => {
@@ -134,6 +139,28 @@ describe("migrations", () => {
     expect(migrated.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
   });
 
+  it("gives a v5 document the enlargement flag, defaulting to off", () => {
+    // A v5 document exported through the panel did enlarge, so `true` would
+    // preserve what it did. `false` is chosen anyway: the two paths disagreed,
+    // only one can be right, and a stored document must mean the same thing
+    // wherever it is read.
+    const migrated = migrateDocument({
+      schemaVersion: 5,
+      source: { resourceId: "res_1", width: 10, height: 10 },
+      output: { width: 40, height: null, format: null, quality: 0.85, background: null },
+    });
+    expect(migrated.output).toMatchObject({ width: 40, upscale: false });
+  });
+
+  it("leaves a flag a document already carries", () => {
+    const migrated = migrateDocument({
+      schemaVersion: 5,
+      source: { resourceId: "res_1", width: 10, height: 10 },
+      output: { upscale: true },
+    });
+    expect(migrated.output).toMatchObject({ upscale: true });
+  });
+
   it("accepts a document already at the current version", () => {
     const migrated = migrateDocument({ schemaVersion: SCHEMA_VERSION, source: {} });
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
@@ -141,5 +168,106 @@ describe("migrations", () => {
 
   it("refuses a second migration for a version that already has one", () => {
     expect(() => registerMigration(1, (document) => document)).toThrowError(/already registered/);
+  });
+});
+
+/**
+ * `isPristine` is what disables the Reset button, so every edit has to count.
+ *
+ * Three of the nine adjustments were named here and the other six were not, so a
+ * picture with only a vignette — or only a grayscale, sepia, invert, hue or
+ * exposure — reported as untouched and left the user no way back from the
+ * chrome. The frame, the clip and a chosen output format were missing for the
+ * same reason: nothing here changed when they were added.
+ *
+ * The loop is over `ADJUSTMENT_KEYS` rather than a list of its own, so a tenth
+ * adjustment is covered the day it exists.
+ */
+/**
+ * A target larger than the picture only enlarges when it was asked to.
+ *
+ * The two paths disagreed: `resolveSize`, which the batch and variant calls
+ * use, has refused to enlarge since it was written, and `outputSize` multiplied
+ * whatever the panel typed. A stored document has to mean the same thing
+ * wherever it is read, so the refusing one won and the other grew a flag.
+ */
+describe("outputSize", () => {
+  const source = { resourceId: "res_1", width: 800, height: 600 };
+  const sized = (patch: Record<string, unknown>) => {
+    const document = createDocument(source);
+    return outputSize({ ...document, output: { ...document.output, ...patch } });
+  };
+
+  it("keeps the cropped size when nothing was asked for", () => {
+    expect(sized({})).toEqual({ width: 800, height: 600 });
+  });
+
+  it("shrinks to a smaller target, on either axis", () => {
+    expect(sized({ width: 400 })).toEqual({ width: 400, height: 300 });
+    expect(sized({ height: 300 })).toEqual({ width: 400, height: 300 });
+    expect(sized({ width: 400, height: 200 })).toEqual({ width: 400, height: 200 });
+  });
+
+  it("refuses to enlarge, which is what the batch path has always done", () => {
+    expect(sized({ width: 1600 })).toEqual({ width: 800, height: 600 });
+    expect(sized({ height: 1200 })).toEqual({ width: 800, height: 600 });
+  });
+
+  it("enlarges exactly as asked once the document says to", () => {
+    expect(sized({ width: 1600, upscale: true })).toEqual({ width: 1600, height: 1200 });
+  });
+
+  it("keeps the asked-for ratio when only one axis overshoots", () => {
+    // 1600 x 300 on an 800 x 600 source: the width overshoots by 2, so both
+    // halve. Clamping the width alone would silently change the shape.
+    expect(sized({ width: 1600, height: 300 })).toEqual({ width: 800, height: 150 });
+    // And the same when it is the height that overshoots, which is the half a
+    // one-sided check would let through.
+    expect(sized({ width: 200, height: 1200 })).toEqual({ width: 100, height: 600 });
+  });
+});
+
+describe("isPristine", () => {
+  const untouched = () => createDocument({ resourceId: "res_1", width: 800, height: 600, duration: 10 });
+
+  it("is true for a document nothing has been done to", () => {
+    expect(isPristine(untouched())).toBe(true);
+  });
+
+  it("notices every adjustment, not the three that were listed", () => {
+    for (const key of ADJUSTMENT_KEYS) {
+      const range = ADJUSTMENT_RANGES[key];
+      // Something the control could actually produce, away from neutral.
+      const value = range.neutral === range.max ? range.min : range.max;
+      const adjusted = { ...untouched(), adjustments: { ...untouched().adjustments, [key]: value } };
+      expect(isPristine(adjusted), `${key} = ${value}`).toBe(false);
+    }
+  });
+
+  it("notices the edits that are not adjustments", () => {
+    const cases: Array<[string, Partial<ReturnType<typeof untouched>>]> = [
+      ["crop", { crop: { x: 0, y: 0, width: 10, height: 10 } }],
+      ["clip", { clip: [{ start: 1, end: 2 }] }],
+      ["frame", { frame: { ...DEFAULT_FRAME } }],
+      ["aspectRatio", { aspectRatio: 1 }],
+      ["rotation", { transform: { rotation: 0.1, flipX: false, flipY: false } }],
+      ["flipX", { transform: { rotation: 0, flipX: true, flipY: false } }],
+    ];
+    for (const [name, patch] of cases) {
+      expect(isPristine({ ...untouched(), ...patch }), name).toBe(false);
+    }
+  });
+
+  it("notices the output settings a host can change", () => {
+    const output = untouched().output;
+    for (const patch of [
+      { width: 400 },
+      { height: 400 },
+      { format: "image/png" as const },
+      { background: "#000" },
+      { upscale: true },
+    ]) {
+      expect(isPristine({ ...untouched(), output: { ...output, ...patch } }), Object.keys(patch)[0]).toBe(false);
+    }
   });
 });

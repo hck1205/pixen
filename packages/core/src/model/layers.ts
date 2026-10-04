@@ -1,4 +1,6 @@
+import { boundsOf } from "../geometry/rect.js";
 import type { Point, Rect } from "../geometry/types.js";
+import { DEFAULT_RETOUCH_FEATHER } from "./defaults.js";
 import { createId } from "../util/id.js";
 import {
   DEFAULT_CORNER_RADIUS,
@@ -9,28 +11,32 @@ import {
   DEFAULT_LAYER_LOCKED,
   DEFAULT_LAYER_OPACITY,
   DEFAULT_LAYER_ROTATION,
+  DEFAULT_LAYER_SPACE,
   DEFAULT_LAYER_VISIBLE,
   DEFAULT_STROKE,
   DEFAULT_TEXT_ALIGN,
   DEFAULT_TEXT_COLOUR,
 } from "./defaults.js";
 import { REDACTION_COLOUR } from "./palette.js";
-import type {
-  EditorLayer,
-  ImageLayer,
-  RedactLayer,
-  EllipseLayer,
-  LineLayer,
-  PathLayer,
-  RectLayer,
-  Stroke,
-  TextLayer,
+import { estimateTextWidth, textBlock, type TextMeasurer } from "./text-layout.js";
+import {
+  isFramedLayer,
+  type EditorLayer,
+  type ImageLayer,
+  type RedactLayer,
+  type RetouchLayer,
+  type EllipseLayer,
+  type LineLayer,
+  type PathLayer,
+  type RectLayer,
+  type TextLayer,
 } from "./types.js";
 
 const layerDefaults = {
   visible: DEFAULT_LAYER_VISIBLE,
   locked: DEFAULT_LAYER_LOCKED,
   opacity: DEFAULT_LAYER_OPACITY,
+  space: DEFAULT_LAYER_SPACE,
   rotation: DEFAULT_LAYER_ROTATION,
 } as const;
 
@@ -69,14 +75,14 @@ export function createLineLayer(from: Point, to: Point, options: Partial<LineLay
     from,
     to,
     stroke: { ...DEFAULT_STROKE },
-    arrowStart: false,
-    arrowEnd: false,
+    startStyle: "none",
+    endStyle: "none",
     ...options,
   };
 }
 
 export function createArrowLayer(from: Point, to: Point, options: Partial<LineLayer> = {}): LineLayer {
-  return createLineLayer(from, to, { arrowEnd: true, ...options });
+  return createLineLayer(from, to, { endStyle: "arrow-solid", ...options });
 }
 
 export function createPathLayer(points: Point[], options: Partial<PathLayer> = {}): PathLayer {
@@ -163,14 +169,35 @@ export function findLayerOfType<T extends EditorLayer["type"]>(
   return layer?.type === type ? (layer as Extract<EditorLayer, { type: T }>) : null;
 }
 
-/** Image-space bounding box of a layer, ignoring its own rotation. */
-export function layerBounds(layer: EditorLayer): Rect {
+/**
+ * A spot to heal, as the ellipse inscribed in `frame`.
+ *
+ * Sized from a rectangle like the other rectangular kinds, so moving, resizing
+ * and scaling it needs no code of its own — only the drawing knows it is round.
+ */
+export function createRetouchLayer(frame: Rect, options: Partial<RetouchLayer> = {}): RetouchLayer {
+  return {
+    id: createId("retouch"),
+    type: "retouch",
+    ...layerDefaults,
+    frame,
+    feather: DEFAULT_RETOUCH_FEATHER,
+    ...options,
+  };
+}
+
+/**
+ * Image-space bounding box of a layer, ignoring its own rotation.
+ *
+ * `measure` is how a caption's width is found. Without one the estimate stands
+ * in, and a caption's box will not fit its own letters — a selection drawn from
+ * it ended up 45% narrower than the word it was around. Anything with a canvas
+ * to hand should pass one.
+ */
+export function layerBounds(layer: EditorLayer, measure: TextMeasurer = estimateTextWidth): Rect {
+  if (isFramedLayer(layer)) return layer.frame;
+
   switch (layer.type) {
-    case "rect":
-    case "ellipse":
-    case "image":
-    case "redact":
-      return layer.frame;
     case "line": {
       const x = Math.min(layer.from.x, layer.to.x);
       const y = Math.min(layer.from.y, layer.to.y);
@@ -181,35 +208,21 @@ export function layerBounds(layer: EditorLayer): Rect {
         height: Math.abs(layer.to.y - layer.from.y),
       };
     }
-    case "path": {
-      if (layer.points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-      const xs = layer.points.map((p) => p.x);
-      const ys = layer.points.map((p) => p.y);
-      const x = Math.min(...xs);
-      const y = Math.min(...ys);
-      return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
-    }
+    case "path":
+      return boundsOf(layer.points);
     case "text": {
-      // Without a measuring context this is an estimate; the renderer refines it.
-      const lines = layer.text.split("\n");
-      const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
-      return {
-        x: layer.position.x,
-        y: layer.position.y,
-        width: layer.maxWidth ?? longest * layer.fontSize * 0.55,
-        height: lines.length * layer.fontSize * 1.2,
-      };
+      const { width, height } = textBlock(layer, measure);
+      return { x: layer.position.x, y: layer.position.y, width, height };
     }
   }
 }
 
 export function translateLayer(layer: EditorLayer, dx: number, dy: number): EditorLayer {
+  if (isFramedLayer(layer)) {
+    return { ...layer, frame: { ...layer.frame, x: layer.frame.x + dx, y: layer.frame.y + dy } };
+  }
+
   switch (layer.type) {
-    case "rect":
-    case "ellipse":
-    case "image":
-    case "redact":
-      return { ...layer, frame: { ...layer.frame, x: layer.frame.x + dx, y: layer.frame.y + dy } };
     case "line":
       return {
         ...layer,

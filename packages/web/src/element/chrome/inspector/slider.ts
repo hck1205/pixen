@@ -1,6 +1,6 @@
 import type { Editor } from "@pixen/core";
 import { field, input } from "../../dom/index.js";
-import type { SliderRange } from "../../constants.js";
+import type { SliderRange } from "../../sliders.js";
 
 /**
  * A slider whose drag is one undo step.

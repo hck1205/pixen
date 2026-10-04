@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createRectLayer, createTextLayer } from "@pixen/core";
 import { inspectorSectionFor, recolourPatch } from "../src/element/chrome/inspector/index.js";
 import { normaliseAspectRatios, ratioLabel, ratiosEqual } from "../src/element/ratios.js";
-import { DEFAULT_ASPECT_RATIOS, TOOL_META } from "../src/element/constants.js";
+import { DEFAULT_ASPECT_RATIOS } from "../src/element/ratios.js";
+import { TOOL_META } from "../src/element/tool-meta.js";
 import { DEFAULT_TOOLS } from "../src/tools/index.js";
 
 describe("inspectorSectionFor", () => {

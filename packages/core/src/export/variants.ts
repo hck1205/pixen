@@ -1,9 +1,10 @@
 import type { Size } from "../geometry/types.js";
-import { resolveSize, type ResizeIntent } from "../image/resize.js";
+import { resolveSize, type ResizeIntent } from "../image/resize/plan.js";
 import type { EditorDocument, ImageFormat } from "../model/types.js";
 import { outputSize as documentOutputSize } from "../model/document.js";
 import type { ResourceManager } from "../resources/manager.js";
-import { exportDocument, type ExportOptions, type ExportResult } from "./pipeline.js";
+import type { ExportOptions, ExportResult } from "./options.js";
+import { exportDocument } from "./pipeline.js";
 
 /**
  * Exporting the same edit at several sizes.
@@ -37,10 +38,15 @@ export interface ExportVariant extends ExportResult {
 /**
  * Resolves the specs against the size the document exports at.
  *
- * Two specs that land on the same pixels in the same format are the same file,
- * so the second is dropped: asking for 800px and for "half of 1600" is one
- * variant, not two, and encoding it twice would cost a full render to produce
- * a duplicate.
+ * Two specs that produce the same file are the same file, so the second is
+ * dropped: asking for 800px and for "half of 1600" is one variant, not two, and
+ * encoding it twice would cost a full render to produce a duplicate.
+ *
+ * The same *pixels* are not the same file, which is why the quality is part of
+ * the key. A page that wants 800px WebP at 0.9 for a retina card and at 0.5 for
+ * a preview is asking for two encodes of one render, and dropping the second
+ * hands back a plan short of what was asked for — with the sizes matching, so
+ * nothing looks wrong until somebody compares the bytes.
  */
 export function planVariants(natural: Size, specs: readonly VariantSpec[]): VariantPlan[] {
   const seen = new Set<string>();
@@ -48,7 +54,7 @@ export function planVariants(natural: Size, specs: readonly VariantSpec[]): Vari
 
   for (const spec of specs) {
     const size = resolveSize(natural, spec);
-    const key = `${size.width}x${size.height}:${spec.format ?? "auto"}`;
+    const key = `${size.width}x${size.height}:${spec.format ?? "auto"}:${spec.quality ?? "auto"}`;
     if (seen.has(key)) continue;
     seen.add(key);
     plans.push({
@@ -75,10 +81,16 @@ export async function exportVariants(
 ): Promise<ExportVariant[]> {
   const plans = planVariants(documentOutputSize(document), specs);
   const variants: ExportVariant[] = [];
+  // The per-export render and encode steps are deliberately not forwarded: a
+  // bar that jumps between "file 2 of 3" and "encode attempt 1 of 5" tells the
+  // reader less than the plain count does. The count is also the only number
+  // here that is known in advance.
+  const { onProgress, ...each } = options;
 
-  for (const plan of plans) {
+  for (const [index, plan] of plans.entries()) {
+    onProgress?.({ stage: "variant", loaded: index, total: plans.length });
     const result = await exportDocument(document, resources, {
-      ...options,
+      ...each,
       width: plan.size.width,
       height: plan.size.height,
       ...(plan.format ? { format: plan.format } : {}),
@@ -86,6 +98,7 @@ export async function exportVariants(
     });
     variants.push({ ...result, label: plan.label, filename: labelledFilename(result.filename, plan.label) });
   }
+  onProgress?.({ stage: "variant", loaded: plans.length, total: plans.length });
   return variants;
 }
 

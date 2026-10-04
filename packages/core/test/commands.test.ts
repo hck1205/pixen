@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { commands, createDocument, createRectLayer, effectiveCrop, stageSize } from "@pixen/core";
 
-const QUARTER = Math.PI / 2;
-
 function landscape() {
   return createDocument({ resourceId: "res_1", width: 1000, height: 500 });
 }

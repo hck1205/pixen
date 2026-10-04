@@ -12,5 +12,7 @@ export * from "./types.js";
 export * from "./coordinates.js";
 export * from "./hit-testing.js";
 export * from "./shapes.js";
+export * from "./effects.js";
+export * from "./begin.js";
 export * from "./transitions.js";
 export * from "./pinch.js";

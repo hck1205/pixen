@@ -8,7 +8,7 @@ import {
   type AdjustmentKey,
   type AdjustmentPreset,
 } from "@pixen/core";
-import { button, divider } from "../../dom/index.js";
+import { button, divider, textButton } from "../../dom/index.js";
 import { transactedSlider } from "./slider.js";
 import type { PixenStrings } from "../../../i18n/index.js";
 import type { ChromeContext } from "../context.js";
@@ -30,6 +30,9 @@ const LABEL_KEYS = {
   sepia: "sepia",
   invert: "invert",
   vignette: "vignette",
+  gamma: "gamma",
+  temperature: "temperature",
+  tint: "tint",
 } as const satisfies Record<AdjustmentKey, keyof PixenStrings>;
 
 /** Colour adjustment: the preset row, then one slider per adjustment. */
@@ -45,10 +48,8 @@ export function buildAdjustmentControls(context: ChromeContext): Node[] {
   };
 
   const presets = ADJUSTMENT_PRESETS.map((preset) =>
-    button({
-      label: preset.label,
+    textButton({
       text: preset.label,
-      className: "text",
       active: active?.id === preset.id,
       onClick: () => applyPreset(preset),
     }),

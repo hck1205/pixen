@@ -1,20 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { en, ko } from "../src/i18n/index.js";
+import { STEP_LABELS, STEP_NAMES, type HistorySummary } from "@pixen/core";
+import { ar } from "../src/i18n/ar.js";
+import { de } from "../src/i18n/de.js";
+import { hi } from "../src/i18n/hi.js";
+// `it` is vitest's here, so Italian arrives under a name of its own.
+import { it as italian } from "../src/i18n/it.js";
+import { nb } from "../src/i18n/nb.js";
+import { nl } from "../src/i18n/nl.js";
+import { ru } from "../src/i18n/ru.js";
+import { sv } from "../src/i18n/sv.js";
+import { en } from "../src/i18n/en.js";
+import { es } from "../src/i18n/es.js";
+import { fr } from "../src/i18n/fr.js";
+import { ja } from "../src/i18n/ja.js";
+import { ko } from "../src/i18n/ko.js";
+import { pt } from "../src/i18n/pt.js";
+import { zh } from "../src/i18n/zh.js";
 import {
   isAppleShortcutPlatform,
   modifierLabel,
+  panelLabel,
   redoLabel,
+  shortcutLabel,
   sizeLabel,
+  stepLabel,
   undoLabel,
   zoomLabel,
 } from "../src/element/labels.js";
-import type { HistorySummary } from "@pixen/core";
 
 const history = (overrides: Partial<HistorySummary> = {}): HistorySummary => ({
   canUndo: false,
   canRedo: false,
   undoLabel: null,
   redoLabel: null,
+  undoStep: null,
+  redoStep: null,
   depth: 0,
   inTransaction: false,
   ...overrides,
@@ -37,7 +57,7 @@ describe("platform modifier", () => {
 
 describe("undo and redo labels", () => {
   it("shows the shortcut when there is nothing to undo", () => {
-    expect(undoLabel(en, history(), false)).toBe("Undo (CtrlZ)");
+    expect(undoLabel(en, history(), false)).toBe("Undo (Ctrl+Z)");
     expect(undoLabel(en, null, true)).toBe("Undo (⌘Z)");
   });
 
@@ -46,12 +66,12 @@ describe("undo and redo labels", () => {
   });
 
   it("ignores a stale label when the stack is empty", () => {
-    expect(undoLabel(en, history({ canUndo: false, undoLabel: "Crop" }), false)).toBe("Undo (CtrlZ)");
+    expect(undoLabel(en, history({ canUndo: false, undoLabel: "Crop" }), false)).toBe("Undo (Ctrl+Z)");
   });
 
   it("does the same for redo, with the shift modifier", () => {
     expect(redoLabel(en, history({ canRedo: true, redoLabel: "Rotate" }), true)).toBe("Redo: Rotate (⌘⇧Z)");
-    expect(redoLabel(en, history(), false)).toBe("Redo (Ctrl⇧Z)");
+    expect(redoLabel(en, history(), false)).toBe("Redo (Ctrl+⇧Z)");
   });
 
   it("follows the active locale", () => {
@@ -84,5 +104,112 @@ describe("sizeLabel", () => {
 
   it("rounds sub-pixel sizes", () => {
     expect(sizeLabel({ width: 799.6, height: 450.2 })).toBe("800 × 450");
+  });
+});
+
+/**
+ * Two spellings of the same modifier were in use: the undo button read
+ * "Undo (CtrlZ)" beside a Fit button reading "Fit (Ctrl+0)". The plus is not
+ * decoration — on Apple the symbol reads as a modifier by itself, and on
+ * Windows the word does not.
+ */
+describe("shortcutLabel", () => {
+  it("joins the Windows modifier with a plus and the Apple one without", () => {
+    expect(shortcutLabel(false, "Z")).toBe("Ctrl+Z");
+    expect(shortcutLabel(true, "Z")).toBe("⌘Z");
+  });
+
+  it("is the spelling the undo button uses, so the chrome cannot disagree with itself", () => {
+    expect(undoLabel(en, history(), false)).toContain(`(${shortcutLabel(false, "Z")})`);
+    expect(undoLabel(en, history(), true)).toContain(`(${shortcutLabel(true, "Z")})`);
+  });
+});
+
+/**
+ * The panel's own name, announced when it opens.
+ *
+ * A decision rather than a lookup: the tool panel has no name of its own and
+ * borrows the armed tool's, and a tool with no entry falls back — because the
+ * announcement is for a screen reader, and silence is the answer that helps
+ * nobody.
+ */
+describe("panelLabel", () => {
+  it("names a panel that has its own name", () => {
+    expect(panelLabel("adjust", "crop", en)).toBe(en.adjustments);
+    expect(panelLabel("layers", "crop", en)).toBe(en.layers);
+  });
+
+  it("borrows the armed tool's name for the tool panel", () => {
+    expect(panelLabel("tool", "text", en)).toBe(en.text);
+    expect(panelLabel("tool", "crop", en)).toBe(en.crop);
+  });
+
+  it("says something rather than nothing for a tool it does not know", () => {
+    expect(panelLabel("tool", "not-a-tool" as never, en)).toBe(en.crop);
+  });
+
+  it("is in the locale it was given", () => {
+    expect(panelLabel("layers", "crop", ko)).toBe(ko.layers);
+  });
+});
+
+/**
+ * The undo button was saying what it would undo in English in every language:
+ * the verb came from the locale and the step came from the engine, so Korean
+ * read "실행취소: Crop". The engine now names its steps and the locale words
+ * them, and a step a host worded itself is still shown exactly as given.
+ */
+describe("a step in the reader's language", () => {
+  it("words a named step from the locale", () => {
+    expect(stepLabel(ko, "crop", "Crop")).toBe(ko.stepCrop);
+    expect(stepLabel(ja, "deleteLayer", "Delete annotation")).toBe(ja.stepDeleteLayer);
+  });
+
+  it("leaves a label with no name exactly as it was written", () => {
+    expect(stepLabel(ko, null, "Background removal")).toBe("Background removal");
+  });
+
+  it("has nothing to say when there is nothing on the stack", () => {
+    expect(stepLabel(ko, null, null)).toBeNull();
+  });
+
+  it("puts the translated step in the button's own label", () => {
+    const summary = history({ canUndo: true, undoStep: "crop", undoLabel: "Crop" });
+    expect(undoLabel(ko, summary, false)).toBe(`${ko.undo}${ko.stepSeparator}${ko.stepCrop} (Ctrl+Z)`);
+    expect(undoLabel(en, summary, false)).toBe("Undo: Crop (Ctrl+Z)");
+  });
+
+  it("does the same for redo, on the other side of the stack", () => {
+    const summary = history({ canRedo: true, redoStep: "straighten", redoLabel: "Straighten" });
+    expect(redoLabel(ko, summary, false)).toBe(`${ko.redo}${ko.stepSeparator}${ko.stepStraighten} (Ctrl+⇧Z)`);
+    // French puts a space before a colon; the separator is a locale string.
+    expect(redoLabel(fr, history({ canRedo: true, redoStep: "crop", redoLabel: "Crop" }), false)).toBe(
+      `${fr.redo} : ${fr.stepCrop} (Ctrl+⇧Z)`,
+    );
+  });
+
+  it("covers every step the engine can name, in every locale it ships", () => {
+    // A missing key would fall back to English silently, which is the bug this
+    // whole change is about — so the coverage is the test.
+    for (const [name, strings] of Object.entries({ en, ar, de, es, fr, hi, it: italian, ja, ko, nb, nl, pt, ru, sv, zh })) {
+      for (const step of STEP_NAMES) {
+        const worded = stepLabel(strings, step, "fallback");
+        expect(worded, `${name}.${step}`).toBeTruthy();
+        expect(worded, `${name}.${step}`).not.toBe("fallback");
+      }
+    }
+  });
+
+  it("is a translation rather than a copy of the English file", () => {
+    // Most steps, not every step: a language may honestly share a word with
+    // English — Norwegian calls trimming "Trim" — and demanding that every one
+    // differ turns a correct translation into a failing test. What this
+    // catches is a file copied and not translated, which is the real mistake.
+    const SHARED_AT_MOST = 0.1;
+    for (const [name, strings] of Object.entries({ ar, de, es, fr, hi, it: italian, ja, ko, nb, nl, pt, ru, sv, zh })) {
+      const shared = STEP_NAMES.filter((step) => stepLabel(strings, step, "") === STEP_LABELS[step]).length;
+      expect(shared / STEP_NAMES.length, `${name} shares ${shared} of ${STEP_NAMES.length} steps with English`)
+        .toBeLessThanOrEqual(SHARED_AT_MOST);
+    }
   });
 });

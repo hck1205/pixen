@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { imageWorkerBody } from "../src/image/worker/body.js";
 import { isWorkerResponse, transfersFor, transfersForResponse } from "../src/image/worker/protocol.js";
 import { ImageWorker } from "../src/image/worker/client.js";
+import { worthDecodingOffThread } from "../src/image/decode.js";
+import { worthEncodingOffThread } from "../src/image/encode.js";
 
 describe("the worker protocol", () => {
   it("transfers the pixel buffer rather than copying it", () => {
@@ -69,5 +71,38 @@ describe("the worker client", () => {
     expect(await worker.decode(new Blob())).toBeNull();
     expect(await worker.encode(new ArrayBuffer(4), 1, 1, "image/jpeg", 0.8)).toBeNull();
     worker.dispose();
+  });
+});
+
+/**
+ * The two thresholds the coverage page quotes — "above 512 KB in and 1 MP out".
+ *
+ * Both were stated in prose and checked by nothing: the browser test drives
+ * `ImageWorker` directly and never goes near the decision, so flipping either
+ * comparison, or dropping it, passed every suite. A number that only appears in
+ * a sentence is a number that drifts away from the code.
+ */
+describe("what is worth moving off the main thread", () => {
+  const KILOBYTE = 1024;
+  const DECODE_THRESHOLD = 512 * KILOBYTE;
+  const ENCODE_THRESHOLD = 1_000_000;
+
+  it("decodes on the worker at the threshold and not below it", () => {
+    expect(worthDecodingOffThread(DECODE_THRESHOLD)).toBe(true);
+    expect(worthDecodingOffThread(DECODE_THRESHOLD - 1)).toBe(false);
+    // A thumbnail is never worth the round trip.
+    expect(worthDecodingOffThread(4 * KILOBYTE)).toBe(false);
+  });
+
+  it("encodes on the worker at the threshold and not below it", () => {
+    expect(worthEncodingOffThread("image/jpeg", ENCODE_THRESHOLD)).toBe(true);
+    expect(worthEncodingOffThread("image/jpeg", ENCODE_THRESHOLD - 1)).toBe(false);
+  });
+
+  it("never moves a lossless encode, however large the picture is", () => {
+    // PNG encoding is comparatively cheap, and the offload costs a full canvas
+    // read first — so for PNG the trade never pays, at any size.
+    expect(worthEncodingOffThread("image/png", 100 * ENCODE_THRESHOLD)).toBe(false);
+    expect(worthEncodingOffThread("image/webp", ENCODE_THRESHOLD)).toBe(true);
   });
 });

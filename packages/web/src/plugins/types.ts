@@ -36,7 +36,34 @@ export interface PluginContext {
    * so a control that only makes sense with a selection can say so.
    */
   addInspectorSection(section: PluginInspectorSection): () => void;
+
+  /**
+   * Registers the plugin's own translations, and hands back the reader for them.
+   *
+   * An extension shipped as a separate package has labels of its own — a trim
+   * strip has "Start" and "End" — and until this existed it had two choices:
+   * ship English to everybody, or ask the host to paste its strings into the
+   * editor's own table, where a key collision was one release away.
+   *
+   * The reader resolves against whatever locale the element is on *now*, so a
+   * plugin registered once keeps up when the locale changes. `en` is required
+   * because it is what an unlisted language falls back to, and a key with no
+   * translation reads as the key rather than as nothing.
+   */
+  addStrings(locales: PluginLocales): PluginText;
 }
+
+/** A plugin's strings for one language. Its own keys, in its own namespace. */
+export type PluginStrings = Readonly<Record<string, string>>;
+
+export interface PluginLocales {
+  /** Required: the fallback for every language the plugin does not carry. */
+  en: PluginStrings;
+  [locale: string]: PluginStrings;
+}
+
+/** Reads one of the plugin's own strings in the element's current locale. */
+export type PluginText = (key: string) => string;
 
 export interface PluginAction {
   id: string;

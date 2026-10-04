@@ -1,3 +1,4 @@
+import { longestEdge } from "../../geometry/rect.js";
 import type { Canvas2D } from "../../image/canvas.js";
 import type { DrawOp } from "../ops/index.js";
 
@@ -28,7 +29,7 @@ export function drawVignette(context: Canvas2D, op: Extract<DrawOp, { op: "vigne
   const centreY = rect.y + rect.height / 2;
   // The gradient is circular, so it is drawn on a squared-up canvas and scaled
   // back to the rect — otherwise a wide image gets an oval.
-  const radius = Math.max(rect.width, rect.height) / 2;
+  const radius = longestEdge(rect) / 2;
 
   context.save();
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -51,36 +52,3 @@ export function drawVignette(context: Canvas2D, op: Extract<DrawOp, { op: "vigne
  * `inset` is a hairline standing off the edge, which is a different look rather
  * than a different thickness.
  */
-export function drawFrame(context: Canvas2D, op: Extract<DrawOp, { op: "frame" }>): void {
-  const { rect, width, colour, style } = op;
-  if (width <= 0 || rect.width <= 0 || rect.height <= 0) return;
-
-  context.save();
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.strokeStyle = colour;
-  context.lineWidth = width;
-
-  const offset = style === "inset" ? op.inset + width / 2 : width / 2;
-  const box = {
-    x: rect.x + offset,
-    y: rect.y + offset,
-    width: Math.max(0, rect.width - offset * 2),
-    height: Math.max(0, rect.height - offset * 2),
-  };
-
-  if (box.width <= 0 || box.height <= 0) {
-    context.restore();
-    return;
-  }
-
-  context.beginPath();
-  if (style === "rounded" && typeof context.roundRect === "function") {
-    // The radius cannot exceed half the shorter side, or the corners overlap.
-    const radius = Math.min(op.radius, box.width / 2, box.height / 2);
-    context.roundRect(box.x, box.y, box.width, box.height, radius);
-  } else {
-    context.rect(box.x, box.y, box.width, box.height);
-  }
-  context.stroke();
-  context.restore();
-}

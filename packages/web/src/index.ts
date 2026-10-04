@@ -27,10 +27,15 @@ export * from "./plugins/index.js";
 export {
   availableLocales,
   directionFor,
+  en,
   registerLocale,
   resolveStrings,
   type PixenStrings,
 } from "./i18n/index.js";
+// The other eight are `@pixen/web/locale/<code>`, so a host pays for the ones
+// it ships rather than for all nine. `registerBundledLocales` is the one line
+// back to having all of them; importing it is what puts them in the bundle.
+export { registerBundledLocales } from "./i18n/bundled.js";
 export { styles as pixenStyles, icons, type IconName } from "./theme/index.js";
 
 declare global {

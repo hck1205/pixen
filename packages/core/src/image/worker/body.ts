@@ -30,9 +30,10 @@ export function imageWorkerBody(): void {
     };
 
     if (request.kind === "decode") {
-      // "none" matches the main-thread path: orientation is applied by Pixen
-      // from the EXIF it read, so letting the browser also apply it would turn
-      // the image twice.
+      // "none" matches the main-thread path, and for the same reason: whether
+      // the browser honours it is measured once by `decoderAppliesOrientation`,
+      // and both paths hand the same request to the same engine, so one answer
+      // covers them both.
       createImageBitmap(request.blob, { imageOrientation: "none" })
         .then((bitmap) => {
           (self as unknown as Worker).postMessage(

@@ -45,12 +45,23 @@ export function union(a: Rect, b: Rect): Rect {
 
 /** Axis-aligned bounding box of `r` after `m` is applied. */
 export function transformBounds(m: Matrix, r: Rect): Rect {
-  const points = corners(r).map((p) => applyToPoint(m, p));
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const minX = Math.min(...xs);
-  const minY = Math.min(...ys);
-  return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+  return boundsOf(corners(r).map((p) => applyToPoint(m, p)));
+}
+
+/**
+ * The axis-aligned box a set of points sits in.
+ *
+ * An empty set has no box, and the zero rect is the honest answer: there is
+ * nothing to bound, and every caller here treats a zero-size layer as one with
+ * nothing in it.
+ */
+export function boundsOf(points: readonly Point[]): Rect {
+  if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
 
 /**
@@ -147,6 +158,97 @@ export function constrainRect(
 
 /** Scales a size to fit inside `limit`, never scaling up. */
 export function scaleToFit(size: Size, limit: Size): Size {
-  const scale = Math.min(1, limit.width / size.width, limit.height / size.height);
-  return { width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)) };
+  const scale = Math.min(1, fitScale(size, limit, "contain"));
+  return roundedSize(size.width * scale, size.height * scale);
+}
+
+/**
+ * The largest size of this shape that fits within a pixel budget.
+ *
+ * A canvas is not refused for being wide or tall but for the pixels in it, and
+ * what a browser will actually allocate is far below what the specification
+ * allows — low enough on some phones that an ordinary photograph from the same
+ * phone does not fit. The failure is the bad part: an over-large canvas comes
+ * back blank or transparent rather than throwing, so the picture is simply
+ * wrong, and nothing says why.
+ *
+ * Scaling both axes by the square root of the ratio is what keeps the shape
+ * while actually spending the budget — a picture cut to a tenth of the pixels
+ * is not a tenth as wide.
+ *
+ * What guarantees the result is the pair of caps rather than the scaling: each
+ * axis is limited to what the budget leaves for it, so even a shape too long to
+ * fit at all comes back inside the budget rather than merely smaller. The shape
+ * is what gets given up in that case; the budget is not negotiable. Flooring on
+ * top of that keeps each axis from creeping over its share by a pixel.
+ */
+export function fitWithinPixels(size: Size, maxPixels: number): Size {
+  const width = Math.max(1, Math.round(size.width));
+  const height = Math.max(1, Math.round(size.height));
+  if (!Number.isFinite(maxPixels) || maxPixels < 1 || width * height <= maxPixels) return { width, height };
+
+  const scale = Math.sqrt(maxPixels / (width * height));
+  // Each axis is capped against what is left for it, because scaling alone is
+  // not enough at the extremes: a strip 65,535 pixels wide against a budget of
+  // one scales to 147 wide and one tall, which is 147 times over.
+  const fittedWidth = Math.max(1, Math.min(Math.floor(width * scale), Math.floor(maxPixels)));
+  return {
+    width: fittedWidth,
+    height: Math.max(1, Math.min(Math.floor(height * scale), Math.floor(maxPixels / fittedWidth))),
+  };
+}
+
+/**
+ * The longer of a size's two edges.
+ *
+ * The measure almost every fraction in the model is expressed against — a
+ * stroke width, a frame inset, a watermark's scale, a redaction's strength —
+ * so that one setting suits a thumbnail and a 6000px export alike. Eleven
+ * places wrote the `Math.max` out, several of them into a variable already
+ * called `longestEdge`.
+ */
+export function longestEdge(size: Size): number {
+  return Math.max(size.width, size.height);
+}
+
+/**
+ * A size a canvas can actually be: whole pixels, and never nothing.
+ *
+ * Seven places rounded and floored a pair of numbers by hand. A zero-width
+ * surface is not an error anyone reports — it is a blank export — so the floor
+ * matters more than the rounding does.
+ */
+export function roundedSize(width: number, height: number): Size {
+  return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
+}
+
+/**
+ * How much to scale `size` so it sits inside `box`, or covers it.
+ *
+ * The two are the same ratio with a different reducer, which is why they are one
+ * function: `contain` takes the smaller of the two axes so nothing sticks out,
+ * `cover` takes the larger so nothing is left uncovered.
+ */
+export function fitScale(size: Size, box: Size, mode: "contain" | "cover"): number {
+  const horizontal = box.width / size.width;
+  const vertical = box.height / size.height;
+  return mode === "contain" ? Math.min(horizontal, vertical) : Math.max(horizontal, vertical);
+}
+
+/**
+ * A rect snapped onto the pixels it covers, inside a surface of that size.
+ *
+ * The near edge floors and the far edge ceils, so a region with any area at all
+ * still covers at least one pixel — which is what the two things that read the
+ * canvas back, redaction and retouching, both need before asking for it.
+ */
+export function clampToPixels(rect: Rect, width: number, height: number): Rect {
+  const x = Math.max(0, Math.floor(rect.x));
+  const y = Math.max(0, Math.floor(rect.y));
+  return {
+    x,
+    y,
+    width: Math.min(Math.ceil(rect.x + rect.width), width) - x,
+    height: Math.min(Math.ceil(rect.y + rect.height), height) - y,
+  };
 }

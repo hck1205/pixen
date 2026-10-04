@@ -1,6 +1,6 @@
-import { isLossy, resolveOutputFormat, type ImageFormat } from "@pixen/core";
-import { button, field, input } from "../../dom/index.js";
-import { OUTPUT_QUALITY_RANGE } from "../../constants.js";
+import { isLossy, resolveOutputFormat, resolveQuality, type ImageFormat } from "@pixen/core";
+import { field, input, optionButton, textButton } from "../../dom/index.js";
+import { OUTPUT_QUALITY_RANGE } from "../../sliders.js";
 import type { ChromeContext } from "../context.js";
 import {
   MAX_OUTPUT_EDGE,
@@ -32,21 +32,25 @@ export function buildOutputControls(context: ChromeContext): Node[] {
   const nodes: Node[] = [
     sizeField(context, "width", strings.outputWidth, size.width),
     sizeField(context, "height", strings.outputHeight, size.height),
-    button({
-      label: strings.linkRatio,
+    textButton({
       text: strings.linkRatio,
-      className: "text",
       active: linked,
       dataset: { field: "link-ratio" },
       onClick: () => editor.setOutput(linkTogglePatch(output, size)),
     }),
-    button({
-      label: strings.sizeNatural,
+    textButton({
       text: strings.sizeNatural,
-      className: "text",
       disabled: !isResized(output),
       dataset: { field: "natural-size" },
       onClick: () => editor.setOutput(NATURAL_SIZE),
+    }),
+    // A size larger than the picture does nothing until this is on, so the
+    // control belongs next to the size fields rather than in a host's config.
+    textButton({
+      text: strings.allowUpscale,
+      active: output.upscale,
+      dataset: { field: "upscale" },
+      onClick: () => editor.setOutput({ upscale: !output.upscale }),
     }),
     ...OUTPUT_FORMATS.map((option) => formatButton(context, option, format)),
   ];
@@ -59,7 +63,10 @@ export function buildOutputControls(context: ChromeContext): Node[] {
         input({
           type: "range",
           ...OUTPUT_QUALITY_RANGE,
-          value: String(output.quality),
+          // The stored number, or what this format would be encoded at if the
+          // slider is never touched — a slider showing nothing while the
+          // exporter has an answer is the panel lying about the file.
+          value: String(resolveQuality(format, output.quality)),
           dataset: { field: "quality" },
           onInput: (value) => editor.setQuality(Number(value)),
         }),
@@ -85,10 +92,9 @@ export function buildOutputControls(context: ChromeContext): Node[] {
   // remove it would be offering something that cannot happen.
   if (!backgroundRequired(format)) {
     nodes.push(
-      button({
-        label: `${strings.background}: ${strings.backgroundNone}`,
+      optionButton({
+        group: strings.background,
         text: strings.backgroundNone,
-        className: "text",
         active: output.background === null,
         dataset: { field: "background-none" },
         onClick: () => editor.setOutput({ background: null }),
@@ -126,10 +132,9 @@ function formatButton(context: ChromeContext, option: ImageFormat | null, active
   const { strings, editor } = context;
   const chosen = editor.document.output.format;
   const label = option === null ? `${strings.formatAuto} (${formatLabel(active)})` : formatLabel(option);
-  return button({
+  return textButton({
     label,
     text: option === null ? strings.formatAuto : formatLabel(option),
-    className: "text",
     active: chosen === option,
     dataset: { field: `format-${option === null ? "auto" : formatLabel(option).toLowerCase()}` },
     onClick: () => editor.setFormat(option),

@@ -1,4 +1,7 @@
-import type { HistorySummary, Size } from "@pixen/core";
+import type { HistorySummary, Size, StepName } from "@pixen/core";
+import { PANEL_LABEL_KEYS, type PanelId } from "./panels.js";
+import { TOOL_META } from "./tool-meta.js";
+import type { ToolId } from "../tools/index.js";
 import type { PixenStrings } from "../i18n/index.js";
 
 /**
@@ -19,17 +22,43 @@ export function modifierLabel(apple: boolean): string {
   return apple ? "⌘" : "Ctrl";
 }
 
-/** "Undo (⌘Z)", or "Undo crop (⌘Z)" once there is something named to undo. */
+/**
+ * A shortcut as one string: "⌘Z", or "Ctrl+Z".
+ *
+ * The plus is not decoration and not optional — on Apple the symbol reads as a
+ * modifier by itself, and on Windows "CtrlZ" does not. Both spellings were in
+ * use, so the undo button read "Undo (CtrlZ)" beside a Fit button reading
+ * "Fit (Ctrl+0)".
+ */
+export function shortcutLabel(apple: boolean, key: string): string {
+  return apple ? `${modifierLabel(apple)}${key}` : `${modifierLabel(apple)}+${key}`;
+}
+
+/**
+ * The step at the top of the stack, in the reader's own language.
+ *
+ * The engine names its own steps and words a host's; a name is looked up here,
+ * and anything without one — a plugin's step, a host's transaction — is shown
+ * exactly as it was worded. The engine's English is the last resort, for a
+ * locale that has not been completed.
+ */
+export function stepLabel(strings: PixenStrings, step: StepName | null, label: string | null): string | null {
+  if (!step) return label;
+  const key = `step${step[0]!.toUpperCase()}${step.slice(1)}` as keyof PixenStrings;
+  return strings[key] ?? label;
+}
+
+/** "Undo (⌘Z)", or "Undo: Crop (⌘Z)" once there is something named to undo. */
 export function undoLabel(strings: PixenStrings, history: HistorySummary | null, apple: boolean): string {
-  const shortcut = `${modifierLabel(apple)}Z`;
-  const action = history?.canUndo ? history.undoLabel : null;
-  return action ? `${strings.undo}: ${action} (${shortcut})` : `${strings.undo} (${shortcut})`;
+  const shortcut = shortcutLabel(apple, "Z");
+  const action = history?.canUndo ? stepLabel(strings, history.undoStep, history.undoLabel) : null;
+  return action ? `${strings.undo}${strings.stepSeparator}${action} (${shortcut})` : `${strings.undo} (${shortcut})`;
 }
 
 export function redoLabel(strings: PixenStrings, history: HistorySummary | null, apple: boolean): string {
-  const shortcut = `${modifierLabel(apple)}⇧Z`;
-  const action = history?.canRedo ? history.redoLabel : null;
-  return action ? `${strings.redo}: ${action} (${shortcut})` : `${strings.redo} (${shortcut})`;
+  const shortcut = shortcutLabel(apple, "⇧Z");
+  const action = history?.canRedo ? stepLabel(strings, history.redoStep, history.redoLabel) : null;
+  return action ? `${strings.redo}${strings.stepSeparator}${action} (${shortcut})` : `${strings.redo} (${shortcut})`;
 }
 
 /** Zoom as a percentage, rounded the way a user reads it. */
@@ -45,3 +74,14 @@ export function sizeLabel(size: Size): string {
   return `${Math.round(size.width)} × ${Math.round(size.height)}`;
 }
 
+/**
+ * What the panel that just opened is called.
+ *
+ * A decision rather than a lookup, which is why it is here: the tool panel has
+ * no name of its own, so it borrows the armed tool's, and a tool with no entry
+ * falls back to the crop — because the announcement is for a screen reader and
+ * silence is the one answer that helps nobody.
+ */
+export function panelLabel(panel: PanelId, tool: ToolId, strings: PixenStrings): string {
+  return strings[PANEL_LABEL_KEYS[panel] ?? TOOL_META[tool]?.key ?? "crop"];
+}

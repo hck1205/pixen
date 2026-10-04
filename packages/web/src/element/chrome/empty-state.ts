@@ -1,5 +1,5 @@
 import { icons } from "../../theme/index.js";
-import { button, element, fragmentFromHTML } from "../dom/index.js";
+import { element, fragmentFromHTML, textButton } from "../dom/index.js";
 import type { ChromeContext } from "./context.js";
 
 /**
@@ -15,6 +15,6 @@ export function buildEmptyState(context: ChromeContext): Node[] {
     fragmentFromHTML(icons.image),
     element("h2", { text: strings.emptyTitle }),
     element("p", { text: strings.emptyBody }),
-    button({ label: strings.choose, text: strings.choose, className: "text", onClick: actions.chooseFile }),
+    textButton({ text: strings.choose, onClick: actions.chooseFile }),
   ];
 }

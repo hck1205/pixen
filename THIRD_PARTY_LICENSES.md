@@ -19,6 +19,7 @@ Not distributed with the packages; listed for completeness.
 | vitest | MIT | unit tests |
 | @playwright/test | Apache-2.0 | browser tests |
 | vite | MIT | playground and stories dev server and build |
+| esbuild | MIT | the single-file build for pages with no bundler |
 | @ladle/react | MIT | story browser for visual UI review |
 | react-dom | MIT | rendering the stories |
 | @types/node, @types/react | MIT | type definitions |

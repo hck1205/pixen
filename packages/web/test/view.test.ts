@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { applyToPoint, invert, stageToView } from "@pixen/core";
+import type { ViewFit } from "../src/viewport/view.js";
+import { responsive } from "../src/theme/styles/responsive.js";
 import {
+  zoomAt,
   CHROME_INSETS,
   clampZoom,
   COMPACT_INSETS,
+  COMPACT_FALLBACK_MAX_WIDTH,
   COMPACT_MAX_HEIGHT,
   insetsFromChrome,
   COMPACT_MAX_WIDTH,
@@ -169,5 +174,102 @@ describe("insetsFromChrome", () => {
       bottom: 0,
       left: 0,
     });
+  });
+});
+
+/**
+ * The compact layout is decided twice — once in CSS, which lays the chrome out,
+ * and once in `insetsFor`, which fits the picture into what the chrome leaves.
+ * They have to agree on where "compact" begins.
+ *
+ * They used to agree by hand, under a comment in each file asking the other to
+ * keep up. `responsive.ts` records that its two copies of the compact *rules*
+ * had already drifted apart once — one carried a stray duplicate block, and a
+ * class name was spelled differently in each — so the same hazard sitting in
+ * three numbers was a matter of time. The stylesheet interpolates them now, and
+ * this is the test that says so.
+ */
+describe("the compact breakpoints", () => {
+  it("are the numbers the stylesheet actually emits", () => {
+    // Moving a constant now moves the CSS with it — which is why this passes
+    // under a changed breakpoint and fails the moment one is written out by
+    // hand again. That is the coupling, stated as a test rather than a comment.
+    expect(responsive).toContain(`@container (max-width: ${COMPACT_MAX_WIDTH}px)`);
+    expect(responsive).toContain(`(max-height: ${COMPACT_MAX_HEIGHT}px)`);
+    expect(responsive).toContain(`@media (max-width: ${COMPACT_FALLBACK_MAX_WIDTH}px)`);
+  });
+
+  it("agree with the size at which the insets change", () => {
+    // One pixel either side of the boundary the CSS uses.
+    expect(isCompactViewport({ width: COMPACT_MAX_WIDTH, height: 900 })).toBe(true);
+    expect(isCompactViewport({ width: COMPACT_MAX_WIDTH + 1, height: 900 })).toBe(false);
+    expect(isCompactViewport({ width: 1200, height: COMPACT_MAX_HEIGHT })).toBe(true);
+    expect(isCompactViewport({ width: 1200, height: COMPACT_MAX_HEIGHT + 1 })).toBe(false);
+  });
+
+  it("errs towards compact on the viewport fallback, which cannot see the editor's box", () => {
+    // A container query knows how much room the editor has; a media query only
+    // knows the window, so it is set wider and dresses down sooner.
+    expect(COMPACT_FALLBACK_MAX_WIDTH).toBeGreaterThan(COMPACT_MAX_WIDTH);
+  });
+});
+
+/**
+ * Zooming about a point.
+ *
+ * The point under the cursor has to stay under the cursor: scaling about the
+ * middle of the canvas instead makes the picture slide away from the finger,
+ * which reads as the editor fighting you. It was arithmetic inside a method
+ * and could only be checked by opening a browser and trying it.
+ */
+describe("zoomAt", () => {
+  const stage = { width: 1000, height: 500 };
+  const viewport = { width: 800, height: 600 };
+  const start = { zoom: 1, pan: { x: 0, y: 0 } };
+
+  /** Where a stage point lands on screen, for the view given. */
+  const onScreen = (view: ViewFit, point: { x: number; y: number }) =>
+    applyToPoint(stageToView(stage, viewport, view.zoom, view.pan), point);
+
+  it("keeps the anchored point under the pointer", () => {
+    const anchor = { x: 200, y: 150 };
+    const before = applyToPoint(invert(stageToView(stage, viewport, start.zoom, start.pan)), anchor);
+
+    const zoomed = zoomAt(stage, viewport, start, 2, anchor);
+    const after = onScreen(zoomed, before);
+
+    expect(after.x).toBeCloseTo(anchor.x);
+    expect(after.y).toBeCloseTo(anchor.y);
+  });
+
+  it("holds it through a zoom out as well as a zoom in", () => {
+    const anchor = { x: 700, y: 100 };
+    const before = applyToPoint(invert(stageToView(stage, viewport, start.zoom, start.pan)), anchor);
+
+    const zoomed = zoomAt(stage, viewport, start, 0.5, anchor);
+    const after = onScreen(zoomed, before);
+
+    expect(after.x).toBeCloseTo(anchor.x);
+    expect(after.y).toBeCloseTo(anchor.y);
+  });
+
+  it("scales about the middle when nothing is anchored", () => {
+    // A button has no pointer to pin, so the picture stays centred.
+    const zoomed = zoomAt(stage, viewport, start, 2);
+    expect(zoomed.pan).toEqual(start.pan);
+    expect(zoomed.zoom).toBe(2);
+  });
+
+  it("hands back the same view when the zoom would not move", () => {
+    // Already at the ceiling: no pan change either, or a wheel at full zoom
+    // would walk the picture across the canvas.
+    const atLimit = zoomAt(stage, viewport, start, 1000, { x: 10, y: 10 });
+    const again = zoomAt(stage, viewport, atLimit, 1000, { x: 10, y: 10 });
+    expect(again).toBe(atLimit);
+  });
+
+  it("stays inside the zoom limits", () => {
+    expect(zoomAt(stage, viewport, start, 1e6).zoom).toBeLessThan(1e6);
+    expect(zoomAt(stage, viewport, start, 1e-6).zoom).toBeGreaterThan(0);
   });
 });
